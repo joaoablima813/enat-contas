@@ -21,8 +21,13 @@ export default async (req) => {
       let b; try { b = await req.json(); } catch { return json(400); }
       if (!b || !b.state) return json(400);
       await store.setJSON('estado', b.state);
-      if (process.env.SHEETS_WEBHOOK && b.sheets) {
-        try { await fetch(process.env.SHEETS_WEBHOOK, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ code, sheets: b.sheets }) }); } catch {}
+      if (!process.env.SHEETS_WEBHOOK) console.warn('SHEETS_WEBHOOK não definido: Google Sheets não é atualizado');
+      else if (b.sheets) {
+        try {
+          const r = await fetch(process.env.SHEETS_WEBHOOK, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ code, sheets: b.sheets }) });
+          const t = await r.text();
+          if (!r.ok || t.trim() !== 'ok') console.error('Google Sheets respondeu', r.status, t.slice(0, 200));
+        } catch (e) { console.error('Falha ao contactar Google Sheets:', e.message); }
       }
       return json(200, { ok: true });
     }

@@ -5,7 +5,7 @@ function doPost(e) {
   if (d.code !== CODE) return ContentService.createTextOutput('no');
   const ss = SpreadsheetApp.getActive();
   Object.keys(d.sheets).forEach(n => {
-    const rows = d.sheets[n], sh = ss.getSheetByName(n) || ss.insertSheet(n);
+    const rows = d.sheets[n].map(r => r.map(x => x == null ? '' : x)), sh = ss.getSheetByName(n) || ss.insertSheet(n);
     if (sh.getFilter()) sh.getFilter().remove();
     sh.clear();
     if (!rows.length) return;

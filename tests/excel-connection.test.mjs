@@ -30,8 +30,10 @@ test('installer keeps credentials outside queries and creates a portable macro-f
 });
 test('connected workbook applies ENAT styles and numeric query types to every financial sheet',()=>{
  const script=installer('https://example.org');
- assert.match(script,/wb.TableStyles.Add "ENAT"/);
- assert.equal((script.match(/lo.TableStyle = "ENAT"/g)||[]).length,5);
+ assert.match(script,/Set ts = wb.TableStyles.Add\("ENAT"\)/);
+ assert.ok(!/\.TableElements\(/.test(script)); // Windows Script Host rejects indexed TableElements calls.
+ assert.match(script,/ts.TableElements.Item\(6\)/);
+ assert.equal((script.match(/lo.TableStyle = style/g)||[]).length,5);
  assert.match(script,/RGB\(246,247,251\)/);
  assert.match(script,/RGB\(25,30,61\)/);
  assert.match(script,/RGB\(89,96,127\)/);

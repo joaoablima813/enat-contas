@@ -132,19 +132,28 @@ export default async (req) => {
   if (path === 'ler-fatura' && req.method === 'POST') {
     let b; try { b = await req.json(); } catch { return json(400); }
     const { mime, data } = b || {};
-    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(mime) || !data) return json(400);
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(mime) || typeof data !== 'string' || !data.length || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return json(400, { error: 'Envie uma foto ou um PDF válido.' });
+    if (data.length > 5_400_000) return json(413, { error: 'Ficheiro demasiado grande. Envie um PDF até 4 MB ou uma foto.' });
     try {
       // Chave e URL vêm do Netlify AI Gateway (ou de GEMINI_API_KEY, se definida).
       const ai = new GoogleGenAI({});
       const r = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: [{ role: 'user', parts: [{ text: PROMPT }, { inlineData: { mimeType: mime, data } }] }],
         config: { responseMimeType: 'application/json', temperature: 0 },
       });
-      return json(200, JSON.parse(r.text.replace(/^```(?:json)?\s*|\s*```$/g, '')));
+      const text = r.text;
+      if (!text || r.candidates?.[0]?.finishReason === 'MAX_TOKENS') return json(422, { error: 'Não foi possível ler a fatura completa. Tente um documento mais nítido ou com menos páginas.' });
+      const invoice = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
+      if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice) || !Array.isArray(invoice.items) || invoice.items.some(item => !item || typeof item !== 'object') || (!invoice.store && invoice.total == null && !invoice.items.length)) {
+        return json(422, { error: 'Não foram encontrados dados de uma fatura. Envie uma foto nítida ou o PDF original.' });
+      }
+      return json(200, invoice);
     } catch (e) {
-      console.error('ler-fatura', e);
-      return json(502, { error: 'falha na leitura' });
+      const status = Number(e.status || e.code);
+      console.error('ler-fatura', { status: Number.isFinite(status) ? status : undefined, type: e.name });
+      if (status === 429) return json(429, { error: 'O serviço de leitura está ocupado. Aguarde um minuto e tente novamente.' });
+      return json(502, { error: 'O serviço de leitura está temporariamente indisponível. Tente novamente dentro de instantes.' });
     }
   }
 

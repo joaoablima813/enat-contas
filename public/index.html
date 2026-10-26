@@ -286,18 +286,23 @@ function xlsx(){if(!window.XLSX){alert('Biblioteca do Excel indisponível. Verif
  XLSX.writeFile(wb,'enat-contas-'+new Date().toISOString().slice(0,10)+'.xlsx')}
 function productDetails(v,index){
  const i=v.items?.[index];if(!i)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
- const o=S.obras.find(o=>o.id===v.obra),unit=i.unit||'un';
+ const unit=i.unit||'un';
  const price=i.unit_price!=null&&Number.isFinite(Number(i.unit_price))?Number(i.unit_price):null;
  const vat=i.vat!=null&&Number.isFinite(Number(i.vat))?Number(i.vat):null;
- return`<div class="grab"></div><h3>${esc(i.name)}</h3><h2>Preço por ${unit==='m'?'metro':unit==='un'?'unidade':esc(unit)}</h2><div class="grp invoice-items">${kv('Preço sem IVA',price===null?'Não indicado':eur(price)+' / '+esc(unit),'tot')}${kv('Taxa de IVA',vat===null?'Não indicada':esc(vat)+'%')}${kv('Preço com IVA',price===null||vat===null?'Não indicado':eur(price*(1+vat/100))+' / '+esc(unit))}</div><h2>Compra associada</h2><div class="grp invoice-items">${kv('Fornecedor',esc(v.store))}${kv('Data',esc(fd(v.date)))}${kv('Obra',esc(o?.name||'Não indicada'))}${kv('Quantidade comprada',esc(i.qty??'Não indicada')+' '+esc(unit))}${kv('Categoria',esc(i.cat||'Não indicada'))}</div><button class="btn" data-a="invoice" data-id="${esc(v.id)}">${ic('fatura')}Ver fatura associada</button><button class="btn alt" data-a="close">Fechar</button>`;
+ return`<div class="grab"></div><h3>${esc(i.name)}</h3><h2>Preço por ${unit==='m'?'metro':unit==='un'?'unidade':esc(unit)}</h2><div class="grp invoice-items">${kv('Preço sem IVA',price===null?'Não indicado':eur(price)+' / '+esc(unit),'tot')}${kv('Taxa de IVA',vat===null?'Não indicada':esc(vat)+'%')}${kv('Preço com IVA',price===null||vat===null?'Não indicado':eur(price*(1+vat/100))+' / '+esc(unit))}</div><h2>Local de compra</h2><div class="grp invoice-items">${kv('Fornecedor',esc(v.store))}${kv('Data',esc(fd(v.date)))}${kv('Quantidade comprada',esc(i.qty??'Não indicada')+' '+esc(unit))}${kv('Categoria',esc(i.cat||'Não indicada'))}</div><button class="btn" data-a="invoice" data-id="${esc(v.id)}">${ic('fatura')}Ver fatura associada</button><button class="btn alt" data-a="close">Fechar</button>`;
+}
+function matchesProduct(name,query){
+ const words=norm(name).match(/[a-z0-9]+/g)||[];
+ const terms=(norm(query).match(/[a-z0-9]+/g)||[]).filter(w=>!['de','do','da','dos','das','em','e'].includes(w));
+ return terms.length>0&&terms.every(term=>words.some(word=>word.startsWith(term)));
 }
 function matRes(){
  const q=(V.q||'').trim();
  if(!q){const recent=S.inv.slice().reverse().slice(0,3);return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>`}
- const results=S.inv.slice().reverse().flatMap(v=>(v.items||[]).map((i,index)=>({v,i,index}))).filter(({v,i})=>(!V.mc||i.cat===V.mc)&&match([i.name,v.store,v.nif,v.number,(S.obras.find(o=>o.id===v.obra)||{}).name].join(' '),q));
- return results.length?`<h2>Produtos (${results.length})</h2><div class="grp invoice-items">${results.map(({v,i,index})=>`<button class="row invoice-row" data-a="product" data-id="${esc(v.id)}" data-index="${index}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(i.name)}</b><span>${esc(v.store)} · ${esc(fd(v.date))} · ${esc((S.obras.find(o=>o.id===v.obra)||{}).name||'')}</span></div><div class="rr"><b>${i.unit_price!=null&&Number.isFinite(Number(i.unit_price))?eur(Number(i.unit_price))+' / '+esc(i.unit||'un'):'Preço não indicado'}</b><span>s/ IVA · Ver produto ›</span></div></button>`).join('')}</div>`:'<div class="grp"><div class="empty">Nenhum produto encontrado para esta pesquisa.</div></div>';
+ const results=S.inv.slice().reverse().flatMap(v=>(v.items||[]).map((i,index)=>({v,i,index}))).filter(({i})=>(!V.mc||i.cat===V.mc)&&matchesProduct(i.name,q));
+ return results.length?`<h2>Produtos (${results.length})</h2><div class="grp invoice-items">${results.map(({v,i,index})=>`<button class="row invoice-row" data-a="product" data-id="${esc(v.id)}" data-index="${index}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(i.name)}</b><span>${esc(v.store)} · ${esc(fd(v.date))}</span></div><div class="rr"><b>${i.unit_price!=null&&Number.isFinite(Number(i.unit_price))?eur(Number(i.unit_price))+' / '+esc(i.unit||'un'):'Preço não indicado'}</b><span>s/ IVA · Ver produto ›</span></div></button>`).join('')}</div>`:'<div class="grp"><div class="empty">Nenhum produto encontrado para esta pesquisa.</div></div>';
 }
-function vMat(){return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Nome do produto, fornecedor ou NIF" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>`}
+function vMat(){return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Nome do material ou equipamento" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>`}
 const due=o=>{const d=new Date(o.done+'T12:00');d.setFullYear(d.getFullYear()+1);return d};
 const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.join(', ')}) na obra ${o.name}. Para manter tudo a funcionar bem e válido na garantia, quer agendar a manutenção? Enat Energias`;
 function vMan(){

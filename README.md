@@ -13,13 +13,12 @@
 Dados, fotos das faturas e sincronização ficam guardados no Netlify (Blobs). A página fica em `public/` e a função do servidor em `netlify/functions/api.mjs`.
 No telemóvel: abra o link e use "Adicionar ao ecrã principal"; o ícone é o logo da Enat.
 
-## 2. Excel sempre sincronizado (Google Sheets)
-1. Crie uma folha nova em sheets.google.com.
-2. Extensões > Apps Script: cole o conteúdo de `apps-script.gs` e troque O_SEU_CODIGO pelo seu APP_CODE.
-3. Implementar > Nova implementação > Tipo: Aplicação Web > Executar como: eu > Quem tem acesso: Qualquer pessoa. Copie o URL.
-4. No Netlify crie a variável SHEETS_WEBHOOK com esse URL e faça novo deploy.
-A folha (separadores Obras, Faturas, Materiais, Movimentos) é atualizada sozinha a cada alteração, com filtros em cada coluna (NIF, loja, valores com e sem IVA). Em Ficheiro > Transferir > Excel (.xlsx) tem a cópia em Excel.
-Sem este passo, o botão "Descarregar Excel" da app gera sempre um .xlsx com os dados atuais.
+## 2. Excel no Ambiente de Trabalho ligado à app
+No Início da app, abra **Excel ligado à app — configurar**. O guia em `/excel.html` explica a criação de um acesso de leitura e o download de um assistente para Excel 2016+ no Windows (recomendado Microsoft 365).
+
+O assistente usa a instalação local do Excel para criar `ENAT-Financas.xlsx`, com consultas Power Query ao servidor. As consultas usam autenticação Básica por HTTPS com credenciais introduzidas na janela do Excel, sem incluir a palavra-passe no assistente ou nas consultas. O servidor guarda apenas o hash do acesso, que pode ser revogado na app. A migração nova é aplicada pela plataforma durante o deploy.
+
+As tabelas atualizam ao abrir e a cada cinco minutos enquanto o Excel está aberto com internet. O ficheiro não atualiza fechado. Cada computador precisa de configurar as credenciais. Os dados locais ainda não sincronizados não são incluídos. O botão **Descarregar cópia Excel** continua disponível para obter uma cópia sem ligação.
 
 ## 3. Entrar com Face ID / Touch ID
 Na primeira abertura toque em "Ativar Face ID / Touch ID". Esse passa a ser o dispositivo principal.

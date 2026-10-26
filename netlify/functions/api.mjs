@@ -96,6 +96,10 @@ export default async (req) => {
   const path = new URL(req.url).pathname.replace(/^\/api\//, '');
   const store = getStore({ name: 'enat', consistency: 'strong' });
   const autorizado = (code && req.headers.get('x-code') === code) || valido(await segredo(store), req.headers.get('x-session'));
+  if (path.startsWith('excel/')) {
+    const { handleExcel } = await import('../lib/excel-access.mjs');
+    return handleExcel(req, path, store, autorizado);
+  }
   if (path.startsWith('auth/')) return auth(req, path, store, autorizado);
   if (!autorizado) return json(401);
 

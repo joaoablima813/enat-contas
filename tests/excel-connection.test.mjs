@@ -28,3 +28,18 @@ test('installer keeps credentials outside queries and creates a portable macro-f
  // VBScript string literals use doubled quotes. Check all lines balance.
  for(const line of script.split('\r\n'))assert.equal((line.match(/"/g)||[]).length%2,0,line);
 });
+test('connected workbook applies ENAT styles and numeric query types to every financial sheet',()=>{
+ const script=installer('https://example.org');
+ assert.match(script,/wb.TableStyles.Add "ENAT"/);
+ assert.equal((script.match(/lo.TableStyle = "ENAT"/g)||[]).length,5);
+ assert.match(script,/RGB\(246,247,251\)/);
+ assert.match(script,/RGB\(25,30,61\)/);
+ assert.match(script,/RGB\(89,96,127\)/);
+ assert.equal((script.match(/Table.TransformColumnTypes/g)||[]).length,5);
+ assert.match(script,/each _ \/ 100, type number/);
+ for(const range of ['E8:K1048576','D2:L1048576','F2:H1048576','J2:J1048576','L2:M1048576']){
+  assert.ok(script.includes(`ws.Range("${range}").NumberFormat = """€"" #,##0.00"`),range);
+ }
+ assert.match(script,/C2:C1048576/); // Status formatting also follows the detailed Obras sheet.
+ assert.match(script,/RGB\(6,95,70\)/);
+});

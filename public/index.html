@@ -74,7 +74,7 @@ nav button.on{color:var(--blue)}
 .fld label>span{color:var(--mute);flex:none;font-size:15px}
 .fld input,.fld select{border:0;background:none;text-align:right;outline:0;flex:1;min-width:0;font-size:16px}
 .fld select{direction:rtl}
-#lock{position:fixed;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}#lock.on{display:flex}#lock img{height:56px;background:#fff;border-radius:12px;padding:4px 10px;margin-bottom:22px}#lock .btn{max-width:340px}#lock p{color:var(--mute);max-width:340px;margin:0 0 6px}
+#lock{position:fixed;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}#lock.on{display:flex}#lock img{height:56px;background:#fff;border-radius:12px;padding:4px 10px;margin-bottom:22px}#lock .btn{max-width:340px}#lock p{color:var(--mute);max-width:340px;margin:0 0 6px}#lock h1{font-size:26px;margin:0 0 8px}#lock .desc{font-size:15px;line-height:1.45;margin:0 0 30px}#lock .btn+.btn{margin-top:10px}#lock .link{display:block;margin:4px auto 0}
 @media (prefers-reduced-motion:reduce){#sh{animation:none}.act i{transition:none}}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .top{max-width:520px;margin:0 auto;padding:12px 16px 0}.top img{height:38px;display:block;background:#fff;border-radius:10px;padding:2px 8px}
@@ -368,20 +368,30 @@ async function pull(){try{const r=await API('estado');if(r.status===401)return s
 const post=async(p,b,code)=>{const r=await fetch('/api/'+p,{method:'POST',headers:{'content-type':'application/json','x-session':SESS(),...(code?{'x-code':code}:{})},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'falha ('+r.status+')');return j};
 let LIGADO=false;
 function bloquear(m){sessionStorage.removeItem('enat-sess');$('#lock').classList.add('on');ecraLock(m)}
-async function ecraLock(m){const lk=$('#lk');lk.innerHTML='<p>A verificar…</p>';
+const CRED=()=>localStorage.getItem('enat-cred')||'';
+async function ecraLock(m,falhou){const lk=$('#lk');
+ const topo='<h1>Enat Contas</h1><p class="desc">A gestão financeira das obras da Enat Energias: registe faturas com uma foto ou PDF, acompanhe os custos de cada obra e mantenha tudo sincronizado com o Excel.</p>';
+ lk.innerHTML=topo+'<p>A verificar…</p>';
  let tem=true;try{tem=(await (await fetch('/api/auth/estado')).json()).temChaves}catch(e){}
- const bio=window.PublicKeyCredential?'':'<p class="neg">Este navegador não suporta Face ID / Touch ID.</p>';
- lk.innerHTML=(m?`<p class="neg">${esc(m)}</p>`:'')+bio+(tem?`<p>Entre com Face ID, Touch ID ou o desbloqueio do dispositivo.</p><button class="btn" data-l="entrar">Entrar</button><button class="link" data-l="novo">Registar este dispositivo</button>`:`<p>Configure a entrada com Face ID ou Touch ID. Este será o primeiro dispositivo com acesso.</p><button class="btn" data-l="registar">Ativar Face ID / Touch ID</button>`)}
+ const aviso=window.PublicKeyCredential?'':'<p class="neg">Este navegador não suporta Face ID / Touch ID.</p>';
+ const erro=m?`<p class="neg">${esc(m)}</p>`:'';
+ lk.innerHTML=topo+aviso+erro+(!tem
+  ?`<p>Faça login para começar. Este será o primeiro dispositivo com acesso.</p><button class="btn" data-l="registar">Ativar Face ID / Touch ID</button>`
+  :falhou
+  ?`<p>Não foi possível entrar com Face ID. Use o Touch ID ou tente de novo.</p><button class="btn" data-l="touch">Entrar com Touch ID</button><button class="btn alt" data-l="entrar">Tentar Face ID de novo</button><button class="link" data-l="novo">Ativar Face ID neste dispositivo</button>`
+  :`<p>Faça login para continuar.</p><button class="btn" data-l="entrar">Entrar com Face ID</button>`)}
 function desbloquear(t){sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(pull,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render()}
-async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});desbloquear((await post('auth/registo',{cid:o.cid,response},code)).token)}
-async function entrar(){const o=await post('auth/entrar-opcoes');const response=await SWA.startAuthentication({optionsJSON:o.options});desbloquear((await post('auth/entrar',{cid:o.cid,response})).token)}
+async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});const t=(await post('auth/registo',{cid:o.cid,response},code)).token;localStorage.setItem('enat-cred',response.id);desbloquear(t)}
+// Face ID: vai direto à chave guardada neste dispositivo. Touch ID: deixa o sistema escolher qualquer chave (outro sensor ou dispositivo).
+async function entrar(local){const o=await post('auth/entrar-opcoes',local&&CRED()?{id:CRED()}:{});const response=await SWA.startAuthentication({optionsJSON:o.options});const t=(await post('auth/entrar',{cid:o.cid,response})).token;if(response.authenticatorAttachment!=='cross-platform')localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 $('#lock').addEventListener('click',async e=>{const b=e.target.closest('[data-l]');if(!b)return;
  if(!window.SWA){ecraLock('A carregar, tente de novo dentro de um segundo.');return}
  try{const l=b.dataset.l;b.disabled=true;
-  if(l==='entrar')await entrar();
+  if(l==='entrar'){try{await entrar(true)}catch(err){return ecraLock(err.name==='NotAllowedError'?'':(err.message||'Erro'),true)}}
+  else if(l==='touch')await entrar(false);
   else if(l==='registar')await registar();
-  else if(l==='novo'){const c=SESS()?'':prompt('Para registar um novo dispositivo, indique o código de acesso (APP_CODE):');if(c===null)return ecraLock();await registar((c||'').trim())}
- }catch(err){ecraLock(err.name==='NotAllowedError'?'Operação cancelada.':(err.message||'Erro'))}});
+  else if(l==='novo'){const c=SESS()?'':prompt('Para registar um novo dispositivo, indique o código de acesso (APP_CODE):');if(c===null)return ecraLock('',true);await registar((c||'').trim())}
+ }catch(err){ecraLock(err.name==='NotAllowedError'?'Operação cancelada.':(err.message||'Erro'),b.dataset.l!=='registar')}});
 if(SESS())desbloquear(SESS());else bloquear();
 </script>
 </body>

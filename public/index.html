@@ -209,7 +209,7 @@ const SESS=()=>sessionStorage.getItem('enat-sess')||'';
 const API=(p,o={})=>fetch('/api/'+p,{...o,headers:{'x-session':SESS(),...(o.headers||{})}}).then(r=>{if(r.status===401)bloquear();return r});
 let LB,LM;
 const r2=n=>Math.round((n||0)*100)/100;
-const subirFoto=(id,b,m)=>API('foto/'+id,{method:'PUT',headers:{'content-type':m},body:b}).then(r=>{if(!r.ok)throw 0}).catch(()=>alert('A fatura foi guardada, mas a foto não foi enviada. Verifique a ligação e o código de acesso.'));
+const subirFoto=async(id,b,m)=>{const r=await API('foto/'+id,{method:'PUT',headers:{'content-type':m},body:b});if(!r.ok)throw new Error('Não foi possível guardar o anexo. Tente guardar novamente.');};
 async function verFoto(id){const v=S.inv.find(x=>x.id===id);D={kind:'view',title:v.store};sheet();
  try{const r=await API('foto/'+id);if(!r.ok)throw 0;const b=await r.blob();D.url=URL.createObjectURL(b);D.mime=b.type||v.mime;sheet()}catch(e){D=null;sheet();alert('Não consegui abrir a foto.')}}
 const invOf=t=>S.inv.find(v=>v.tx===t);
@@ -228,7 +228,7 @@ function xlsx(){if(!window.XLSX){alert('Biblioteca do Excel indisponível. Verif
 function matRes(){
  const q=V.q||'',ms=mats().filter(m=>(!V.mc||m.cat===V.mc)&&(!q||match(m.name,q)));let h='';
  if(q){
-  const fs=S.inv.filter(v=>match([v.store,v.nif,v.number,...v.items.map(i=>i.name)].join(' '),q)),lj={};
+  const fs=S.inv.filter(v=>match([v.store,v.nif,v.number,v.date,(S.obras.find(o=>o.id===v.obra)||{}).name,vtot(v).t,eur(vtot(v).t),...v.items.flatMap(i=>[i.name,i.unit_price,eur(i.unit_price),i.total,eur(i.total)])].join(' '),q)),lj={};
   S.inv.forEach(v=>{const k=norm(v.store),t=vtot(v),l=lj[k]=lj[k]||{n:v.store,nif:'',c:0,tot:0,d:''};l.c++;l.tot+=t.t;if(v.date>=l.d){l.d=v.date;l.nif=v.nif||l.nif}});
   const ls=Object.values(lj).filter(l=>match(l.n+' '+l.nif,q));
   if(ls.length)h+=`<h2>Lojas</h2><div class="grp">${ls.map(l=>`<div class="row kv" data-a="sug" data-id="${esc(l.n)}" style="cursor:pointer"><div class="rt"><b>${esc(l.n)}</b><span>${l.nif?'NIF '+esc(l.nif)+' · ':''}${l.c} fatura${l.c>1?'s':''} · última ${fd(l.d)}</span></div><div class="rr"><b>${eur(l.tot)}</b><span>total c/ IVA</span></div></div>`).join('')}</div>`;
@@ -239,14 +239,14 @@ function matRes(){
   const r=Object.values(st).sort((a,b)=>a.p-b.p);
   return`<h2 style="font-size:17px;margin:18px 4px 2px">${esc(m.name)}</h2><div class="sub" style="margin:0 4px 8px">${m.cat}</div><div class="grp">${r.map((b,i)=>`<div class="row kv"><div class="rt"><b>${esc(b.store)}</b><span>${fd(b.date)} · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.store)}" target="_blank" rel="noopener">ver no mapa</a></span></div><div class="rr"><b class="${i?'':'pos'}">${eur(b.p)}/${esc(b.unit)}</b><span>${i?'':'mais barato · '}${eur(b.pv)} c/ IVA</span></div></div>`).join('')}</div>`}).join('');
  return h||`<div class="grp"><div class="empty">${S.inv.length?'Nada encontrado.':'Ainda sem faturas. Dentro de uma obra, use Ler fatura.'}</div></div>`}
-function vMat(){return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q)}" placeholder="Material, fatura, loja ou NIF" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>`}
+function vMat(){return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q)}" placeholder="Produto, valor, fornecedor, fatura ou obra" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>`}
 const due=o=>{const d=new Date(o.done+'T12:00');d.setFullYear(d.getFullYear()+1);return d};
 const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.join(', ')}) na obra ${o.name}. Para manter tudo a funcionar bem e válido na garantia, quer agendar a manutenção? Enat Energias`;
 function vMan(){
  const l=S.obras.filter(o=>o.done&&(o.equip||[]).length).map(o=>({o,d:due(o)})).sort((a,b)=>a.d-b.d),now=new Date();
  return`<h1>Manutenção</h1><p class="note" style="margin:-6px 6px 14px">Cada obra concluída, com equipamentos indicados, fica agendada para um ano depois. Quando chegar a data, envie a mensagem ao cliente com um toque.</p><div class="grp">${l.length?l.map(({o,d})=>{const dias=Math.round((d-now)/864e5),tel=(o.phone||'').replace(/\D/g,'');return`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(o.name)}</b><span>${esc(o.client)} · ${o.equip.join(', ')}</span></div><div class="rr"><b class="${dias<=0?'neg':''}">${d.toLocaleDateString('pt-PT')}</b><span>${dias<=0?'em atraso':'daqui a '+dias+' dias'}</span></div>${tel?`<a class="btn" style="margin:8px 0 0;padding:10px;font-size:15px;text-align:center;text-decoration:none;color:#fff" target="_blank" rel="noopener" href="https://wa.me/${tel.length===9?'351'+tel:tel}?text=${encodeURIComponent(msg(o))}">Enviar mensagem por WhatsApp</a>`:'<span class="sub" style="width:100%;padding-top:6px">Falta o telemóvel do cliente. Edite a obra.</span>'}</div>`}).join(''):'<div class="empty">Nenhuma obra com data de conclusão e equipamentos. Edite uma obra para os indicar.</div>'}</div>`}
 const PROMPT='Estas imagens são páginas de UMA fatura portuguesa de um fornecedor de materiais. Devolve APENAS JSON: {"store":nome da loja,"nif":NIF do fornecedor (9 dígitos, nunca o do cliente),"date":"AAAA-MM-DD","number":"nº da fatura","totalNoVat":total sem IVA,"total":total com IVA,"items":[{"name":nome do artigo,"qty":quantidade,"unit":"un"|"m"|"kg"|"cx","unit_price":preço unitário líquido SEM IVA já com descontos (por metro se vendido a metro),"vat":taxa de IVA em %,"total_no_vat":total da linha sem IVA,"cat":uma de: '+CATS.join(' | ')+'}]}. Regras: cabos e fios são Cablagem; bombas de calor, ar condicionado, VMC, unidades e painéis são Equipamentos; tubos são Tubagem; parafusos, abraçadeiras, fita e buchas são Acessórios e fixação; o resto é Outros / consumíveis. Não inventes valores; usa null se não existir.';
-const jpg=c=>new Promise(r=>c.toBlob(r,'image/jpeg',.82));
+const jpg=c=>new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('Não foi possível preparar a foto.')),'image/jpeg',.9));
 async function toImages(f){
  if(f.type==='application/pdf'){
   if(!window.pdfjsLib)throw new Error('Leitor de PDF indisponível');
@@ -254,8 +254,8 @@ async function toImages(f){
   const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise,out=[];
   for(let n=1;n<=Math.min(pdf.numPages,4);n++){const p=await pdf.getPage(n),v=p.getViewport({scale:1.7}),c=document.createElement('canvas');c.width=v.width;c.height=v.height;await p.render({canvasContext:c.getContext('2d'),viewport:v}).promise;out.push(await jpg(c))}
   return out}
- const bm=await createImageBitmap(f),k=Math.min(1,1800/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=bm.width*k;c.height=bm.height*k;c.getContext('2d').drawImage(bm,0,0,c.width,c.height);return[await jpg(c)]}
-const b64=b=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.readAsDataURL(b)});
+ let bm;try{bm=await createImageBitmap(f)}catch{const url=URL.createObjectURL(f);try{bm=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Não foi possível abrir a foto. Escolha JPEG ou PNG.'));im.src=url})}finally{URL.revokeObjectURL(url)}}const k=Math.min(1,1800/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=bm.width*k;c.height=bm.height*k;const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(bm,0,0,c.width,c.height);bm.close?.();return[await jpg(c)]}
+const b64=b=>new Promise((resolve,reject)=>{const x=new FileReader();x.onload=()=>resolve(x.result.split(',')[1]);x.onerror=()=>reject(new Error('Não foi possível abrir o ficheiro.'));x.readAsDataURL(b)});
 async function lerFatura(f){
  let blob=f,mime=f.type||(/\.pdf$/i.test(f.name)?'application/pdf':'');
  if(mime==='application/pdf'){if(f.size>4e6)throw new Error('PDF demasiado grande (máx. 4 MB). Envie uma foto')}
@@ -264,21 +264,23 @@ async function lerFatura(f){
  if(r.status===401)throw new Error('sessão terminada, entre de novo')
  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'falha no servidor ('+r.status+')')}
  LB=blob;LM=mime;return r.json()}
-$('#file').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+$('#file').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const obra=V.scanObra;
  $('#sh').innerHTML='<div class="grab"></div><div class="empty">A ler a fatura. Pode demorar alguns segundos.</div>';$('#ov').classList.add('on');
  try{const r=await lerFatura(f);
-  const items=(r.items||[]).map(i=>({name:String(i.name||'Artigo'),qty:+i.qty||1,unit:i.unit||'un',unit_price:+i.unit_price||0,vat:Number.isFinite(+i.vat)?+i.vat:23,total:+i.total_no_vat||0,cat:CATS.includes(i.cat)?i.cat:'Outros / consumíveis'}));
+  const items=(r.items||[]).map(i=>({name:String(i.name||'Artigo'),qty:+i.qty||1,unit:i.unit||'un',unit_price:+i.unit_price||0,vat:i.vat!=null&&Number.isFinite(+i.vat)?+i.vat:23,total:i.total_no_vat!=null?+i.total_no_vat:(+i.qty||1)*(+i.unit_price||0),cat:CATS.includes(i.cat)?i.cat:'Outros / consumíveis'}));
   const b=+r.totalNoVat||items.reduce((a,i)=>a+i.total,0),t=+r.total||items.reduce((a,i)=>a+i.total*(1+i.vat/100),0);
-  D={kind:'inv',obra:V.scanObra,store:r.store||'',nif:r.nif||'',date:r.date||new Date().toISOString().slice(0,10),number:r.number||'',items,base:b,total:t,blob:LB,mime:LM};sheet();
+  D={kind:'inv',obra,store:r.store||'',nif:r.nif||'',date:r.date||new Date().toISOString().slice(0,10),number:r.number||'',items,base:b,total:t,blob:LB,mime:LM};sheet();
  }catch(err){D=null;sheet();alert('Não consegui ler a fatura: '+(err.message||err.code||'erro')+'.')}});
 
 /* ---------- folhas (formulários) ---------- */
 const opt=(l,sel)=>l.map(([v,t])=>`<option value="${v}" ${v===sel?'selected':''}>${t}</option>`).join('');
+let previewUrl;
 function sheet(){
  const sh=$('#sh'),d=D;
- if(!d){$('#ov').classList.remove('on');return}
- if(d.kind==='view'){sh.innerHTML=`<div class="grab"></div><h3>${esc(d.title)}</h3>${d.url?(d.mime==='application/pdf'?`<iframe src="${d.url}" style="width:100%;height:68vh;border:0;border-radius:12px;background:#fff"></iframe>`:`<img src="${d.url}" alt="Fatura" style="width:100%;border-radius:12px">`):'<div class="empty">A abrir a fatura…</div>'}<button class="btn alt" data-a="close">Fechar</button>`}else if(d.kind==='inv'){
-  sh.innerHTML=`<div class="grab"></div><h3>Confirmar fatura</h3><div class="fld"><label><span>Fornecedor</span><input data-k="store" value="${esc(d.store)}"></label><label><span>NIF</span><input data-k="nif" inputmode="numeric" value="${esc(d.nif)}"></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label><label><span>Total sem IVA (€)</span><input data-k="base" inputmode="decimal" value="${(+d.base).toFixed(2)}"></label><label><span>Total com IVA (€)</span><input data-k="total" inputmode="decimal" value="${(+d.total).toFixed(2)}"></label></div>
+ if(!d){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}$('#ov').classList.remove('on');return}
+ if(d.kind==='view'){sh.innerHTML=`<div class="grab"></div><h3>${esc(d.title)}</h3>${d.url?(d.mime==='application/pdf'?`<iframe src="${d.url}" style="width:100%;height:68vh;border:0;border-radius:12px;background:#fff"></iframe>`:`<img src="${d.url}" alt="Fatura" style="width:100%;border-radius:12px">`):'<div class="empty">A abrir a fatura…</div>'}${d.url?`<a class="btn alt" href="${d.url}" target="_blank" rel="noopener">Abrir anexo</a>`:''}<button class="btn alt" data-a="close">Fechar</button>`}else if(d.kind==='inv'){
+  if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(d.blob);
+  sh.innerHTML=`<div class="grab"></div><h3>Confirmar fatura</h3>${d.mime==='application/pdf'?`<a class="btn alt" href="${previewUrl}" target="_blank" rel="noopener">Abrir PDF original</a>`:`<img src="${previewUrl}" alt="Foto da fatura a guardar" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px">`}<p class="note">Obra: ${esc((S.obras.find(o=>o.id===d.obra)||{}).name)}</p><div class="fld"><label><span>N.º da fatura</span><input data-k="number" value="${esc(d.number)}"></label><label><span>Fornecedor</span><input data-k="store" value="${esc(d.store)}"></label><label><span>NIF</span><input data-k="nif" inputmode="numeric" value="${esc(d.nif)}"></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label><label><span>Total sem IVA (€)</span><input data-k="base" inputmode="decimal" value="${(+d.base).toFixed(2)}"></label><label><span>Total com IVA (€)</span><input data-k="total" inputmode="decimal" value="${(+d.total).toFixed(2)}"></label></div>
   <h2 style="margin-top:14px">Materiais (${d.items.length})</h2><div class="grp">${d.items.map((i,n)=>`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(i.name)}</b><span>${i.qty} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span></div><div class="rr"><b>${eur(i.total)}</b></div><select data-i="${n}" style="width:100%;margin-top:6px;border:0;background:var(--chip);border-radius:9px;padding:8px">${opt(CATS.map(c=>[c,c]),i.cat)}</select></div>`).join('')||'<div class="empty">Nenhum artigo lido.</div>'}</div>
   <button class="btn" data-a="saveinv">Guardar na obra</button><button class="btn alt" data-a="close">Cancelar</button>`;
  }else if(d.kind==='obra'){
@@ -301,7 +303,7 @@ function sheet(){
   <label><span>Valor${d.type==='fatura'?' c/ IVA':''} (€)</span><input data-k="total" inputmode="decimal" value="${d.total||''}" placeholder="0,00"></label>
   ${d.type==='fatura'?`<label><span>Taxa de IVA</span><select data-k="rate">${opt([[23,'23%'],[13,'13%'],[6,'6%'],[0,'Isento']],+d.rate)}</select></label>`:''}
   <label><span>Data</span><input type="date" data-k="date" value="${d.date}"></label></div>
-  ${d.id&&invOf(d.id)&&invOf(d.id).foto?`<button class="btn alt" data-a="foto" data-id="${invOf(d.id).id}">${ic('cam')}Ver foto da fatura</button>`:''}<button class="btn" data-a="savetx">Guardar movimento</button>${d.id?'<button class="btn del" data-a="deltx">Eliminar movimento</button>':''}<button class="btn alt" data-a="close">Cancelar</button>`;
+  ${!d.id&&d.type==='fatura'?`<button class="btn" data-a="scan" data-o="${d.obra||''}">${ic('cam')}Ler foto ou PDF</button>`:''}${d.id&&invOf(d.id)&&invOf(d.id).foto?`<button class="btn alt" data-a="foto" data-id="${invOf(d.id).id}">${ic('cam')}Ver foto da fatura</button>`:''}<button class="btn" data-a="savetx">Guardar movimento</button>${d.id?'<button class="btn del" data-a="deltx">Eliminar movimento</button>':''}<button class="btn alt" data-a="close">Cancelar</button>`;
  }
  $('#ov').classList.add('on');
 }
@@ -312,7 +314,8 @@ function render(){
  $('#app').innerHTML=V.obra?vObra():({home:vHome,obras:vObras,mov:vMov,iva:vIva,mat:vMat,man:vMan}[V.tab])();
  $('#nav').innerHTML=[['home','Início','home'],['obras','Obras','obras'],['mat','Pesquisa','search'],['man','Manutenção','manut'],['iva','IVA','iva']].map(([k,l,i])=>`<button class="${V.tab===k&&!V.obra||(V.obra&&k==='obras')?'on':''}" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('');
 }
-document.addEventListener('click',e=>{
+document.addEventListener('click',async e=>{
+ if(D?.saving)return;
  if(e.target.id==='ov'){D=null;sheet();return}
  const b=e.target.closest('[data-a]');if(!b)return;
  const a=b.dataset.a,id=b.dataset.id,today=new Date().toISOString().slice(0,10);
@@ -341,14 +344,31 @@ document.addEventListener('click',e=>{
  else if(a==='xlsx'){xlsx();return}
  else if(a==='sair'){bloquear();return}
  else if(a==='novodisp'){registar().then(()=>alert('Dispositivo registado.')).catch(e=>alert(e.name==='NotAllowedError'?'Operação cancelada.':(e.message||'Erro')));return}
- else if(a==='scan'){V.scanObra=b.dataset.o;$('#file').click();return}
+ else if(a==='scan'){if(!b.dataset.o){alert('Escolha uma obra primeiro.');return}V.scanObra=b.dataset.o;$('#file').click();return}
  else if(a==='sug')V.q=id;
  else if(a==='mc')V.mc=id;
  else if(a==='eq'){D.equip=D.equip||[];const i=D.equip.indexOf(id);i<0?D.equip.push(id):D.equip.splice(i,1);sheet();return}
- else if(a==='saveinv'){const bs=num(D.base),t=num(D.total);if(bs<=0||t<=0){alert('Indique os totais sem IVA e com IVA.');return}
-  const tid=uid(),st=(D.store||'').trim()||'Fornecedor';
-  S.tx.push({id:tid,obra:D.obra,type:'fatura',desc:st+(D.number?' · '+D.number:''),topic:'Geral / outros',date:D.date,total:t,base:bs,iva:t-bs,rate:Math.round((t/bs-1)*100),fx:1});
-  const iid=uid(),bl=D.blob,mm=D.mime;S.inv.push({id:iid,mime:mm,foto:bl?1:0,tx:tid,obra:D.obra,store:st,nif:D.nif,date:D.date,number:D.number,items:D.items});save();D=null;sheet();if(bl)subirFoto(iid,bl,mm)}
+ else if(a==='saveinv'){
+  if(D.saving)return;
+  const bs=num(D.base),t=num(D.total);if(bs<=0||t<=0||t<bs){alert('Confirme os totais sem IVA e com IVA.');return}
+  if(!S.obras.some(o=>o.id===D.obra)){alert('Escolha uma obra para esta fatura.');return}
+  const d=D;d.saving=true;b.disabled=true;b.textContent='A guardar fatura e anexo…';
+  try{
+   const iid=d.iid||(d.iid=uid());
+   await subirFoto(iid,d.blob,d.mime);
+   const tid=uid(),st=(d.store||'').trim()||'Fornecedor';
+   S.tx.push({id:tid,obra:d.obra,type:'fatura',desc:st+(d.number?' · '+d.number:''),topic:'Geral / outros',date:d.date,total:t,base:bs,iva:t-bs,rate:Math.round((t/bs-1)*100),fx:1});
+   S.inv.push({id:iid,mime:d.mime,foto:1,tx:tid,obra:d.obra,store:st,nif:d.nif,date:d.date,number:d.number,items:d.items});save();
+   clearTimeout(pt);
+   const r=await API('estado',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:S,sheets:tabelas()})});
+   if(!r.ok)throw new Error('O anexo foi enviado, mas falta sincronizar a fatura.');
+   D=null;sheet();
+  }catch(err){
+   const v=S.inv.find(v=>v.id===d.iid);
+   if(v){S.inv=S.inv.filter(x=>x!==v);S.tx=S.tx.filter(x=>x.id!==v.tx);save();}
+   d.saving=false;D=d;sheet();alert(err.message||'Não foi possível guardar. Tente novamente.');
+  }
+ }
  else if(a==='clear'){if(!confirm('Apagar todas as obras e movimentos?'))return;S={vat:23,obras:[],tx:[]};save()}
  render();
 });

@@ -64,7 +64,14 @@ async function auth(req, path, store, autorizado) {
       return json(200, await token());
     } catch (e) { console.error('registo', e); return json(400, { error: 'Registo falhou' }); }
   }
-  if (path === 'auth/entrar-opcoes') return json(200, await desafio(await generateAuthenticationOptions({ rpID, userVerification: 'required' })));
+  if (path === 'auth/entrar-opcoes') {
+    // Se o dispositivo indicar a sua chave, pede-a diretamente ao sensor interno (Face ID) sem mostrar a lista de contas.
+    const k = chaves.find((x) => x.id === b.id);
+    return json(200, await desafio(await generateAuthenticationOptions({
+      rpID, userVerification: 'required',
+      ...(k ? { allowCredentials: [{ id: k.id, transports: ['internal'] }] } : {}),
+    })));
+  }
   if (path === 'auth/entrar') {
     const c = await usarDesafio(b.cid);
     if (!c) return json(400, { error: 'Pedido expirado, tente de novo' });

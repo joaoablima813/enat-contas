@@ -178,13 +178,13 @@ window.addEventListener('popstate',e=>{
 function calc(o){
  const t=S.tx.filter(x=>x.obra===o.id),s=(ty,k)=>t.filter(x=>x.type===ty).reduce((a,x)=>a+x[k],0);
  const base=o.valor/(1+S.vat/100),ivaLiq=o.valor-base;
- const fb=s('fatura','base'),fi=s('fatura','iva'),ft=s('fatura','total'),de=s('despesa','total'),mo=s('mao_obra','total'),rec=s('recebimento','total');
- const custo=fb+de+mo,lucro=base-custo,pago=ft+de+mo;
- return{o,t,base,ivaLiq,fb,fi,ft,de,mo,rec,custo,lucro,pago,margem:base?lucro/base*100:0,ivaEst:ivaLiq-fi,caixa:rec-pago,porRec:o.valor-rec};
+ const fb=s('fatura','base'),fi=s('fatura','iva')+s('mao_obra','iva'),ft=s('fatura','total'),de=s('despesa','total'),mo=s('mao_obra','base'),mt=s('mao_obra','total'),mi=s('mao_obra','iva'),rec=s('recebimento','total');
+ const custo=fb+de+mo,lucro=base-custo,pago=ft+de+mt;
+ return{o,t,base,ivaLiq,fb,fi,ft,de,mo,mt,mi,rec,custo,lucro,pago,margem:base?lucro/base*100:0,ivaEst:ivaLiq-fi,caixa:rec-pago,porRec:o.valor-rec};
 }
 const all=()=>S.obras.map(calc);
-const sumC=a=>a.reduce((r,c)=>{for(const k of['base','ivaLiq','fb','fi','de','mo','rec','custo','lucro','pago','ivaEst','caixa','porRec'])r[k]=(r[k]||0)+c[k];r.valor=(r.valor||0)+c.o.valor;return r},{});
-const withBase=x=>{if(x.fx)return x;const r=x.type==='fatura'?x.rate:0;x.rate=r;x.base=x.total/(1+r/100);x.iva=x.total-x.base;return x};
+const sumC=a=>a.reduce((r,c)=>{for(const k of['base','ivaLiq','fb','fi','de','mo','mt','mi','rec','custo','lucro','pago','ivaEst','caixa','porRec'])r[k]=(r[k]||0)+c[k];r.valor=(r.valor||0)+c.o.valor;return r},{});
+const withBase=x=>{if(x.fx)return x;const r=x.type==='mao_obra'?(x.billing==='faturado'?23:0):x.type==='fatura'?x.rate:0;x.rate=r;x.base=x.total/(1+r/100);x.iva=x.total-x.base;return x};
 S.tx.forEach(withBase);
 
 /* ---------- vistas ---------- */
@@ -202,7 +202,7 @@ const acts=o=>{const labels={recebimento:'Recebimentos',fatura:'Faturas',mao_obr
  return`<div class="acts${o?' obra-acts':''}">${(o?['recebimento','fatura','mao_obra']:['recebimento','fatura','despesa','mao_obra']).map(t=>`<button class="act" data-a="${o?'seg':'newtx'}" ${o?`data-id="${sections[t]}" aria-pressed="${V.seg===sections[t]}"`:`data-t="${t}"`}><i>${ic(t)}</i>${o?labels[t]:TY[t]}</button>`).join('')}</div>`};
 const obraRow=c=>`<div class="row" data-a="open" data-id="${c.o.id}"><div class="av">${c.o.name[0]}</div><div class="rt"><b>${c.o.name}</b><span>${c.o.client} · ${STAT[c.o.status]}</span></div><div class="rr"><b>${sg(c.lucro)}</b><span>${pc(c.margem)}</span></div></div>`;
 const txRow=(x,showObra)=>{const o=S.obras.find(o=>o.id===x.obra),inn=x.type==='recebimento';
- return`<div class="row" data-a="edittx" data-id="${x.id}"><div class="av">${ic(x.type)}</div><div class="rt"><b>${x.desc||TY[x.type]}</b><span>${[showObra&&o?o.name:'',x.topic,fd(x.date)].filter(Boolean).join(' · ')}</span></div><div class="rr"><b class="${inn?'pos':''}">${inn?'+':'−'}${eur(x.total)}</b><span>${TY[x.type]}${x.type==='fatura'?` · IVA ${x.rate}%`:''}</span></div></div>`};
+ return`<div class="row" data-a="edittx" data-id="${x.id}"><div class="av">${ic(x.type)}</div><div class="rt"><b>${x.desc||TY[x.type]}</b><span>${[showObra&&o?o.name:'',x.topic,fd(x.date)].filter(Boolean).join(' · ')}</span></div><div class="rr"><b class="${inn?'pos':''}">${inn?'+':'−'}${eur(x.total)}</b><span>${TY[x.type]}${x.type==='fatura'?` · IVA ${x.rate}%`:x.type==='mao_obra'?` · ${x.billing==='faturado'?'Faturado · IVA 23%':'Não faturado · Sem IVA'}`:''}</span></div></div>`};
 const kv=(l,v,cls='')=>`<div class="row kv ${cls}"><div class="rt">${l}</div><div class="rr"><b>${v}</b></div></div>`;
 const srt=a=>[...a].sort((x,y)=>y.date.localeCompare(x.date));
 
@@ -225,7 +225,7 @@ function vMov(){
 function vIva(){
  const a=all(),c=sumC(a);
  return`<h1>IVA</h1><div class="grp">${kv('IVA cobrado aos clientes',eur(c.ivaLiq))}${kv('IVA suportado nas faturas',eur(-c.fi))}${kv(c.ivaEst>=0?'A entregar ao Estado':'Crédito de IVA',sg(c.ivaEst),'tot')}</div>
- <p class="note">Taxa aplicada aos valores das obras: ${S.vat}%. Despesas sem fatura e mão de obra não deduzem IVA.</p>
+ <p class="note">Taxa aplicada aos valores das obras: ${S.vat}%. Mão de obra faturada inclui IVA a 23%, deduzido no acerto. Despesas e mão de obra não faturadas não deduzem IVA.</p>
  <h2>Por obra</h2><div class="grp">${a.map(x=>`<div class="row" data-a="open" data-id="${x.o.id}" data-s="iva"><div class="av">${x.o.name[0]}</div><div class="rt"><b>${x.o.name}</b><span>Cobrado ${eur(x.ivaLiq)} · deduzido ${eur(x.fi)}</span></div><div class="rr"><b>${eur(x.ivaEst)}</b><span>${x.ivaEst>=0?'a entregar':'crédito'}</span></div></div>`).join('')||'<div class="empty">Sem obras.</div>'}</div>`;
 }
 function vObra(){
@@ -241,7 +241,7 @@ function vObra(){
  <button class="link" data-a="editobra" data-id="${o.id}">Editar obra</button>`;
  else if(V.seg==='faturas')body=`<h2>Faturas desta obra</h2><div class="grp">${c.t.filter(x=>x.type==='fatura').length?srt(c.t.filter(x=>x.type==='fatura')).map(x=>invOf(x.id)?invRow(invOf(x.id)):txRow(x)).join(''):'<div class="empty">Ainda sem faturas nesta obra. Adicione a primeira por foto ou PDF.</div>'}${kv('Total de faturas c/ IVA',eur(c.ft),'tot')}</div><button class="btn" data-a="scan" data-o="${o.id}">${ic('cam')}Adicionar fatura por foto ou PDF</button>`;
  else if(V.seg==='recebimentos')body=`<h2>Recebimentos desta obra</h2><div class="grp">${c.t.some(x=>x.type==='recebimento')?srt(c.t.filter(x=>x.type==='recebimento')).map(x=>txRow(x)).join(''):'<div class="empty">Ainda sem recebimentos nesta obra.</div>'}${kv('Total recebido',eur(c.rec),'tot')}${kv('Por receber',eur(c.porRec))}</div><button class="btn" data-a="newtx" data-t="recebimento" data-o="${o.id}">Adicionar recebimento</button>`;
- else if(V.seg==='mao_obra')body=`<h2>Mão de obra por tópico</h2><div class="grp">${c.t.some(x=>x.type==='mao_obra')?srt(c.t.filter(x=>x.type==='mao_obra')).map(x=>txRow(x)).join(''):'<div class="empty">Adicione a mão de obra de cada tópico desta obra.</div>'}${kv('Total de mão de obra',eur(c.mo),'tot')}</div><button class="btn" data-a="newtx" data-t="mao_obra" data-o="${o.id}">Adicionar mão de obra</button>`;
+ else if(V.seg==='mao_obra')body=`<h2>Mão de obra por tópico</h2><div class="grp">${c.t.some(x=>x.type==='mao_obra')?srt(c.t.filter(x=>x.type==='mao_obra')).map(x=>txRow(x)).join(''):'<div class="empty">Adicione a mão de obra de cada tópico desta obra.</div>'}${kv('Custo de mão de obra s/ IVA',eur(c.mo))}${kv('IVA da mão de obra',eur(c.mi))}${kv('Total pago de mão de obra',eur(c.mt),'tot')}</div><button class="btn" data-a="newtx" data-t="mao_obra" data-o="${o.id}">Adicionar mão de obra</button>`;
  else if(V.seg==='mov')body=`<div style="height:12px"></div><div class="grp">${c.t.length?srt(c.t).map(x=>txRow(x)).join(''):'<div class="empty">Sem movimentos nesta obra.</div>'}</div>`;
  else body=`<h2>Acerto de IVA</h2><div class="grp">${kv('IVA cobrado ao cliente',eur(c.ivaLiq))}${kv('IVA suportado nas faturas',eur(-c.fi))}${kv(c.ivaEst>=0?'A entregar ao Estado':'Crédito de IVA',sg(c.ivaEst),'tot')}</div>
  <p class="note">Valor sem IVA da obra ${eur(c.base)}. Depois de pagar fornecedores e entregar o IVA, o líquido previsto é ${eur(c.lucro)}.</p>`;
@@ -270,13 +270,15 @@ function invoiceDetails(v){
  const t=S.tx.find(x=>x.id===v.tx)||{},o=S.obras.find(x=>x.id===v.obra);
  return`<div class="grab"></div><h3>Dados da fatura</h3><div class="grp invoice-items">${kv('Fornecedor',esc(v.store))}${kv('NIF',esc(v.nif||'Não indicado'))}${kv('N.º da fatura',esc(v.number||'Não indicado'))}${kv('Data',esc(fd(v.date)))}${kv('Obra',esc(o?.name||'Não indicada'))}</div><h2>Materiais (${(v.items||[]).length})</h2><div class="grp invoice-items">${(v.items||[]).map(i=>`<div class="row kv"><div class="rt"><b>${esc(i.name)}</b><span>${esc(i.cat||'')} · ${esc(i.qty)} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span><span>IVA ${esc(i.vat)}% · ${eur(i.unit_price*(1+i.vat/100))}/${esc(i.unit)} c/ IVA</span></div><div class="rr"><b>${eur(i.total)}</b><span>s/ IVA</span></div></div>`).join('')||'<div class="empty">Esta fatura não tem artigos extraídos.</div>'}</div><h2>Totais</h2><div class="grp">${kv('Total sem IVA',eur(t.base))}${kv('IVA',eur(t.iva))}${kv('Total com IVA',eur(t.total),'tot')}</div>${v.foto?`<button class="btn" data-a="foto" data-id="${esc(v.id)}">${ic('cam')}Ver foto ou PDF original</button>`:'<p class="note">Sem anexo disponível.</p>'}<button class="btn alt" data-a="edittx" data-id="${esc(v.tx)}">Editar movimento</button><button class="btn alt" data-a="close">Fechar</button>`;
 }
-function laborForm(d){return`<div class="grab"></div><h3>Adicionar mão de obra</h3><p class="note">Adicione uma linha por tópico. Cada linha fica guardada como um movimento independente.</p><div class="fld"><label><span>Obra</span><select data-k="obra">${opt(S.obras.map(o=>[o.id,esc(o.name)]),d.obra)}</select></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label></div>${d.entries.map((x,n)=>`<section class="labor-entry"><h2>Mão de obra ${n+1}</h2><div class="fld"><label><span>Tópico</span><select data-labor="${n}" data-field="topic">${opt(TOPICS.map(t=>[t,t]),x.topic)}</select></label><label><span>Descrição</span><input data-labor="${n}" data-field="desc" value="${esc(x.desc)}" placeholder="Ex.: Montagem da equipa"></label><label><span>Valor (€)</span><input data-labor="${n}" data-field="total" inputmode="decimal" value="${esc(x.total)}" placeholder="0,00"></label></div>${d.entries.length>1?`<button class="link" data-a="removelabor" data-id="${n}">Remover esta linha</button>`:''}</section>`).join('')}<button class="btn alt" data-a="addlabor">Adicionar outro tópico</button><button class="btn" data-a="savelabor">Guardar mão de obra</button><button class="btn alt" data-a="close">Cancelar</button>`}
+const laborOptions=[['nao_faturado','Não faturado — sem IVA'],['faturado','Faturado — IVA incluído a 23%']];
+const laborNote='<p class="note">Faturado: o valor pago já inclui IVA a 23% (123 € = 100 € de custo + 23 € de IVA). Não faturado: todo o valor pago é custo, sem IVA.</p>';
+function laborForm(d){return`<div class="grab"></div><h3>Adicionar mão de obra</h3><p class="note">Adicione uma linha por tópico. Cada linha fica guardada como um movimento independente.</p><div class="fld"><label><span>Obra</span><select data-k="obra">${opt(S.obras.map(o=>[o.id,esc(o.name)]),d.obra)}</select></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label></div>${d.entries.map((x,n)=>`<section class="labor-entry"><h2>Mão de obra ${n+1}</h2><div class="fld"><label><span>Tópico</span><select data-labor="${n}" data-field="topic">${opt(TOPICS.map(t=>[t,t]),x.topic)}</select></label><label><span>Descrição</span><input data-labor="${n}" data-field="desc" value="${esc(x.desc)}" placeholder="Ex.: Montagem da equipa"></label><label><span>Faturação do técnico</span><select data-labor="${n}" data-field="billing">${opt(laborOptions,x.billing||'nao_faturado')}</select></label><label><span>Valor pago ao técnico (€)</span><input data-labor="${n}" data-field="total" inputmode="decimal" value="${esc(x.total)}" placeholder="0,00"></label></div>${laborNote}${d.entries.length>1?`<button class="link" data-a="removelabor" data-id="${n}">Remover esta linha</button>`:''}</section>`).join('')}<button class="btn alt" data-a="addlabor">Adicionar outro tópico</button><button class="btn" data-a="savelabor">Guardar mão de obra</button><button class="btn alt" data-a="close">Cancelar</button>`}
 function tabelas(){
  const nome=id=>(S.obras.find(o=>o.id===id)||{}).name||'',T={};
- T.Obras=[['Obra','Cliente','Estado','Valor c/ IVA','Valor s/ IVA','Recebido','Por receber','Materiais s/ IVA','Despesas sem fatura','Mão de obra','Custos','Lucro','Margem %','IVA cobrado','IVA suportado','IVA a entregar','Telemóvel','Conclusão','Equipamentos'],...all().map(c=>[c.o.name,c.o.client,STAT[c.o.status],c.o.valor,c.base,c.rec,c.porRec,c.fb,c.de,c.mo,c.custo,c.lucro,c.margem,c.ivaLiq,c.fi,c.ivaEst,c.o.phone||'',c.o.done||'',(c.o.equip||[]).join(', ')].map(x=>typeof x==='number'?r2(x):x))];
+ T.Obras=[['Obra','Cliente','Estado','Valor c/ IVA','Valor s/ IVA','Recebido','Por receber','Materiais s/ IVA','Despesas sem fatura','Mão de obra s/ IVA','Custos','Lucro','Margem %','IVA cobrado','IVA suportado','IVA a entregar','Telemóvel','Conclusão','Equipamentos'],...all().map(c=>[c.o.name,c.o.client,STAT[c.o.status],c.o.valor,c.base,c.rec,c.porRec,c.fb,c.de,c.mo,c.custo,c.lucro,c.margem,c.ivaLiq,c.fi,c.ivaEst,c.o.phone||'',c.o.done||'',(c.o.equip||[]).join(', ')].map(x=>typeof x==='number'?r2(x):x))];
  T.Faturas=[['Obra','Loja / fornecedor','NIF','Data','Nº fatura','Total s/ IVA','IVA','Total c/ IVA','Foto anexada'],...S.inv.map(v=>{const t=S.tx.find(x=>x.id===v.tx)||{};return[nome(v.obra),v.store,v.nif||'',v.date,v.number||'',r2(t.base),r2(t.iva),r2(t.total),v.foto?'Sim':'Não']})];
  T.Materiais=[['Obra','Loja / fornecedor','NIF','Data','Nº fatura','Artigo','Categoria','Quantidade','Unidade','Preço unit. s/ IVA','IVA %','Preço unit. c/ IVA','Total linha s/ IVA'],...S.inv.flatMap(v=>v.items.map(i=>[nome(v.obra),v.store,v.nif||'',v.date,v.number||'',i.name,i.cat,i.qty,i.unit,r2(i.unit_price),i.vat,r2(i.unit_price*(1+i.vat/100)),r2(i.total)]))];
- T.Movimentos=[['Obra','Tipo','Descrição','Tópico','Data','Total c/ IVA','Base s/ IVA','IVA'],...srt(S.tx).map(x=>[nome(x.obra),TY[x.type],x.desc||'',x.topic||'',x.date,r2(x.total),r2(x.base),r2(x.iva)])];
+ T.Movimentos=[['Obra','Tipo','Descrição','Tópico','Data','Total c/ IVA','Base s/ IVA','IVA','Faturação do técnico'],...srt(S.tx).map(x=>[nome(x.obra),TY[x.type],x.desc||'',x.topic||'',x.date,r2(x.total),r2(x.base),r2(x.iva),x.type==='mao_obra'?(x.billing==='faturado'?'Faturado':'Não faturado'):''])];
  return T}
 function xlsx(){if(!window.XLSX){alert('Biblioteca do Excel indisponível. Verifique a ligação.');return}
  const wb=XLSX.utils.book_new(),T=tabelas();
@@ -358,10 +360,11 @@ function sheet(){
   <label><span>Obra</span><select data-k="obra">${S.obras.length?opt(S.obras.map(o=>[o.id,o.name]),d.obra):'<option value="">Crie uma obra primeiro</option>'}</select></label>
   <label><span>Descrição</span><input data-k="desc" value="${d.desc||''}" placeholder="${rec?'Ex.: Adjudicação 50%':'Ex.: Material elétrico'}"></label>
   ${rec?'':`<label><span>Tópico</span><select data-k="topic">${opt(TOPICS.map(t=>[t,t]),d.topic||'Geral / outros')}</select></label>`}
-  <label><span>Valor${d.type==='fatura'?' c/ IVA':''} (€)</span><input data-k="total" inputmode="decimal" value="${d.total||''}" placeholder="0,00"></label>
+  ${d.type==='mao_obra'?`<label><span>Faturação do técnico</span><select data-k="billing">${opt(laborOptions,d.billing||'nao_faturado')}</select></label>`:''}
+  <label><span>Valor${d.type==='fatura'?' c/ IVA':d.type==='mao_obra'?' pago ao técnico':''} (€)</span><input data-k="total" inputmode="decimal" value="${d.total||''}" placeholder="0,00"></label>
   ${d.type==='fatura'?`<label><span>Taxa de IVA</span><select data-k="rate">${opt([[23,'23%'],[13,'13%'],[6,'6%'],[0,'Isento']],+d.rate)}</select></label>`:''}
   <label><span>Data</span><input type="date" data-k="date" value="${d.date}"></label></div>
-  ${!d.id&&d.type==='fatura'?`<button class="btn" data-a="scan" data-o="${d.obra||''}">${ic('cam')}Ler foto ou PDF</button>`:''}${d.id&&invOf(d.id)?`<button class="btn alt" data-a="invoice" data-id="${invOf(d.id).id}">Ver dados e materiais da fatura</button>`:''}${d.id&&invOf(d.id)&&invOf(d.id).foto?`<button class="btn alt" data-a="foto" data-id="${invOf(d.id).id}">${ic('cam')}Ver foto da fatura</button>`:''}<button class="btn" data-a="savetx">Guardar movimento</button>${d.id?'<button class="btn del" data-a="deltx">Eliminar movimento</button>':''}<button class="btn alt" data-a="close">Cancelar</button>`;
+  ${d.type==='mao_obra'?laborNote:''}${!d.id&&d.type==='fatura'?`<button class="btn" data-a="scan" data-o="${d.obra||''}">${ic('cam')}Ler foto ou PDF</button>`:''}${d.id&&invOf(d.id)?`<button class="btn alt" data-a="invoice" data-id="${invOf(d.id).id}">Ver dados e materiais da fatura</button>`:''}${d.id&&invOf(d.id)&&invOf(d.id).foto?`<button class="btn alt" data-a="foto" data-id="${invOf(d.id).id}">${ic('cam')}Ver foto da fatura</button>`:''}<button class="btn" data-a="savetx">Guardar movimento</button>${d.id?'<button class="btn del" data-a="deltx">Eliminar movimento</button>':''}<button class="btn alt" data-a="close">Cancelar</button>`;
  }
  $('#ov').classList.add('on');
 }
@@ -383,7 +386,7 @@ document.addEventListener('click',async e=>{
  else if(a==='back'){history.back();return}
  else if(a==='seg')V.seg=id;
  else if(a==='filt')V.f=id;
- else if(a==='newtx'&&b.dataset.t==='mao_obra'){D={kind:'labor',obra:b.dataset.o||V.obra||(S.obras[0]||{}).id,date:today,entries:[{topic:'Geral / outros',desc:'',total:''}]};sheet();return}
+ else if(a==='newtx'&&b.dataset.t==='mao_obra'){D={kind:'labor',obra:b.dataset.o||V.obra||(S.obras[0]||{}).id,date:today,entries:[{topic:'Geral / outros',desc:'',total:'',billing:'nao_faturado'}]};sheet();return}
  else if(a==='newtx'){D={kind:'tx',type:b.dataset.t,obra:b.dataset.o||V.obra||(S.obras[0]||{}).id,date:today,rate:b.dataset.t==='fatura'?S.vat:0};sheet();return}
  else if(a==='edittx'){D={kind:'tx',...S.tx.find(x=>x.id===id)};sheet();return}
  else if(a==='ty'){D.type=id;D.rate=id==='fatura'?(D.rate||S.vat):0;sheet();return}
@@ -392,7 +395,7 @@ document.addEventListener('click',async e=>{
  else if(a==='close'){D=null;sheet();return}
  else if(a==='savetx'){
   const t=num(D.total);if(!D.obra||t<=0){alert('Escolha uma obra e indique um valor maior que zero.');return}
-  const x=withBase({id:D.id||uid(),obra:D.obra,type:D.type,desc:(D.desc||'').trim(),topic:D.type==='recebimento'?'':(D.topic||'Geral / outros'),date:D.date||today,total:t,rate:+D.rate||0});
+  const x=withBase({id:D.id||uid(),obra:D.obra,type:D.type,desc:(D.desc||'').trim(),topic:D.type==='recebimento'?'':(D.topic||'Geral / outros'),date:D.date||today,total:t,billing:D.type==='mao_obra'?(D.billing||'nao_faturado'):undefined,rate:+D.rate||0});
   const i=S.tx.findIndex(y=>y.id===x.id);i<0?S.tx.push(x):S.tx[i]=x;save();D=null;sheet()}
  else if(a==='deltx'){S.tx=S.tx.filter(x=>x.id!==D.id);S.inv.filter(v=>v.tx===D.id&&v.foto).forEach(v=>API('foto/'+v.id,{method:'DELETE'}).catch(()=>{}));S.inv=S.inv.filter(v=>v.tx!==D.id);save();D=null;sheet()}
  else if(a==='saveobra'){
@@ -401,11 +404,11 @@ document.addEventListener('click',async e=>{
   const i=S.obras.findIndex(y=>y.id===o.id);i<0?S.obras.push(o):S.obras[i]=o;save();D=null;sheet()}
  else if(a==='delobra'){if(!confirm('Eliminar a obra e todos os seus movimentos?'))return;S.obras=S.obras.filter(o=>o.id!==D.id);S.tx=S.tx.filter(x=>x.obra!==D.id);S.inv=S.inv.filter(v=>v.obra!==D.id);V.obra=null;save();D=null;sheet()}
  else if(a==='invoice'){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}D={kind:'invoice',id};sheet();return}
- else if(a==='addlabor'){D.entries.push({topic:'Geral / outros',desc:'',total:''});sheet();return}
+ else if(a==='addlabor'){D.entries.push({topic:'Geral / outros',desc:'',total:'',billing:'nao_faturado'});sheet();return}
  else if(a==='removelabor'){D.entries.splice(+id,1);sheet();return}
  else if(a==='savelabor'){
   if(!S.obras.some(o=>o.id===D.obra)||D.entries.some(x=>num(x.total)<=0)){alert('Escolha uma obra e indique um valor maior que zero em cada linha.');return}
-  D.entries.forEach(x=>S.tx.push(withBase({id:uid(),obra:D.obra,type:'mao_obra',desc:x.desc.trim(),topic:x.topic,date:D.date||today,total:num(x.total),rate:0})));
+  D.entries.forEach(x=>S.tx.push(withBase({id:uid(),obra:D.obra,type:'mao_obra',desc:x.desc.trim(),topic:x.topic,date:D.date||today,total:num(x.total),billing:x.billing||'nao_faturado',rate:0})));
   save();D=null;sheet();
  }
  else if(a==='foto'){verFoto(id);return}

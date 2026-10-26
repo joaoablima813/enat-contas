@@ -74,11 +74,13 @@ nav button.on{color:var(--blue)}
 .fld label>span{color:var(--mute);flex:none;font-size:15px}
 .fld input,.fld select{border:0;background:none;text-align:right;outline:0;flex:1;min-width:0;font-size:16px}
 .fld select{direction:rtl}
+#lock{position:fixed;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}#lock.on{display:flex}#lock img{height:56px;background:#fff;border-radius:12px;padding:4px 10px;margin-bottom:22px}#lock .btn{max-width:340px}#lock p{color:var(--mute);max-width:340px;margin:0 0 6px}
 @media (prefers-reduced-motion:reduce){#sh{animation:none}.act i{transition:none}}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .top{max-width:520px;margin:0 auto;padding:12px 16px 0}.top img{height:38px;display:block;background:#fff;border-radius:10px;padding:2px 8px}
 .sbar{display:flex;align-items:center;gap:8px;background:var(--chip);border-radius:12px;padding:0 12px;margin-bottom:12px}.sbar svg{width:18px;height:18px;color:var(--mute)}.sbar input{flex:1;border:0;background:none;outline:0;padding:11px 0;font-size:17px}a{color:var(--blue)}.btn svg{vertical-align:-5px;margin-right:6px}.chips{flex-wrap:nowrap}
 </style>
+<script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -86,6 +88,7 @@ nav button.on{color:var(--blue)}
 <main id="app"></main>
 <nav><div id="nav"></div></nav>
 <div id="ov"><div id="sh" role="dialog" aria-modal="true"></div></div>
+<div id="lock"><img src="/enat-logo.png" alt="Enat Energias"><div id="lk"></div></div>
 <input type="file" id="file" accept="image/*,application/pdf" hidden>
 <script>
 const $=s=>document.querySelector(s);
@@ -159,7 +162,7 @@ function vHome(){
  return`<h1>Início</h1>${hero(c,'Lucro previsto em todas as obras')}${acts()}
  <h2>Obras</h2><div class="grp">${a.length?a.map(obraRow).join(''):'<div class="empty">Sem obras. Crie a primeira no separador Obras.</div>'}</div>
  <h2>Últimos movimentos</h2><div class="grp">${S.tx.length?srt(S.tx).slice(0,5).map(x=>txRow(x,1)).join(''):'<div class="empty">Ainda sem movimentos.</div>'}</div>
- <p class="note">${SYNC==='ok'?'Dados sincronizados com a sua conta, em todos os dispositivos.':'Dados guardados neste dispositivo.'}</p><button class="link" data-a="xlsx">Descarregar Excel</button><button class="link" data-a="tab" data-id="mov">Ver todos os movimentos</button><button class="link" data-a="clear">Limpar todos os dados</button>`;
+ <p class="note">${SYNC==='ok'?'Dados sincronizados com a sua conta, em todos os dispositivos.':'Dados guardados neste dispositivo.'}</p><button class="link" data-a="xlsx">Descarregar Excel</button><button class="link" data-a="tab" data-id="mov">Ver todos os movimentos</button><button class="link" data-a="novodisp">Registar outro dispositivo (Face ID / Touch ID)</button><button class="link" data-a="sair">Terminar sessão</button><button class="link" data-a="clear">Limpar todos os dados</button>`;
 }
 function vObras(){
  const a=all();
@@ -201,7 +204,8 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').r
 const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const match=(n,q)=>{const h=norm(n);return norm(q).split(/\s+/).filter(Boolean).every(w=>h.includes(w))};
 function mats(){const m={};S.inv.forEach(v=>v.items.forEach(i=>{const k=norm(i.name);(m[k]=m[k]||{name:i.name,cat:i.cat,buys:[]}).buys.push({store:v.store,date:v.date,p:i.unit_price,pv:i.unit_price*(1+i.vat/100),unit:i.unit})}));return Object.values(m)}
-const API=(p,o={})=>{const c=localStorage.getItem('enat-code');return c?fetch('/api/'+p,{...o,headers:{'x-code':c,...(o.headers||{})}}):Promise.reject(new Error('sem código'))};
+const SESS=()=>sessionStorage.getItem('enat-sess')||'';
+const API=(p,o={})=>fetch('/api/'+p,{...o,headers:{'x-session':SESS(),...(o.headers||{})}}).then(r=>{if(r.status===401)bloquear();return r});
 let LB,LM;
 const r2=n=>Math.round((n||0)*100)/100;
 const subirFoto=(id,b,m)=>API('foto/'+id,{method:'PUT',headers:{'content-type':m},body:b}).then(r=>{if(!r.ok)throw 0}).catch(()=>alert('A fatura foi guardada, mas a foto não foi enviada. Verifique a ligação e o código de acesso.'));
@@ -255,12 +259,10 @@ async function lerFatura(f){
  let blob=f,mime=f.type;
  if(mime==='application/pdf'){if(f.size>4e6)throw new Error('PDF demasiado grande (máx. 4 MB). Envie uma foto')}
  else{blob=(await toImages(f))[0];mime='image/jpeg'}
- const code=localStorage.getItem('enat-code')||prompt('Código de acesso da app:');
- if(!code)throw new Error('sem código de acesso');
- const r=await fetch('/api/ler-fatura',{method:'POST',headers:{'content-type':'application/json','x-code':code},body:JSON.stringify({mime,data:await b64(blob)})});
- if(r.status===401){localStorage.removeItem('enat-code');throw new Error('código de acesso errado')}
- if(!r.ok)throw new Error('falha no servidor ('+r.status+')');
- localStorage.setItem('enat-code',code);LB=blob;LM=mime;return r.json()}
+ const r=await API('ler-fatura',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mime,data:await b64(blob)})});
+ if(r.status===401)throw new Error('sessão terminada, entre de novo')
+ if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'falha no servidor ('+r.status+')')}
+ LB=blob;LM=mime;return r.json()}
 $('#file').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
  $('#sh').innerHTML='<div class="grab"></div><div class="empty">A ler a fatura. Pode demorar alguns segundos.</div>';$('#ov').classList.add('on');
  try{const r=await lerFatura(f);
@@ -336,6 +338,8 @@ document.addEventListener('click',e=>{
  else if(a==='delobra'){if(!confirm('Eliminar a obra e todos os seus movimentos?'))return;S.obras=S.obras.filter(o=>o.id!==D.id);S.tx=S.tx.filter(x=>x.obra!==D.id);S.inv=S.inv.filter(v=>v.obra!==D.id);V.obra=null;save();D=null;sheet()}
  else if(a==='foto'){verFoto(id);return}
  else if(a==='xlsx'){xlsx();return}
+ else if(a==='sair'){bloquear();return}
+ else if(a==='novodisp'){registar().then(()=>alert('Dispositivo registado.')).catch(e=>alert(e.name==='NotAllowedError'?'Operação cancelada.':(e.message||'Erro')));return}
  else if(a==='scan'){V.scanObra=b.dataset.o;$('#file').click();return}
  else if(a==='sug')V.q=id;
  else if(a==='mc')V.mc=id;
@@ -357,12 +361,28 @@ const idle=()=>!D&&document.activeElement.tagName!=='INPUT';
 const adopt=s=>{S=s;S.inv=S.inv||[];S.tx.forEach(withBase);try{localStorage.setItem('enat-contas-2',JSON.stringify(S))}catch(e){}if(idle())render()};
 const setSync=s=>{if(SYNC!==s){SYNC=s;if(idle())render()}};
 const push=()=>{clearTimeout(pt);pt=setTimeout(()=>API('estado',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:S,sheets:tabelas()})}).then(r=>setSync(r.ok?'ok':'off')).catch(()=>setSync('off')),900)};
-async function pull(){try{const r=await API('estado');if(r.status===401){localStorage.removeItem('enat-code');return setSync('off')}const d=await r.json();
+async function pull(){try{const r=await API('estado');if(r.status===401)return setSync('off');const d=await r.json();
  if(!d.state){if(S.obras.length||S.tx.length)push();return setSync('ok')}
  const a=d.state.ts||0,b=S.ts||0;if(a>b)adopt(d.state);else if(a<b)push();setSync('ok')}catch(e){setSync('off')}}
-if(!localStorage.getItem('enat-code')){const c=prompt('Código de acesso da app (para sincronizar e ler faturas):');if(c)localStorage.setItem('enat-code',c.trim())}
-pull();setInterval(pull,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pull()});
-render();
+/* ---------- entrada com Face ID / Touch ID (passkeys) ---------- */
+const post=async(p,b,code)=>{const r=await fetch('/api/'+p,{method:'POST',headers:{'content-type':'application/json','x-session':SESS(),...(code?{'x-code':code}:{})},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'falha ('+r.status+')');return j};
+let LIGADO=false;
+function bloquear(m){sessionStorage.removeItem('enat-sess');$('#lock').classList.add('on');ecraLock(m)}
+async function ecraLock(m){const lk=$('#lk');lk.innerHTML='<p>A verificar…</p>';
+ let tem=true;try{tem=(await (await fetch('/api/auth/estado')).json()).temChaves}catch(e){}
+ const bio=window.PublicKeyCredential?'':'<p class="neg">Este navegador não suporta Face ID / Touch ID.</p>';
+ lk.innerHTML=(m?`<p class="neg">${esc(m)}</p>`:'')+bio+(tem?`<p>Entre com Face ID, Touch ID ou o desbloqueio do dispositivo.</p><button class="btn" data-l="entrar">Entrar</button><button class="link" data-l="novo">Registar este dispositivo</button>`:`<p>Configure a entrada com Face ID ou Touch ID. Este será o primeiro dispositivo com acesso.</p><button class="btn" data-l="registar">Ativar Face ID / Touch ID</button>`)}
+function desbloquear(t){sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(pull,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render()}
+async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});desbloquear((await post('auth/registo',{cid:o.cid,response},code)).token)}
+async function entrar(){const o=await post('auth/entrar-opcoes');const response=await SWA.startAuthentication({optionsJSON:o.options});desbloquear((await post('auth/entrar',{cid:o.cid,response})).token)}
+$('#lock').addEventListener('click',async e=>{const b=e.target.closest('[data-l]');if(!b)return;
+ if(!window.SWA){ecraLock('A carregar, tente de novo dentro de um segundo.');return}
+ try{const l=b.dataset.l;b.disabled=true;
+  if(l==='entrar')await entrar();
+  else if(l==='registar')await registar();
+  else if(l==='novo'){const c=SESS()?'':prompt('Para registar um novo dispositivo, indique o código de acesso (APP_CODE):');if(c===null)return ecraLock();await registar((c||'').trim())}
+ }catch(err){ecraLock(err.name==='NotAllowedError'?'Operação cancelada.':(err.message||'Erro'))}});
+if(SESS())desbloquear(SESS());else bloquear();
 </script>
 </body>
 </html>

@@ -217,7 +217,7 @@ function vHome(){
  return`<h1>Início</h1>${hero(c,'Lucro previsto em todas as obras')}${acts()}
  <h2>Obras</h2><div class="grp">${a.length?a.map(obraRow).join(''):'<div class="empty">Sem obras. Crie a primeira no separador Obras.</div>'}</div>
  <h2>Últimos movimentos</h2><div class="grp">${S.tx.length?srt(S.tx).slice(0,5).map(x=>txRow(x,1)).join(''):'<div class="empty">Ainda sem movimentos.</div>'}</div>
- <p class="note">${SYNC==='ok'?'Dados sincronizados com a sua conta, em todos os dispositivos.':'Dados guardados neste dispositivo.'}</p><button class="link" data-a="xlsx">Descarregar Excel</button><button class="link" data-a="tab" data-id="mov">Ver todos os movimentos</button><button class="link" data-a="novodisp">Registar outro dispositivo (Face ID / Touch ID)</button><button class="link" data-a="sair">Terminar sessão</button><button class="link" data-a="clear">Limpar todos os dados</button>`;
+ <p class="note">${SYNC==='ok'?'Dados sincronizados com a sua conta, em todos os dispositivos.':'Dados guardados neste dispositivo.'}</p><a class="link" href="/excel.html">Excel ligado à app — configurar</a><button class="link" data-a="xlsx">Descarregar cópia Excel</button><button class="link" data-a="tab" data-id="mov">Ver todos os movimentos</button><button class="link" data-a="novodisp">Registar outro dispositivo (Face ID / Touch ID)</button><button class="link" data-a="sair">Terminar sessão</button><button class="link" data-a="clear">Limpar todos os dados</button>`;
 }
 function vObras(){
  const a=all();
@@ -297,7 +297,7 @@ async function xlsx(){
   const url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
   const link=document.createElement('a');link.href=url;link.download='enat-contas-'+new Date().toISOString().slice(0,10)+'.xlsx';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
  }catch(e){alert('Não foi possível gerar o Excel. Tente novamente.')}
- finally{if(button){button.disabled=false;button.textContent='Descarregar Excel'}}
+ finally{if(button){button.disabled=false;button.textContent='Descarregar cópia Excel'}}
 }
 function productDetails(v,index){
  const i=v.items?.[index];if(!i)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';

@@ -61,7 +61,7 @@ test('short PDF fits on one page with quantities, totals and signature and no nu
  vm.runInContext(math+'\n'+ui,c);c.proposal={...sample,id:7,lines:sample.lines.map(l=>({...l,quantity:2,unit:'un.'}))};
  await vm.runInContext('downloadQuotePdf(proposal)',c);
  assert.equal(pdf.getNumberOfPages(),1);
- const output=writes.map(w=>w.value).join('\n');assert.doesNotMatch(output,/Alínea|Equipamento \/ material/);assert.match(output,/Qtd\./);assert.match(output,/Preço unit\./);assert.match(output,/461.25/);
+ const output=writes.map(w=>w.value).join('\n');assert.doesNotMatch(output,/Alínea|Equipamento \/ material/);assert.match(output,/Qtd\./);assert.match(output,/Preço unit\./);assert.match(output,/461,25/);
  assert.equal(writes.find(w=>w.value.includes('João Lima')).page,writes.find(w=>w.value==='Total com IVA').page);
  for(const w of writes)if(typeof w.y==='number')assert.ok(w.y<=287,'text stays within the page');
 });
@@ -74,4 +74,42 @@ test('deleting a quote requires confirmation, removes it after success and retai
  await vm.runInContext('deleteQuote()',c);assert.equal(request,undefined);
  allowed=true;ok=false;await vm.runInContext('deleteQuote()',c);assert.equal(vm.runInContext('quoteDraft.id',c),7);assert.equal(vm.runInContext('quoteRows.length',c),1);assert.match(vm.runInContext('quoteError',c),/Falha/);
  ok=true;await vm.runInContext('deleteQuote()',c);assert.equal(request.path,'orcamentos/7');assert.equal(request.options.method,'DELETE');assert.equal(vm.runInContext('quoteDraft',c),null);assert.equal(vm.runInContext('quoteRows.length',c),0);
+});
+
+test('editor uses one address field and exposes quantity and deletion in the saved list',()=>{
+ const c=vm.createContext({document:{addEventListener(){}},TOPICS:sample.topics,esc:s=>String(s),eur:n=>String(n),ic:()=>'',fd:s=>s});
+ vm.runInContext(math+'\n'+ui,c);c.sample=sample;
+ vm.runInContext('quoteDraft={...sample,id:7}',c);
+ const editor=vm.runInContext('quoteEditor()',c);
+ assert.doesNotMatch(editor,/Localidade|Alínea|Produto ou serviço 1/);
+ assert.match(editor,/data-qf="address"/);assert.match(editor,/data-field="quantity"/);assert.match(editor,/rows="1"/);
+ assert.match(editor,/data-qa="delete"/);
+ vm.runInContext('quoteDraft=null;quoteRows=[{id:7,document:sample}]',c);
+ assert.match(vm.runInContext('vQuotes()',c),/data-qa="delete-saved" data-id="7"/);
+});
+
+test('deleting from the saved list works without opening a draft',async()=>{
+ let request;
+ const c=vm.createContext({window:{confirm:()=>true},document:{addEventListener(){}},render(){},API:async(path,options)=>{request={path,options};return {ok:true}}});
+ vm.runInContext(ui,c);c.sample=sample;
+ vm.runInContext('quoteRows=[{id:7,document:sample}]',c);
+ await vm.runInContext('deleteQuote(quoteRows[0])',c);
+ assert.equal(request.path,'orcamentos/7');assert.equal(request.options.method,'DELETE');
+ assert.equal(vm.runInContext('quoteRows.length',c),0);assert.equal(vm.runInContext('quoteDraft',c),null);
+});
+
+test('API saves quotes without locality and combines legacy addresses without changing quantities',async()=>{
+ const {stripTypeScriptTypes}=await import('node:module');
+ let saved;
+ const db={insert:()=>({values:({document})=>{saved=document;return {returning:async()=>[{id:1,document}]}}})};
+ const source=readFileSync(new URL('../netlify/lib/quotes.ts',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export async function','async function');
+ const c=vm.createContext({db,quotes:{},Response,Date});vm.runInContext(stripTypeScriptTypes(source),c);
+ c.path='orcamentos';
+ const proposal={...sample,lines:[{kind:'Material',description:'Tubo',value:4,quantity:2.5,unit:'m'}]};delete proposal.locality;
+ c.req={method:'POST',json:async()=>proposal};
+ let response=await vm.runInContext('handleQuotes(req,path)',c);
+ assert.equal(response.status,201);assert.equal(saved.address,sample.address);assert.equal(saved.locality,undefined);assert.equal(saved.lines[0].quantity,2.5);
+ c.req={method:'POST',json:async()=>structuredClone(sample)};
+ response=await vm.runInContext('handleQuotes(req,path)',c);
+ assert.equal(response.status,201);assert.equal(saved.address,sample.address+', '+sample.locality);assert.equal(saved.locality,undefined);
 });

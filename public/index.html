@@ -256,7 +256,7 @@ async function toImages(f){
  const bm=await createImageBitmap(f),k=Math.min(1,1800/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=bm.width*k;c.height=bm.height*k;c.getContext('2d').drawImage(bm,0,0,c.width,c.height);return[await jpg(c)]}
 const b64=b=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.readAsDataURL(b)});
 async function lerFatura(f){
- let blob=f,mime=f.type;
+ let blob=f,mime=f.type||(/\.pdf$/i.test(f.name)?'application/pdf':'');
  if(mime==='application/pdf'){if(f.size>4e6)throw new Error('PDF demasiado grande (máx. 4 MB). Envie uma foto')}
  else{blob=(await toImages(f))[0];mime='image/jpeg'}
  const r=await API('ler-fatura',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mime,data:await b64(blob)})});
@@ -269,7 +269,7 @@ $('#file').addEventListener('change',async e=>{const f=e.target.files[0];e.targe
   const items=(r.items||[]).map(i=>({name:String(i.name||'Artigo'),qty:+i.qty||1,unit:i.unit||'un',unit_price:+i.unit_price||0,vat:Number.isFinite(+i.vat)?+i.vat:23,total:+i.total_no_vat||0,cat:CATS.includes(i.cat)?i.cat:'Outros / consumíveis'}));
   const b=+r.totalNoVat||items.reduce((a,i)=>a+i.total,0),t=+r.total||items.reduce((a,i)=>a+i.total*(1+i.vat/100),0);
   D={kind:'inv',obra:V.scanObra,store:r.store||'',nif:r.nif||'',date:r.date||new Date().toISOString().slice(0,10),number:r.number||'',items,base:b,total:t,blob:LB,mime:LM};sheet();
- }catch(err){D=null;sheet();alert('Não consegui ler a fatura: '+(err.message||err.code||'erro')+'. Tente uma foto mais nítida.')}});
+ }catch(err){D=null;sheet();alert('Não consegui ler a fatura: '+(err.message||err.code||'erro')+'.')}});
 
 /* ---------- folhas (formulários) ---------- */
 const opt=(l,sel)=>l.map(([v,t])=>`<option value="${v}" ${v===sel?'selected':''}>${t}</option>`).join('');

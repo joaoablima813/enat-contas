@@ -134,7 +134,7 @@ let V={tab:'home',obra:null,seg:'contas',f:'todos'},D=null;
 const navEntries=[];
 let navIndex=1,navRestoring=false,navPending=false;
 const navView=()=>({...V});
-const navKey=d=>d?d.kind+':'+(d.id||d.invoiceId||''):'';
+const navKey=d=>d?d.kind+':'+(d.id||d.invoiceId||'')+':'+(d.itemIndex??''):'';
 navEntries[0]={v:navView(),d:null,y:0};
 navEntries[1]={v:navView(),d:null,y:0};
 history.replaceState({enatNav:0},'');
@@ -284,21 +284,20 @@ function xlsx(){if(!window.XLSX){alert('Biblioteca do Excel indisponível. Verif
  const wb=XLSX.utils.book_new(),T=tabelas();
  Object.keys(T).forEach(n=>{const ws=XLSX.utils.aoa_to_sheet(T[n]);ws['!autofilter']={ref:ws['!ref']};ws['!cols']=T[n][0].map((h,i)=>({wch:Math.min(40,Math.max(String(h).length+2,...T[n].slice(1,60).map(r=>String(r[i]).length+1)))}));XLSX.utils.book_append_sheet(wb,ws,n)});
  XLSX.writeFile(wb,'enat-contas-'+new Date().toISOString().slice(0,10)+'.xlsx')}
+function productDetails(v,index){
+ const i=v.items?.[index];if(!i)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
+ const o=S.obras.find(o=>o.id===v.obra),unit=i.unit||'un';
+ const price=i.unit_price!=null&&Number.isFinite(Number(i.unit_price))?Number(i.unit_price):null;
+ const vat=i.vat!=null&&Number.isFinite(Number(i.vat))?Number(i.vat):null;
+ return`<div class="grab"></div><h3>${esc(i.name)}</h3><h2>Preço por ${unit==='m'?'metro':unit==='un'?'unidade':esc(unit)}</h2><div class="grp invoice-items">${kv('Preço sem IVA',price===null?'Não indicado':eur(price)+' / '+esc(unit),'tot')}${kv('Taxa de IVA',vat===null?'Não indicada':esc(vat)+'%')}${kv('Preço com IVA',price===null||vat===null?'Não indicado':eur(price*(1+vat/100))+' / '+esc(unit))}</div><h2>Compra associada</h2><div class="grp invoice-items">${kv('Fornecedor',esc(v.store))}${kv('Data',esc(fd(v.date)))}${kv('Obra',esc(o?.name||'Não indicada'))}${kv('Quantidade comprada',esc(i.qty??'Não indicada')+' '+esc(unit))}${kv('Categoria',esc(i.cat||'Não indicada'))}</div><button class="btn" data-a="invoice" data-id="${esc(v.id)}">${ic('fatura')}Ver fatura associada</button><button class="btn alt" data-a="close">Fechar</button>`;
+}
 function matRes(){
- const q=V.q||'',ms=mats().filter(m=>(!V.mc||m.cat===V.mc)&&(!q||match(m.name,q)));let h='';
- if(q){
-  const fs=S.inv.filter(v=>match([v.store,v.nif,v.number,v.date,(S.obras.find(o=>o.id===v.obra)||{}).name,vtot(v).t,eur(vtot(v).t),...v.items.flatMap(i=>[i.name,i.unit_price,eur(i.unit_price),i.total,eur(i.total)])].join(' '),q)),lj={};
-  S.inv.forEach(v=>{const k=norm(v.store),t=vtot(v),l=lj[k]=lj[k]||{n:v.store,nif:'',c:0,tot:0,d:''};l.c++;l.tot+=t.t;if(v.date>=l.d){l.d=v.date;l.nif=v.nif||l.nif}});
-  const ls=Object.values(lj).filter(l=>match(l.n+' '+l.nif,q));
-  if(ls.length)h+=`<h2>Lojas</h2><div class="grp">${ls.map(l=>`<div class="row kv" data-a="sug" data-id="${esc(l.n)}" style="cursor:pointer"><div class="rt"><b>${esc(l.n)}</b><span>${l.nif?'NIF '+esc(l.nif)+' · ':''}${l.c} fatura${l.c>1?'s':''} · última ${fd(l.d)}</span></div><div class="rr"><b>${eur(l.tot)}</b><span>total c/ IVA</span></div></div>`).join('')}</div>`;
-  if(fs.length)h+=`<h2>Faturas</h2><div class="grp">${srt(fs).map(invRow).join('')}</div>`;
- }
- if(ms.length)h+=(q?'<h2>Materiais</h2>':'')+(q&&ms.length>1?`<div class="chips">${ms.slice(0,6).map(m=>`<button data-a="sug" data-id="${esc(m.name)}">${esc(m.name)}</button>`).join('')}</div>`:'')+ms.slice(0,30).map(m=>{
-  const st={};m.buys.forEach(b=>{if(!st[b.store]||b.date>st[b.store].date)st[b.store]=b});
-  const r=Object.values(st).sort((a,b)=>a.p-b.p);
-  return`<h2 style="font-size:17px;margin:18px 4px 2px">${esc(m.name)}</h2><div class="sub" style="margin:0 4px 8px">${m.cat}</div><div class="grp">${r.map((b,i)=>`<div class="row kv"><div class="rt"><b>${esc(b.store)}</b><span>${fd(b.date)} · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.store)}" target="_blank" rel="noopener">ver no mapa</a></span></div><div class="rr"><b class="${i?'':'pos'}">${eur(b.p)}/${esc(b.unit)}</b><span>${i?'':'mais barato · '}${eur(b.pv)} c/ IVA</span></div></div>`).join('')}</div>`}).join('');
- return h||`<div class="grp"><div class="empty">${S.inv.length?'Nada encontrado.':'Ainda sem faturas. Dentro de uma obra, use Ler fatura.'}</div></div>`}
-function vMat(){return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q)}" placeholder="Produto, valor, fornecedor, fatura ou obra" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>`}
+ const q=(V.q||'').trim();
+ if(!q){const recent=S.inv.slice().reverse().slice(0,3);return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>`}
+ const results=S.inv.slice().reverse().flatMap(v=>(v.items||[]).map((i,index)=>({v,i,index}))).filter(({v,i})=>(!V.mc||i.cat===V.mc)&&match([i.name,v.store,v.nif,v.number,(S.obras.find(o=>o.id===v.obra)||{}).name].join(' '),q));
+ return results.length?`<h2>Produtos (${results.length})</h2><div class="grp invoice-items">${results.map(({v,i,index})=>`<button class="row invoice-row" data-a="product" data-id="${esc(v.id)}" data-index="${index}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(i.name)}</b><span>${esc(v.store)} · ${esc(fd(v.date))} · ${esc((S.obras.find(o=>o.id===v.obra)||{}).name||'')}</span></div><div class="rr"><b>${i.unit_price!=null&&Number.isFinite(Number(i.unit_price))?eur(Number(i.unit_price))+' / '+esc(i.unit||'un'):'Preço não indicado'}</b><span>s/ IVA · Ver produto ›</span></div></button>`).join('')}</div>`:'<div class="grp"><div class="empty">Nenhum produto encontrado para esta pesquisa.</div></div>';
+}
+function vMat(){return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Nome do produto, fornecedor ou NIF" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>`}
 const due=o=>{const d=new Date(o.done+'T12:00');d.setFullYear(d.getFullYear()+1);return d};
 const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.join(', ')}) na obra ${o.name}. Para manter tudo a funcionar bem e válido na garantia, quer agendar a manutenção? Enat Energias`;
 function vMan(){
@@ -338,7 +337,7 @@ function sheet(){
  trackNavigation();
  const sh=$('#sh'),d=D;
  if(!d){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}$('#ov').classList.remove('on');return}
- if(d.kind==='loading'){sh.innerHTML='<div class="grab"></div><div class="empty">A ler a fatura. Pode demorar alguns segundos.</div>'}else if(d.kind==='invoice'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?invoiceDetails(v):'<div class="empty">Fatura não encontrada.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='labor'){sh.innerHTML=laborForm(d)}else if(d.kind==='view'){sh.innerHTML=`<div class="grab"></div><h3>${esc(d.title)}</h3>${d.url?(d.mime==='application/pdf'?`<iframe src="${d.url}" style="width:100%;height:68vh;border:0;border-radius:12px;background:#fff"></iframe>`:`<img src="${d.url}" alt="Fatura" style="width:100%;border-radius:12px">`):'<div class="empty">A abrir a fatura…</div>'}${d.url?`<a class="btn alt" href="${d.url}" target="_blank" rel="noopener">Abrir anexo</a>`:''}<button class="btn alt" data-a="invoice" data-id="${esc(d.invoiceId)}">Voltar aos dados da fatura</button><button class="btn alt" data-a="close">Fechar</button>`}else if(d.kind==='inv'){
+ if(d.kind==='loading'){sh.innerHTML='<div class="grab"></div><div class="empty">A ler a fatura. Pode demorar alguns segundos.</div>'}else if(d.kind==='product'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?productDetails(v,d.itemIndex):'<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='invoice'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?invoiceDetails(v):'<div class="empty">Fatura não encontrada.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='labor'){sh.innerHTML=laborForm(d)}else if(d.kind==='view'){sh.innerHTML=`<div class="grab"></div><h3>${esc(d.title)}</h3>${d.url?(d.mime==='application/pdf'?`<iframe src="${d.url}" style="width:100%;height:68vh;border:0;border-radius:12px;background:#fff"></iframe>`:`<img src="${d.url}" alt="Fatura" style="width:100%;border-radius:12px">`):'<div class="empty">A abrir a fatura…</div>'}${d.url?`<a class="btn alt" href="${d.url}" target="_blank" rel="noopener">Abrir anexo</a>`:''}<button class="btn alt" data-a="invoice" data-id="${esc(d.invoiceId)}">Voltar aos dados da fatura</button><button class="btn alt" data-a="close">Fechar</button>`}else if(d.kind==='inv'){
   if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(d.blob);
   sh.innerHTML=`<div class="grab"></div><h3>Confirmar fatura</h3>${d.mime==='application/pdf'?`<a class="btn alt" href="${previewUrl}" target="_blank" rel="noopener">Abrir PDF original</a>`:`<img src="${previewUrl}" alt="Foto da fatura a guardar" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px">`}<p class="note">Obra: ${esc((S.obras.find(o=>o.id===d.obra)||{}).name)}</p><div class="fld"><label><span>N.º da fatura</span><input data-k="number" value="${esc(d.number)}"></label><label><span>Fornecedor</span><input data-k="store" value="${esc(d.store)}"></label><label><span>NIF</span><input data-k="nif" inputmode="numeric" value="${esc(d.nif)}"></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label><label><span>Total sem IVA (€)</span><input data-k="base" inputmode="decimal" value="${(+d.base).toFixed(2)}"></label><label><span>Total com IVA (€)</span><input data-k="total" inputmode="decimal" value="${(+d.total).toFixed(2)}"></label></div>
   <h2 style="margin-top:14px">Materiais (${d.items.length})</h2><div class="grp">${d.items.map((i,n)=>`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(i.name)}</b><span>${i.qty} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span></div><div class="rr"><b>${eur(i.total)}</b></div><select data-i="${n}" style="width:100%;margin-top:6px;border:0;background:var(--chip);border-radius:9px;padding:8px">${opt(CATS.map(c=>[c,c]),i.cat)}</select></div>`).join('')||'<div class="empty">Nenhum artigo lido.</div>'}</div>
@@ -403,6 +402,7 @@ document.addEventListener('click',async e=>{
   const o={id:D.id||uid(),name:D.name.trim(),client:(D.client||'').trim()||'Sem cliente',status:D.status||'em_curso',valor:num(D.valor),phone:D.phone||'',done:D.done||'',equip:D.equip||[]};
   const i=S.obras.findIndex(y=>y.id===o.id);i<0?S.obras.push(o):S.obras[i]=o;save();D=null;sheet()}
  else if(a==='delobra'){if(!confirm('Eliminar a obra e todos os seus movimentos?'))return;S.obras=S.obras.filter(o=>o.id!==D.id);S.tx=S.tx.filter(x=>x.obra!==D.id);S.inv=S.inv.filter(v=>v.obra!==D.id);V.obra=null;save();D=null;sheet()}
+ else if(a==='product'){D={kind:'product',id,itemIndex:Number(b.dataset.index)};sheet();return}
  else if(a==='invoice'){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}D={kind:'invoice',id};sheet();return}
  else if(a==='addlabor'){D.entries.push({topic:'Geral / outros',desc:'',total:'',billing:'nao_faturado'});sheet();return}
  else if(a==='removelabor'){D.entries.splice(+id,1);sheet();return}

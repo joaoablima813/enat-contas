@@ -89,7 +89,8 @@ nav button.on{color:var(--blue)}
 <script src="/quote-math.js"></script>
 <script src="/quotes.js"></script>
 <script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/vendor/exceljs.min.js"></script>
+<script src="/excel-export.js"></script>
 </head>
 <body>
 <div class="top"><img src="/enat-logo.png" alt="Enat Energias"></div>
@@ -282,13 +283,22 @@ function tabelas(){
  const nome=id=>(S.obras.find(o=>o.id===id)||{}).name||'',T={};
  T.Obras=[['Obra','Cliente','Estado','Valor c/ IVA','Valor s/ IVA','Recebido','Por receber','Materiais s/ IVA','Despesas sem fatura','Mão de obra s/ IVA','Custos','Lucro','Margem %','IVA cobrado','IVA suportado','IVA a entregar','Telemóvel','Conclusão','Equipamentos'],...all().map(c=>[c.o.name,c.o.client,STAT[c.o.status],c.o.valor,c.base,c.rec,c.porRec,c.fb,c.de,c.mo,c.custo,c.lucro,c.margem,c.ivaLiq,c.fi,c.ivaEst,c.o.phone||'',c.o.done||'',(c.o.equip||[]).join(', ')].map(x=>typeof x==='number'?r2(x):x))];
  T.Faturas=[['Obra','Loja / fornecedor','NIF','Data','Nº fatura','Total s/ IVA','IVA','Total c/ IVA','Foto anexada'],...S.inv.map(v=>{const t=S.tx.find(x=>x.id===v.tx)||{};return[nome(v.obra),v.store,v.nif||'',v.date,v.number||'',r2(t.base),r2(t.iva),r2(t.total),v.foto?'Sim':'Não']})];
- T.Materiais=[['Obra','Loja / fornecedor','NIF','Data','Nº fatura','Artigo','Categoria','Quantidade','Unidade','Preço unit. s/ IVA','IVA %','Preço unit. c/ IVA','Total linha s/ IVA'],...S.inv.flatMap(v=>v.items.map(i=>[nome(v.obra),v.store,v.nif||'',v.date,v.number||'',i.name,i.cat,i.qty,i.unit,r2(i.unit_price),i.vat,r2(i.unit_price*(1+i.vat/100)),r2(i.total)]))];
+ T.Materiais=[['Obra','Loja / fornecedor','NIF','Data','Nº fatura','Artigo','Categoria','Quantidade','Unidade','Preço unit. s/ IVA','IVA %','Preço unit. c/ IVA','Total linha s/ IVA'],...S.inv.flatMap(v=>(v.items||[]).map(i=>[nome(v.obra),v.store,v.nif||'',v.date,v.number||'',i.name,i.cat,i.qty,i.unit,r2(i.unit_price),i.vat,r2(i.unit_price*(1+i.vat/100)),r2(i.total)]))];
  T.Movimentos=[['Obra','Tipo','Descrição','Tópico','Data','Total c/ IVA','Base s/ IVA','IVA','Faturação do técnico'],...srt(S.tx).map(x=>[nome(x.obra),TY[x.type],x.desc||'',x.topic||'',x.date,r2(x.total),r2(x.base),r2(x.iva),x.type==='mao_obra'?(x.billing==='faturado'?'Faturado':'Não faturado'):''])];
  return T}
-function xlsx(){if(!window.XLSX){alert('Biblioteca do Excel indisponível. Verifique a ligação.');return}
- const wb=XLSX.utils.book_new(),T=tabelas();
- Object.keys(T).forEach(n=>{const ws=XLSX.utils.aoa_to_sheet(T[n]);ws['!autofilter']={ref:ws['!ref']};ws['!cols']=T[n][0].map((h,i)=>({wch:Math.min(40,Math.max(String(h).length+2,...T[n].slice(1,60).map(r=>String(r[i]).length+1)))}));XLSX.utils.book_append_sheet(wb,ws,n)});
- XLSX.writeFile(wb,'enat-contas-'+new Date().toISOString().slice(0,10)+'.xlsx')}
+async function xlsx(){
+ const button=document.querySelector('[data-a="xlsx"]');
+ if(button?.disabled)return;
+ if(!window.ExcelJS||!window.EnatExcel){alert('Não foi possível carregar a exportação Excel. Atualize a página e tente novamente.');return}
+ if(button){button.disabled=true;button.textContent='A preparar Excel…'}
+ try{
+  const wb=EnatExcel.createWorkbook(ExcelJS,tabelas(),all());
+  const buffer=await wb.xlsx.writeBuffer();
+  const url=URL.createObjectURL(new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const link=document.createElement('a');link.href=url;link.download='enat-contas-'+new Date().toISOString().slice(0,10)+'.xlsx';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+ }catch(e){alert('Não foi possível gerar o Excel. Tente novamente.')}
+ finally{if(button){button.disabled=false;button.textContent='Descarregar Excel'}}
+}
 function productDetails(v,index){
  const i=v.items?.[index];if(!i)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
  const unit=i.unit||'un';

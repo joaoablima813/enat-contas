@@ -5,7 +5,7 @@ export function installer(origin) {
  const quote=s=>'"'+s.replaceAll('"','""')+'"';
  const sheets=[['Controlo de Obras','Controlo','ENAT_Controlo',7],['Obras','Obras','ENAT_Obras',1],['Faturas','Faturas','ENAT_Faturas',1],['Materiais','Materiais','ENAT_Materiais',1],['Movimentos','Movimentos','ENAT_Movimentos',1]];
  const lines=[
- 'Option Explicit','Dim xl, wb, ws, lo, qt, q, dest, shell, fso, i',
+ 'Option Explicit','Dim xl, wb, ws, lo, qt, q, dest, shell, fso, i, ts, el, style',
  'Set shell = CreateObject("WScript.Shell")','Set fso = CreateObject("Scripting.FileSystemObject")',
  'dest = shell.SpecialFolders("Desktop") & "\\ENAT-Financas.xlsx"',
  'If fso.FileExists(dest) Then',
@@ -14,18 +14,14 @@ export function installer(origin) {
  'On Error Resume Next','Set xl = CreateObject("Excel.Application")',
  'If Err.Number <> 0 Then',' MsgBox "E necessario ter o Microsoft Excel 2016 ou mais recente instalado no Windows. Consulte o guia na app.", 16, "ENAT"',' WScript.Quit','End If','On Error GoTo 0',
  'xl.Visible = True','Set wb = xl.Workbooks.Add',
- 'wb.TableStyles.Add "ENAT"',
- 'With wb.TableStyles("ENAT")',
- ' .TableElements(0).Interior.Color = RGB(255,255,255)',
- ' .TableElements(0).Font.Color = RGB(25,30,61)',
- ' .TableElements(0).Borders(9).Color = RGB(226,230,240)',
- ' .TableElements(1).Interior.Color = RGB(75,92,146)',
- ' .TableElements(1).Font.Color = RGB(255,255,255)',
- ' .TableElements(1).Font.Bold = True',
- ' .TableElements(5).Interior.Color = RGB(255,255,255)',
- ' .TableElements(5).StripeSize = 1',
- ' .TableElements(6).Interior.Color = RGB(246,247,251)',
- ' .TableElements(6).StripeSize = 1','End With',
+ // VBScript cannot pass an index to TableElements directly, so each element is read through Item.
+ // If Excel refuses the custom style, the tables keep a built-in style and the direct formatting below.
+ 'On Error Resume Next','Set ts = wb.TableStyles.Add("ENAT")',
+ 'Set el = ts.TableElements.Item(0)','el.Interior.Color = RGB(255,255,255)','el.Font.Color = RGB(25,30,61)','el.Borders.Item(9).Color = RGB(226,230,240)',
+ 'Set el = ts.TableElements.Item(1)','el.Interior.Color = RGB(75,92,146)','el.Font.Color = RGB(255,255,255)','el.Font.Bold = True',
+ 'Set el = ts.TableElements.Item(5)','el.Interior.Color = RGB(255,255,255)','el.StripeSize = 1',
+ 'Set el = ts.TableElements.Item(6)','el.Interior.Color = RGB(246,247,251)','el.StripeSize = 1',
+ 'If Err.Number <> 0 Then','style = "TableStyleLight9"',' Err.Clear','Else',' style = "ENAT"','End If','On Error GoTo 0',
  'Do While wb.Worksheets.Count > 1',' xl.DisplayAlerts = False',' wb.Worksheets(wb.Worksheets.Count).Delete',' xl.DisplayAlerts = True','Loop'
  ];
  sheets.forEach(([name,key,table,row],index)=>{
@@ -36,7 +32,7 @@ export function installer(origin) {
  lines.push(index?'Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))':'Set ws = wb.Worksheets(1)',
  `ws.Name = ${quote(name)}`,`q = ${quote(m)}`,`wb.Queries.Add ${quote(table)}, q`,
  `Set lo = ws.ListObjects.Add(0, ${quote('OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location='+table+';Extended Properties=""')}, True, 1, ws.Range("A${row}"))`,
- `lo.Name = ${quote(table)}`,`lo.TableStyle = "ENAT"`,'lo.ShowTableStyleRowStripes = True','Set qt = lo.QueryTable','qt.CommandType = 2',`qt.CommandText = ${quote('SELECT * FROM ['+table+']')}`,
+ `lo.Name = ${quote(table)}`,'On Error Resume Next','lo.TableStyle = style','On Error GoTo 0','lo.ShowTableStyleRowStripes = True','Set qt = lo.QueryTable','qt.CommandType = 2',`qt.CommandText = ${quote('SELECT * FROM ['+table+']')}`,
  'qt.BackgroundQuery = False','qt.RefreshOnFileOpen = True','qt.RefreshPeriod = 5','qt.PreserveFormatting = True','qt.AdjustColumnWidth = False','ws.Cells.Font.Name = "Calibri"','ws.Cells.Font.Size = 11','ws.Columns.ColumnWidth = 20','ws.Columns("A:A").ColumnWidth = 34',`ws.Rows(${row}).RowHeight = 32`,'ws.Activate',`ws.Range("A${row+1}").Select`,'xl.ActiveWindow.FreezePanes = True');
  if(!index){
   lines.push('ws.Range("A2:M2").Merge','ws.Range("A2").Value = "ENAT • CONTROLO FINANCEIRO DE OBRAS"','ws.Range("A2").Font.Size = 20','ws.Range("A2").Font.Bold = True','ws.Range("A2").Font.Color = RGB(47,57,93)','ws.Range("A6:M6").Merge','ws.Range("A6").Value = "Atualiza ao abrir e a cada 5 minutos com internet. Estado da Obra acompanha a app."','ws.Range("A6").Font.Size = 10');

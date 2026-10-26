@@ -99,6 +99,11 @@ export default async (req) => {
   if (path.startsWith('auth/')) return auth(req, path, store, autorizado);
   if (!autorizado) return json(401);
 
+  if (path === 'orcamentos' || path.startsWith('orcamentos/')) {
+    const { handleQuotes } = await import('../lib/quotes.ts');
+    return handleQuotes(req, path);
+  }
+
   if (path === 'estado') {
     if (req.method === 'GET') return json(200, { state: (await store.get('estado', { type: 'json' })) || null });
     if (req.method === 'PUT') {

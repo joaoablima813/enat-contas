@@ -1,1 +1,1 @@
-{"name":"enat-contas","private":true,"type":"module","dependencies":{"@netlify/blobs":"^8.1.0","@netlify/identity":"^2.0.0","@simplewebauthn/server":"^14.0.3","openai":"^7.44.0"}}
+{"name":"enat-contas","private":true,"type":"module","dependencies":{"@netlify/blobs":"^8.1.0","@netlify/database":"^2.0.1","@netlify/identity":"^2.0.0","@simplewebauthn/server":"^14.0.3","drizzle-orm":"^1.0.0-beta.22","jspdf":"^4.2.1","jspdf-autotable":"^5.0.9","openai":"^7.44.0"},"devDependencies":{"drizzle-kit":"^1.0.0-beta.22"}}

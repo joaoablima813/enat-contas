@@ -1,0 +1,35 @@
+.enat-financas {
+  --enat-header: #4B5C92; --enat-title: #2F395D; --enat-kpi: #F1F4FA;
+  --enat-label: #59607F; --enat-value: #191E3D; --enat-zebra: #F6F7FB; --enat-border: #E2E6F0;
+  font-family: 'Google Sans', Inter, system-ui, sans-serif; color: var(--enat-value);
+  background: #F8FAFC; padding: clamp(16px, 3vw, 32px); max-width: 1400px; margin: auto;
+}
+.enat-financas h1 { font-size: 20px; color: var(--enat-title); margin: 0 0 20px; }
+.enat-nav { display: flex; overflow-x: auto; border-bottom: 1px solid var(--enat-border); margin-bottom: 24px; }
+.enat-nav button { background: transparent; border: 0; border-bottom: 2px solid transparent; white-space: nowrap; padding: 12px 16px; color: var(--enat-label); font: inherit; font-weight: 600; cursor: pointer; }
+.enat-nav button[aria-current] { color: var(--enat-title); border-bottom-color: var(--enat-header); }
+.enat-nav button:hover { background: var(--enat-kpi); }
+.enat-financas :focus-visible { outline: 2px solid var(--enat-header); outline-offset: 3px; }
+.enat-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 0 0 24px; }
+.enat-kpis > div { background: var(--enat-kpi); border: 1px solid var(--enat-border); border-radius: 8px; padding: 12px; text-align: center; }
+.enat-kpis dt { font-size: 10px; font-weight: 700; letter-spacing: .05em; color: var(--enat-label); }
+.enat-kpis dd { font-size: 18px; font-weight: 700; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.enat-table-scroll { overflow-x: auto; border: 1px solid var(--enat-border); border-radius: 8px; background: white; }
+.enat-financas table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+.enat-financas th { background: var(--enat-header); color: white; padding: 12px; }
+.enat-financas td { padding: 10px 12px; border-bottom: 1px solid var(--enat-border); }
+.enat-financas tbody tr:nth-child(even) { background: var(--enat-zebra); }
+.enat-financas .numeric { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.enat-badge { display: inline-block; border-radius: 99px; padding: 3px 10px; font-size: 11px; white-space: nowrap; background: var(--enat-kpi); color: var(--enat-label); }
+.enat-badge[data-estado='Planeamento'] { background: #E8ECFF; color: #3B4EAF; }
+.enat-badge[data-estado='Em Curso'] { background: #FEF3C7; color: #92400E; }
+.enat-badge[data-estado='Concluída'], .enat-badge[data-estado='Sim'], .enat-badge[data-estado='Recebimento'] { background: #D1FAE5; color: #065F46; }
+.enat-badge[data-estado='Pausada'] { background: #FEE2E2; color: #991B1B; }
+.enat-badge[data-estado='Pago'] { background: #DCFCE7; color: #15803D; }
+.enat-badge[data-estado='Parcial'] { background: #FEF9C3; color: #854D0E; }
+.enat-badge[data-estado='Pendente'] { background: #FEE2E2; color: #B91C1C; }
+.enat-badge[data-estado='Mão de obra'] { background: #F3E8FF; color: #6B21A8; }
+.enat-empty { text-align: center; color: var(--enat-label); padding: 32px !important; }
+.enat-financas .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 1000px) { .enat-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .enat-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

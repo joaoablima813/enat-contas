@@ -127,3 +127,19 @@ test('API saves quotes without locality and combines legacy addresses without ch
  response=await vm.runInContext('handleQuotes(req,path)',c);
  assert.equal(response.status,201);assert.equal(saved.address,sample.address+', '+sample.locality);assert.equal(saved.locality,undefined);
 });
+
+test('equipment brand is saved and appended to the quote title',async()=>{
+ const c=vm.createContext({document:{addEventListener(){}},TOPICS:sample.topics,esc:s=>String(s),eur:n=>String(n),ic:()=>''});
+ vm.runInContext(math+'\n'+ui,c);
+ assert.equal(vm.runInContext("quoteTitle({topics:['Ar condicionado'],brand:' LG '})",c),'Orçamento para Ar condicionado LG');
+ assert.equal(vm.runInContext("quoteTitle({topics:['Ar condicionado','VMC']})",c),'Orçamento para Ar condicionado + VMC');
+ const {stripTypeScriptTypes}=await import('node:module');
+ let saved;
+ const db={insert:()=>({values:({document})=>{saved=document;return {returning:async()=>[{id:1,document}]}}})};
+ const source=readFileSync(new URL('../netlify/lib/quotes.ts',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export async function','async function');
+ const s=vm.createContext({db,quotes:{},Response,Date});vm.runInContext(stripTypeScriptTypes(source),s);
+ s.path='orcamentos';s.req={method:'POST',json:async()=>({...structuredClone(sample),brand:' LG '})};
+ assert.equal((await vm.runInContext('handleQuotes(req,path)',s)).status,201);assert.equal(saved.brand,'LG');
+ s.req={method:'POST',json:async()=>({...structuredClone(sample),brand:'x'.repeat(201)})};
+ assert.equal((await vm.runInContext('handleQuotes(req,path)',s)).status,400);
+});

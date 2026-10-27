@@ -45,7 +45,28 @@ const mail = () => ({
   user: process.env.SMTP_USER || 'pontedelima@enat.pt',
   pass: process.env.SMTP_PASSWORD,
   from: process.env.EMAIL_FROM || 'pontedelima@enat.pt',
+  imapHost: process.env.IMAP_HOST || process.env.SMTP_HOST || 'mail.enat.pt',
+  imapPort: Number(process.env.IMAP_PORT || 993),
 });
+
+// Stores the sent message, marked as read, in the folder the server flags as Sent (or IMAP_SENT_FOLDER).
+async function saveSent(c: ReturnType<typeof mail>, raw: Buffer) {
+  const { ImapFlow } = await import('imapflow');
+  const client = new ImapFlow({ host: c.imapHost, port: c.imapPort, secure: c.imapPort === 993, auth: { user: c.user, pass: c.pass! }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
+  await client.connect();
+  try {
+    let folder = process.env.IMAP_SENT_FOLDER;
+    if (!folder) {
+      const list = await client.list();
+      folder = list.find(f => f.specialUse === '\\Sent')?.path
+        || list.find(f => /^(inbox[./])?(sent|sent items|sent messages|enviados|itens enviados|mensagens enviadas)$/i.test(f.path))?.path;
+    }
+    if (!folder) throw new Error('no Sent folder');
+    await client.append(folder, raw, ['\\Seen'], new Date());
+  } finally {
+    await client.logout().catch(() => client.close());
+  }
+}
 const htmlEsc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 // Turns the WhatsApp-style text (*bold*, bare links) into a simple branded email.
 export const emailHtml = (text: string) => '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#122c3b;max-width:600px">'
@@ -75,18 +96,17 @@ export async function handleEmail(req: Request, path: string, store: any) {
   try {
     const { createTransport } = await import('nodemailer');
     const t = createTransport({ host: c.host, port: c.port, secure: c.port === 465, auth: { user: c.user, pass: c.pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
-    const message = { from: { name: 'Enat - Energias', address: c.from }, replyTo: c.from, subject: b.subject.trim(), text, html: emailHtml(b.text), attachments };
-    // The client gets their own message, so a refused client address can't hide behind an accepted copy.
-    const info = await t.sendMail({ ...message, to });
+    const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
+    // Composed once, so the client and the Sent folder get the very same message (same Message-ID).
+    const raw: Buffer = await new MailComposer({ from: { name: 'Enat - Energias', address: c.from }, to, replyTo: c.from, subject: b.subject.trim(), text, html: emailHtml(b.text), attachments }).compile().build();
+    const info = await t.sendMail({ envelope: { from: c.from, to: [to] }, raw });
     const accepted = (info.accepted || []).map((a: any) => String(a?.address || a).toLowerCase());
     if (!accepted.includes(to.toLowerCase())) {
       console.error('email rejected', info.rejected?.length, info.response);
       return fail(502, 'O servidor de email não aceitou o endereço ' + to + '. Confirme o email do cliente.');
     }
-    // The record copy for the company mailbox is sent separately, only after the client's was accepted.
-    if (process.env.EMAIL_BCC_SELF !== 'false' && to.toLowerCase() !== c.from.toLowerCase()) {
-      await t.sendMail({ ...message, to: c.from, subject: 'Cópia: ' + message.subject + ' (enviado para ' + to + ')' }).catch((e: any) => console.error('email copy', e?.code, e?.responseCode));
-    }
+    // Like Outlook would, the message is saved in the mailbox's Sent folder instead of mailing a copy to it.
+    if (process.env.EMAIL_SAVE_SENT !== 'false') await saveSent(c, raw).catch((e: any) => console.error('email sent folder', e?.code || e?.message));
     return Response.json({ ok: true, to });
   } catch (e: any) {
     console.error('email', e?.code, e?.responseCode);

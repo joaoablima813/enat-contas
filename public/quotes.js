@@ -136,6 +136,8 @@ async function downloadQuotePdf(q,detailed=true){
   [{content:'Responsável comercial\nJoão Lima',styles:{fontStyle:'bold',cellPadding:{top:16,right:0,bottom:2,left:0}}},{content:'Obra a cargo de:\nEnat - Energias',colSpan:2,styles:{fontStyle:'bold',cellPadding:{top:16,right:0,bottom:2,left:0}}}]
  ],didDrawCell:d=>{if(d.section==='body'&&d.row.index===5){doc.setDrawColor(...navy);doc.setLineWidth(.3);doc.line(d.cell.x,d.cell.y+12,d.cell.x+70,d.cell.y+12)}},didDrawPage:later});
  const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setDrawColor(210,218,222);doc.setLineWidth(.2);doc.line(16,281,194,281);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...grey);doc.text('Enat - Energias · Orçamento '+number,16,286);doc.text('Página '+p+' de '+pages,194,286,{align:'right'})}
- doc.save('ENAT-Orcamento-'+number.replace(/\W+/g,'-')+'.pdf');
+ // File names cannot contain slashes, so 2026/0042 becomes 2026-0042.
+ const clean=v=>String(v||'').replace(/[\\/:*?"<>|\x00-\x1f]+/g,'-').replace(/\s+/g,' ').trim();
+ doc.save(clean('ORC Nº '+number.replace(/^ORC\s*/,'')+' '+q.client)+'.pdf');
 }
 

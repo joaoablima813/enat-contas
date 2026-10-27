@@ -26,10 +26,24 @@ test('PDF includes logo, customer, numbered title, selected topics, conditions a
  const c=vm.createContext({window:{jspdf:{jsPDF:Document}},Image,document:{addEventListener(){}},eur:n=>Number(n).toFixed(2)+' €'});
  vm.runInContext(math+'\n'+ui,c);c.proposal={...sample,id:42,lines:Array.from({length:65},(_,i)=>({...sample.lines[i%2],description:'Alínea '+(i+1)+' · Fornecimento e instalação de equipamento com acessórios e ensaios de funcionamento.'}))};
  await vm.runInContext('downloadQuotePdf(proposal)',c);
- assert.equal(filename,'ENAT-Orcamento-0042.pdf');assert.ok(pdf.getNumberOfPages()>1);
- const output=text.join('\n');for(const expected of ['0042','Cliente de teste','Ar condicionado + VMC','15 dias','Garantia de instalação: 2 anos','50% na adjudicação','João Lima','Total sem IVA','Total com IVA'])assert.ok(output.includes(expected),expected);
+ assert.equal(filename,'ENAT-Orcamento-ORC-2026-0042.pdf');assert.ok(pdf.getNumberOfPages()>1);
+ const output=text.join('\n');for(const expected of ['ORC 2026/0042','Garantia dos equipamentos: 3 anos','Enat - Energias','Cliente de teste','Ar condicionado + VMC','15 dias','Garantia de instalação: 2 anos','50% na adjudicação','João Lima','Total sem IVA','Total com IVA'])assert.ok(output.includes(expected),expected);
  assert.doesNotMatch(output,/Lucro previsto|Margem|Custo das alíneas/);
  assert.ok(pdf.output('arraybuffer').byteLength>10000);
+});
+
+test('summary PDF lists items and totals without line prices',async()=>{
+ const text=[];const png=new Uint8Array(readFileSync(new URL('../public/enat-logo.png',import.meta.url)));
+ function Document(){const pdf=new jsPDF();const add=pdf.addImage.bind(pdf);pdf.addImage=(_img,...args)=>add(png,...args);const write=pdf.text.bind(pdf);pdf.text=(value,...args)=>{text.push(String(value));return write(value,...args)};pdf.save=()=>pdf;return pdf}
+ class Image{width=400;height=150;set src(_){this.onload()}}
+ const c=vm.createContext({window:{jspdf:{jsPDF:Document}},Image,document:{addEventListener(){}},eur:n=>Number(n).toFixed(2)+' €'});
+ vm.runInContext(math+'\n'+ui,c);c.proposal={...sample,id:43,lines:sample.lines.map((l,i)=>({...l,description:'Linha '+(i+1)}))};
+ await vm.runInContext('downloadQuotePdf(proposal,false)',c);
+ const output=text.join('\n'),t=totals(c.proposal);
+ for(const expected of ['Linha 1','Linha 2','Total sem IVA','IVA (','Total com IVA'])assert.ok(output.includes(expected),expected);
+ assert.doesNotMatch(output,/Preço unit\./);
+ assert.equal((output.match(/ €/g)||[]).length,3,'only net, VAT and total amounts are shown');
+ assert.ok(t.total>0);
 });
 
 test('quote editor retains multi-selection and separate labor lines, and blocks incomplete proposals',async()=>{

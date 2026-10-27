@@ -17,3 +17,4 @@
 .q-list-delete{flex:none;padding:12px 10px;font-size:12px;min-height:44px}
 .q-delete{margin-top:24px!important}
 .q-field input:focus-visible,.q-field textarea:focus-visible,.q-field select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.q-match{margin:12px 0 0;color:var(--blue)}.q-match:empty{display:none}

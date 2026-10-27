@@ -12,9 +12,13 @@
 .q-line-numbers{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.85fr) minmax(0,1.65fr);gap:8px}
 .q-line-cost{grid-column:1/-1;margin:0;padding-top:8px;border-top:1px solid var(--line);font-size:12px;color:var(--mute)}
 .q-line-cost b{color:var(--ink);white-space:nowrap}
-.q-saved{display:flex;align-items:center;border-bottom:1px solid var(--line)}
-.q-saved:last-child{border-bottom:0}.q-saved>.invoice-row{flex:1;min-width:0}
-.q-list-delete{flex:none;padding:12px 10px;font-size:12px;min-height:44px}
+/* Client folders and the quotes inside them use the same list rows as the rest of the app. */
+.q-client .rt span:last-child{white-space:normal;overflow-wrap:anywhere}
+.q-saved{display:flex;align-items:center;position:relative;background:var(--card)}
+.q-saved+.q-saved::before{content:"";position:absolute;top:0;left:66px;right:0;border-top:1px solid var(--line)}
+.q-saved>.invoice-row{flex:1;min-width:0;padding-right:8px}
+.q-saved .rr{max-width:38%}
+.q-list-delete{flex:none;align-self:stretch;padding:0 14px 0 6px;font-size:13px;min-height:44px}
 .q-delete{margin-top:24px!important}
 .q-field input:focus-visible,.q-field textarea:focus-visible,.q-field select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .q-match{margin:12px 0 0;color:var(--blue)}.q-match:empty{display:none}

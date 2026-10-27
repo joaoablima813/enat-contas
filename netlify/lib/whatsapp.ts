@@ -75,10 +75,22 @@ export async function handleEmail(req: Request, path: string, store: any) {
   try {
     const { createTransport } = await import('nodemailer');
     const t = createTransport({ host: c.host, port: c.port, secure: c.port === 465, auth: { user: c.user, pass: c.pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
-    await t.sendMail({ from: { name: 'Enat - Energias', address: c.from }, to, replyTo: c.from, bcc: process.env.EMAIL_BCC_SELF === 'false' ? undefined : c.from, subject: b.subject.trim(), text, html: emailHtml(b.text), attachments });
+    const message = { from: { name: 'Enat - Energias', address: c.from }, replyTo: c.from, subject: b.subject.trim(), text, html: emailHtml(b.text), attachments };
+    // The client gets their own message, so a refused client address can't hide behind an accepted copy.
+    const info = await t.sendMail({ ...message, to });
+    const accepted = (info.accepted || []).map((a: any) => String(a?.address || a).toLowerCase());
+    if (!accepted.includes(to.toLowerCase())) {
+      console.error('email rejected', info.rejected?.length, info.response);
+      return fail(502, 'O servidor de email não aceitou o endereço ' + to + '. Confirme o email do cliente.');
+    }
+    // The record copy for the company mailbox is sent separately, only after the client's was accepted.
+    if (process.env.EMAIL_BCC_SELF !== 'false' && to.toLowerCase() !== c.from.toLowerCase()) {
+      await t.sendMail({ ...message, to: c.from, subject: 'Cópia: ' + message.subject + ' (enviado para ' + to + ')' }).catch((e: any) => console.error('email copy', e?.code, e?.responseCode));
+    }
     return Response.json({ ok: true, to });
   } catch (e: any) {
     console.error('email', e?.code, e?.responseCode);
+    if (e?.code === 'EENVELOPE') return fail(502, 'O servidor de email não aceitou o endereço ' + to + '. Confirme o email do cliente.');
     if (e?.code === 'EAUTH') return fail(502, 'O servidor de email recusou a palavra-passe de ' + c.user + '. Confirme a palavra-passe no Netlify.');
     if (['ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS'].includes(e?.code)) return fail(502, 'Não foi possível ligar ao servidor de email (' + c.host + ':' + c.port + ').');
     return fail(502, 'O servidor de email recusou o envio. Tente novamente.');

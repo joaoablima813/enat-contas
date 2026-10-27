@@ -89,13 +89,13 @@ document.addEventListener('click',async e=>{
  if(a==='wa-share'){const r=quoteWa.ready;navigator.share({files:r.files,text:r.text.replace(/\n+https?:\S+/g,'')}).catch(()=>{});return}
  if(a==='wa-reset'){quoteWa.ready=null;quoteWa.msg=''}
  if(quoteDraft&&a!=='wa-reset'&&quoteWa.ready){quoteWa.ready=null;quoteWa.msg=''}
- if(a==='new'){quoteDraft=newQuote();quoteClient=null;quoteError=''}
+ if(a==='new'){quoteWa.key=null;quoteDraft=newQuote();quoteClient=null;quoteError=''}
  if(a==='list'){quoteDraft=null;quoteClient=null;quoteError='';loadQuotes()}
  if(a==='close'){quoteDraft=null;quoteError='';loadQuotes()}
  if(a==='client'){quoteClient=b.dataset.key;quoteError='';window.scrollTo?.(0,0)}
- if(a==='new-client'){const g=quoteClients().find(g=>g.key===quoteClient);quoteDraft=newQuote();if(g)Object.assign(quoteDraft,{client:g.latest.client,address:g.latest.address,contact:g.latest.contact,email:quoteClientEmail(g)});quoteError=''}
+ if(a==='new-client'){quoteWa.key=null;const g=quoteClients().find(g=>g.key===quoteClient);quoteDraft=newQuote();if(g)Object.assign(quoteDraft,{client:g.latest.client,address:g.latest.address,contact:g.latest.contact,email:quoteClientEmail(g)});quoteError=''}
  if(a==='reload'){loadQuotes();return}
- if(a==='edit'){const r=quoteRows.find(r=>r.id===Number(b.dataset.id));quoteDraft={...structuredClone(r.document),id:r.id};quoteDraft.brand=quoteDraft.brand||'';quoteDraft.email=quoteDraft.email||'';quoteDraft.address=[quoteDraft.address,quoteDraft.locality].filter(Boolean).join(', ');delete quoteDraft.locality;quoteDraft.lines=quoteDraft.lines.map(l=>({...l,kind:l.kind==='Equipamento / material'?'Equipamento':l.kind,quantity:l.quantity??1,unit:l.unit||'un.'}));quoteError=''}
+ if(a==='edit'){quoteWa.key=null;const r=quoteRows.find(r=>r.id===Number(b.dataset.id));quoteDraft={...structuredClone(r.document),id:r.id};quoteDraft.brand=quoteDraft.brand||'';quoteDraft.email=quoteDraft.email||'';quoteDraft.address=[quoteDraft.address,quoteDraft.locality].filter(Boolean).join(', ');delete quoteDraft.locality;quoteDraft.lines=quoteDraft.lines.map(l=>({...l,kind:l.kind==='Equipamento / material'?'Equipamento':l.kind,quantity:l.quantity??1,unit:l.unit||'un.'}));quoteError=''}
  if(a==='add'&&quoteDraft.lines.length<200)quoteDraft.lines.push({kind:'Equipamento',description:'',quantity:1,unit:'un.',value:0});
  if(a==='remove'&&quoteDraft.lines.length>1)quoteDraft.lines.splice(Number(b.dataset.index),1);
  if(a==='delete'){await deleteQuote();return}

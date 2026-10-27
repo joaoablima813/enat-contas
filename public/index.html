@@ -81,7 +81,7 @@ nav button.on{color:var(--blue)}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .top{max-width:520px;margin:0 auto;padding:12px 16px 0}.top img{height:38px;display:block;background:#fff;border-radius:10px;padding:2px 8px}
 .sbar{display:flex;align-items:center;gap:8px;background:var(--chip);border-radius:12px;padding:0 12px;margin-bottom:12px}.sbar svg{width:18px;height:18px;color:var(--mute)}.sbar input{flex:1;border:0;background:none;outline:0;padding:11px 0;font-size:17px}a{color:var(--blue)}.btn svg{vertical-align:-5px;margin-right:6px}.chips{flex-wrap:nowrap}
-.obra-seg{overflow-x:auto}.obra-seg button{flex:1 0 auto}.invoice-row{width:100%;border:0;background:var(--card);text-align:left}.invoice-row:focus-visible{outline-offset:-3px}.invoice-items .rt b,.invoice-items .rt span{white-space:normal;overflow-wrap:anywhere}.labor-entry{margin-top:14px}.labor-entry h2{margin-top:12px}
+.obra-seg{overflow-x:auto}.obra-seg button{flex:1 0 auto}.invoice-row{width:100%;border:0;background:var(--card);text-align:left}.invoice-row:focus-visible{outline-offset:-3px}.invoice-items .rt b,.invoice-items .rt span{white-space:normal;overflow-wrap:anywhere}.labor-entry{margin-top:14px}.labor-entry h2{margin-top:12px}.was{font-size:12px!important;color:var(--mute)}.was s{opacity:.8}.cat-pick{width:100%;border:0;background:var(--chip);border-radius:9px;padding:9px;font-size:15px}
 </style>
 <link rel="stylesheet" href="/quotes.css">
 <script src="/vendor/jspdf.umd.min.js"></script>
@@ -256,7 +256,20 @@ function vObra(){
 }
 
 /* ---------- materiais, manutenção, leitura de faturas ---------- */
-const CATS=['Equipamentos','Cablagem','Tubagem','Acessórios e fixação','Outros / consumíveis'];
+const CATS=['Equipamentos','Material elétrico','Cablagem','Cobre','Tubagem','Acessórios e fixação','Outros / consumíveis'];
+// Normaliza uma linha lida: unit_price é o preço líquido (com desconto); list_price e discount só existem quando há desconto.
+function lineItem(i){
+ const qty=fin(i.qty)>0?+i.qty:1,tot=fin(i.total_no_vat);let net=fin(i.unit_price),list=fin(i.list_price),disc=fin(i.discount);
+ if(disc!==null&&(disc<=0||disc>=100))disc=null;
+ if(list!==null&&list<=0)list=null;
+ if(net===null&&tot!==null)net=tot/qty;
+ if(net===null&&list!==null)net=disc?list*(1-disc/100):list;
+ // Se o preço líquido veio igual ao de tabela, usa o total da linha ou a percentagem para aplicar o desconto.
+ if(disc&&net!==null&&(list===null||Math.abs(list-net)<0.005)){if(list===null&&tot!==null&&Math.abs(tot/qty-net)>0.005){list=net;net=tot/qty}else{list=list??net;net=list*(1-disc/100)}}
+ if(list!==null&&net!==null&&list>net+0.004){disc=disc??(1-net/list)*100}else{list=null;disc=null}
+ net=net??0;
+ return{name:String(i.name||'Artigo'),qty,unit:i.unit||'un',unit_price:net,...(list!==null?{list_price:Math.round(list*1e4)/1e4,discount:r2(disc)}:{}),vat:fin(i.vat)??23,total:tot??qty*net,cat:CATS.includes(i.cat)?i.cat:'Outros / consumíveis'};
+}
 const EQ=['Piso radiante','Ar condicionado','Bomba de calor climatização','Bomba de calor AQS','Ventiloconvectores','VMC','UPAC (fotovoltaico)','Solar térmico'];
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -274,7 +287,7 @@ const vtot=v=>{const t=S.tx.find(x=>x.id===v.tx)||{};return{b:t.base||0,t:t.tota
 const invRow=v=>{const t=vtot(v),o=S.obras.find(o=>o.id===v.obra);return`<button class="row invoice-row" data-a="invoice" data-id="${esc(v.id)}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${esc(v.store)}</b><span>${[v.number,fd(v.date),o&&o.name,v.nif&&'NIF '+v.nif].filter(Boolean).map(esc).join(' · ')}</span></div><div class="rr"><b>${eur(t.t)}</b><span>Ver dados e materiais ›</span></div></button>`};
 function invoiceDetails(v){
  const t=S.tx.find(x=>x.id===v.tx)||{},o=S.obras.find(x=>x.id===v.obra);
- return`<div class="grab"></div><h3>Dados da fatura</h3><div class="grp invoice-items">${kv('Fornecedor',esc(v.store))}${kv('NIF',esc(v.nif||'Não indicado'))}${kv('N.º da fatura',esc(v.number||'Não indicado'))}${kv('Data',esc(fd(v.date)))}${kv('Obra',esc(o?.name||'Não indicada'))}</div><h2>Materiais (${(v.items||[]).length})</h2><div class="grp invoice-items">${(v.items||[]).map(i=>`<div class="row kv"><div class="rt"><b>${esc(i.name)}</b><span>${esc(i.cat||'')} · ${esc(i.qty)} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span><span>IVA ${esc(i.vat)}% · ${eur(i.unit_price*(1+i.vat/100))}/${esc(i.unit)} c/ IVA</span></div><div class="rr"><b>${eur(i.total)}</b><span>s/ IVA</span></div></div>`).join('')||'<div class="empty">Esta fatura não tem artigos extraídos.</div>'}</div><h2>Totais</h2><div class="grp">${kv('Total sem IVA',eur(t.base))}${kv('IVA',eur(t.iva))}${kv('Total com IVA',eur(t.total),'tot')}</div>${v.foto?`<button class="btn" data-a="foto" data-id="${esc(v.id)}">${ic('cam')}Ver foto ou PDF original</button>`:'<p class="note">Sem anexo disponível.</p>'}<button class="btn alt" data-a="edittx" data-id="${esc(v.tx)}">Editar movimento</button><button class="btn alt" data-a="close">Fechar</button>`;
+ return`<div class="grab"></div><h3>Dados da fatura</h3><div class="grp invoice-items">${kv('Fornecedor',esc(v.store))}${kv('NIF',esc(v.nif||'Não indicado'))}${kv('N.º da fatura',esc(v.number||'Não indicado'))}${kv('Data',esc(fd(v.date)))}${kv('Obra',esc(o?.name||'Não indicada'))}</div><h2>Materiais (${(v.items||[]).length})</h2><div class="grp invoice-items">${(v.items||[]).map(i=>`<div class="row kv"><div class="rt"><b>${esc(i.name)}</b><span>${esc(i.cat||'')} · ${esc(i.qty)} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span>${hasDisc(i)?`<span class="was">Sem desconto <s>${eur(i.list_price)}</s> · −${esc(r2(i.discount))}%</span>`:''}<span>IVA ${esc(i.vat)}% · ${eur(i.unit_price*(1+i.vat/100))}/${esc(i.unit)} c/ IVA</span></div><div class="rr"><b>${eur(i.total)}</b><span>s/ IVA</span></div></div>`).join('')||'<div class="empty">Esta fatura não tem artigos extraídos.</div>'}</div><h2>Totais</h2><div class="grp">${kv('Total sem IVA',eur(t.base))}${kv('IVA',eur(t.iva))}${kv('Total com IVA',eur(t.total),'tot')}</div>${v.foto?`<button class="btn" data-a="foto" data-id="${esc(v.id)}">${ic('cam')}Ver foto ou PDF original</button>`:'<p class="note">Sem anexo disponível.</p>'}<button class="btn alt" data-a="edittx" data-id="${esc(v.tx)}">Editar movimento</button><button class="btn alt" data-a="close">Fechar</button>`;
 }
 const laborOptions=[['nao_faturado','Não faturado — sem IVA'],['faturado','Faturado — IVA incluído a 23%']];
 const laborNote='<p class="note">Faturado: o valor pago já inclui IVA a 23% (123 € = 100 € de custo + 23 € de IVA). Não faturado: todo o valor pago é custo, sem IVA.</p>';
@@ -299,31 +312,54 @@ async function xlsx(){
  }catch(e){alert('Não foi possível gerar o Excel. Tente novamente.')}
  finally{if(button){button.disabled=false;button.textContent='Descarregar cópia Excel'}}
 }
+// Produtos: cada linha de fatura entra no catálogo; o mesmo nome em várias faturas forma um só produto.
+const fin=x=>x!=null&&x!==''&&Number.isFinite(+x)?+x:null;
+const unitName=u=>u==='m'?'metro':u==='un'?'unidade':u;
+const hasDisc=i=>fin(i.discount)>0&&fin(i.list_price)>fin(i.unit_price);
+function products(){
+ const m=new Map();
+ S.inv.forEach(v=>(v.items||[]).forEach((i,index)=>{const k=norm(i.name).replace(/\s+/g,' ').trim();if(!k)return;
+  const p=m.get(k)||{key:k,name:i.name,cat:i.cat,buys:[]};p.buys.push({v,i,index});m.set(k,p)}));
+ return[...m.values()].map(p=>{p.buys.sort((a,b)=>(b.v.date||'').localeCompare(a.v.date||''));p.last=p.buys[0];p.name=p.last.i.name;p.cat=p.last.i.cat||'Outros / consumíveis';return p})
+  .sort((a,b)=>(b.last.v.date||'').localeCompare(a.last.v.date||''));
+}
+const priceTag=(i,cls='')=>{const p=fin(i.unit_price),u=esc(i.unit||'un');if(p===null)return'<b>Preço não indicado</b>';
+ return`<b class="${cls}">${eur(p)} / ${u}</b>${hasDisc(i)?`<span class="was">Sem desconto <s>${eur(i.list_price)}</s> · −${esc(r2(i.discount))}%</span>`:'<span>s/ IVA</span>'}`};
 function productDetails(v,index){
- const i=v.items?.[index];if(!i)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
- const unit=i.unit||'un';
- const price=i.unit_price!=null&&Number.isFinite(Number(i.unit_price))?Number(i.unit_price):null;
- const vat=i.vat!=null&&Number.isFinite(Number(i.vat))?Number(i.vat):null;
- return`<div class="grab"></div><h3>${esc(i.name)}</h3><h2>Preço por ${unit==='m'?'metro':unit==='un'?'unidade':esc(unit)}</h2><div class="grp invoice-items">${kv('Preço sem IVA',price===null?'Não indicado':eur(price)+' / '+esc(unit),'tot')}${kv('Taxa de IVA',vat===null?'Não indicada':esc(vat)+'%')}${kv('Preço com IVA',price===null||vat===null?'Não indicado':eur(price*(1+vat/100))+' / '+esc(unit))}</div><h2>Local de compra</h2><div class="grp invoice-items">${kv('Fornecedor',esc(v.store))}${kv('Data',esc(fd(v.date)))}${kv('Quantidade comprada',esc(i.qty??'Não indicada')+' '+esc(unit))}${kv('Categoria',esc(i.cat||'Não indicada'))}</div><button class="btn" data-a="invoice" data-id="${esc(v.id)}">${ic('fatura')}Ver fatura associada</button><button class="btn alt" data-a="close">Fechar</button>`;
+ const first=v.items?.[index];if(!first)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
+ const p=products().find(p=>p.buys.some(b=>b.v===v&&b.index===index));if(!p)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
+ const i=p.last.i,unit=i.unit||'un';
+ const price=fin(i.unit_price),vat=fin(i.vat);
+ return`<div class="grab"></div><h3>${esc(p.name)}</h3><h2>Preço por ${esc(unitName(unit))} (última compra)</h2><div class="grp invoice-items">${kv(hasDisc(i)?'Preço com desconto, sem IVA':'Preço sem IVA',price===null?'Não indicado':eur(price)+' / '+esc(unit),'tot')}${hasDisc(i)?kv('<span class="sub">Preço sem desconto</span>',`<span class="sub"><s>${eur(i.list_price)}</s> · desconto ${esc(r2(i.discount))}%</span>`):''}${kv('Taxa de IVA',vat===null?'Não indicada':esc(vat)+'%')}${kv('Preço com IVA',price===null||vat===null?'Não indicado':eur(price*(1+vat/100))+' / '+esc(unit))}</div>
+ <h2>Categoria</h2><div class="grp"><div class="row"><select class="cat-pick" data-pcat="${esc(p.key)}" aria-label="Categoria do produto">${opt(CATS.map(c=>[c,c]),p.cat)}</select></div></div>
+ <h2>Faturas onde entrou (${p.buys.length})</h2><div class="grp invoice-items">${p.buys.map(({v,i})=>`<button class="row invoice-row" data-a="invoice" data-id="${esc(v.id)}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${esc(v.store)}${v.number?' · '+esc(v.number):''}</b><span>${esc(fd(v.date))} · ${esc(i.qty??'?')} ${esc(i.unit||'un')}${v.nif?' · NIF '+esc(v.nif):''}</span></div><div class="rr">${priceTag(i)}</div></button>`).join('')}</div><button class="btn alt" data-a="close">Fechar</button>`;
 }
 function matchesProduct(name,query){
  const words=norm(name).match(/[a-z0-9]+/g)||[];
  const terms=(norm(query).match(/[a-z0-9]+/g)||[]).filter(w=>!['de','do','da','dos','das','em','e'].includes(w));
  return terms.length>0&&terms.every(term=>words.some(word=>word.startsWith(term)));
 }
+const invText=v=>[v.store,v.nif,v.number].filter(Boolean).join(' ');
+const productRow=p=>`<button class="row invoice-row" data-a="product" data-id="${esc(p.last.v.id)}" data-index="${p.last.index}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(p.name)}</b><span>${esc(p.cat)} · ${esc(p.last.v.store)} · ${esc(fd(p.last.v.date))}${p.buys.length>1?' · '+p.buys.length+' faturas':''}</span></div><div class="rr">${priceTag(p.last.i)}</div></button>`;
+const productList=(l,title)=>`<h2>${title} (${l.length})</h2><div class="grp invoice-items">${l.map(productRow).join('')}</div>`;
 function matRes(){
- const q=(V.q||'').trim();
- if(!q){const recent=S.inv.slice().reverse().slice(0,3);return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>`}
- const results=S.inv.slice().reverse().flatMap(v=>(v.items||[]).map((i,index)=>({v,i,index}))).filter(({i})=>(!V.mc||i.cat===V.mc)&&matchesProduct(i.name,q));
- return results.length?`<h2>Produtos (${results.length})</h2><div class="grp invoice-items">${results.map(({v,i,index})=>`<button class="row invoice-row" data-a="product" data-id="${esc(v.id)}" data-index="${index}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(i.name)}</b><span>${esc(v.store)} · ${esc(fd(v.date))}</span></div><div class="rr"><b>${i.unit_price!=null&&Number.isFinite(Number(i.unit_price))?eur(Number(i.unit_price))+' / '+esc(i.unit||'un'):'Preço não indicado'}</b><span>s/ IVA · Ver produto ›</span></div></button>`).join('')}</div>`:'<div class="grp"><div class="empty">Nenhum produto encontrado para esta pesquisa.</div></div>';
+ const q=(V.q||'').trim(),all=products(),inCat=all.filter(p=>!V.mc||p.cat===V.mc);
+ if(!q){
+  if(V.mc)return inCat.length?productList(inCat,V.mc):`<div class="grp"><div class="empty">Ainda não há produtos em ${esc(V.mc)}.</div></div>`;
+  const recent=S.inv.slice().reverse().slice(0,3);
+  return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>${all.length?productList(all.slice(0,30),'Produtos recentes'):''}`}
+ // Cada palavra pode corresponder ao produto, ao fornecedor, ao NIF ou ao n.º da fatura.
+ const found=inCat.filter(p=>matchesProduct(p.name,q)||p.buys.some(b=>matchesProduct(p.name+' '+invText(b.v),q)));
+ const invs=S.inv.slice().reverse().filter(v=>matchesProduct(invText(v),q));
+ if(!found.length&&!invs.length)return'<div class="grp"><div class="empty">Nenhum produto encontrado para esta pesquisa.</div></div>';
+ return`${invs.length&&!V.mc?`<h2>Faturas do fornecedor (${invs.length})</h2><div class="grp">${invs.slice(0,20).map(invRow).join('')}</div>`:''}${found.length?productList(found,'Produtos'):''}`;
 }
-function vMat(){return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Nome do material ou equipamento" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>`}
+function vMat(){const n=products().length,todo=S.inv.filter(v=>v.foto&&!v.rv).length;return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Produto, fornecedor ou NIF" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>${n&&todo?`<p class="note">${todo} fatura${todo>1?'s':''} lida${todo>1?'s':''} antes desta atualização. Volte a ler para obter os descontos e as novas categorias (Material elétrico, Cobre).</p><button class="btn alt" data-a="reread">${RR?esc(RR):'Voltar a ler faturas antigas'}</button>`:''}`}
 const due=o=>{const d=new Date(o.done+'T12:00');d.setFullYear(d.getFullYear()+1);return d};
 const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.join(', ')}) na obra ${o.name}. Para manter tudo a funcionar bem e válido na garantia, quer agendar a manutenção? Enat Energias`;
 function vMan(){
  const l=S.obras.filter(o=>o.done&&(o.equip||[]).length).map(o=>({o,d:due(o)})).sort((a,b)=>a.d-b.d),now=new Date();
  return`<h1>Manutenção</h1><p class="note" style="margin:-6px 6px 14px">Cada obra concluída, com equipamentos indicados, fica agendada para um ano depois. Quando chegar a data, envie a mensagem ao cliente com um toque.</p><div class="grp">${l.length?l.map(({o,d})=>{const dias=Math.round((d-now)/864e5),tel=(o.phone||'').replace(/\D/g,'');return`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(o.name)}</b><span>${esc(o.client)} · ${o.equip.join(', ')}</span></div><div class="rr"><b class="${dias<=0?'neg':''}">${d.toLocaleDateString('pt-PT')}</b><span>${dias<=0?'em atraso':'daqui a '+dias+' dias'}</span></div>${tel?`<a class="btn" style="margin:8px 0 0;padding:10px;font-size:15px;text-align:center;text-decoration:none;color:#fff" target="_blank" rel="noopener" href="https://wa.me/${tel.length===9?'351'+tel:tel}?text=${encodeURIComponent(msg(o))}">Enviar mensagem por WhatsApp</a>`:'<span class="sub" style="width:100%;padding-top:6px">Falta o telemóvel do cliente. Edite a obra.</span>'}</div>`}).join(''):'<div class="empty">Nenhuma obra com data de conclusão e equipamentos. Edite uma obra para os indicar.</div>'}</div>`}
-const PROMPT='Estas imagens são páginas de UMA fatura portuguesa de um fornecedor de materiais. Devolve APENAS JSON: {"store":nome da loja,"nif":NIF do fornecedor (9 dígitos, nunca o do cliente),"date":"AAAA-MM-DD","number":"nº da fatura","totalNoVat":total sem IVA,"total":total com IVA,"items":[{"name":nome do artigo,"qty":quantidade,"unit":"un"|"m"|"kg"|"cx","unit_price":preço unitário líquido SEM IVA já com descontos (por metro se vendido a metro),"vat":taxa de IVA em %,"total_no_vat":total da linha sem IVA,"cat":uma de: '+CATS.join(' | ')+'}]}. Regras: cabos e fios são Cablagem; bombas de calor, ar condicionado, VMC, unidades e painéis são Equipamentos; tubos são Tubagem; parafusos, abraçadeiras, fita e buchas são Acessórios e fixação; o resto é Outros / consumíveis. Não inventes valores; usa null se não existir.';
 const jpg=c=>new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('Não foi possível preparar a foto.')),'image/jpeg',.9));
 async function toImages(f){
  if(f.type==='application/pdf'){
@@ -334,6 +370,20 @@ async function toImages(f){
   return out}
  let bm;try{bm=await createImageBitmap(f)}catch{const url=URL.createObjectURL(f);try{bm=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Não foi possível abrir a foto. Escolha JPEG ou PNG.'));im.src=url})}finally{URL.revokeObjectURL(url)}}const k=Math.min(1,1800/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=bm.width*k;c.height=bm.height*k;const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(bm,0,0,c.width,c.height);bm.close?.();return[await jpg(c)]}
 const b64=b=>new Promise((resolve,reject)=>{const x=new FileReader();x.onload=()=>resolve(x.result.split(',')[1]);x.onerror=()=>reject(new Error('Não foi possível abrir o ficheiro.'));x.readAsDataURL(b)});
+// Volta a ler, uma a uma, as faturas guardadas antes da leitura de descontos; os totais da fatura não mudam.
+let RR='';
+async function reread(){
+ if(RR)return;
+ const ids=S.inv.filter(v=>v.foto&&!v.rv).map(v=>v.id);let ok=0,fail=0;
+ const show=()=>{if(V.tab==='mat'&&!V.obra&&idle())render()};
+ for(const[n,id]of ids.entries()){
+  RR=`A ler fatura ${n+1} de ${ids.length}…`;show();
+  try{const r=await API('reler/'+id,{method:'POST'});if(!r.ok)throw 0;const j=await r.json(),items=(j.items||[]).map(lineItem),v=S.inv.find(x=>x.id===id);
+   if(v&&items.length){v.items=items;v.rv=1;save();ok++}else fail++}catch(e){fail++}
+ }
+ RR='';show();
+ alert(fail?`${ok} fatura${ok===1?'':'s'} atualizada${ok===1?'':'s'}. ${fail} não ${fail===1?'pôde':'puderam'} ser lida${fail===1?'':'s'}; pode tentar novamente.`:`${ok} fatura${ok===1?'':'s'} atualizada${ok===1?'':'s'} com descontos e categorias.`);
+}
 async function lerFatura(f){
  let blob=f,mime=f.type||(/\.pdf$/i.test(f.name)?'application/pdf':'');
  if(mime==='application/pdf'){if(f.size>4e6)throw new Error('PDF demasiado grande (máx. 4 MB). Envie uma foto')}
@@ -345,7 +395,7 @@ async function lerFatura(f){
 $('#file').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const obra=V.scanObra;
  const loading={kind:'loading'};D=loading;sheet();
  try{const r=await lerFatura(f);if(D!==loading)return;
-  const items=(r.items||[]).map(i=>({name:String(i.name||'Artigo'),qty:+i.qty||1,unit:i.unit||'un',unit_price:+i.unit_price||0,vat:i.vat!=null&&Number.isFinite(+i.vat)?+i.vat:23,total:i.total_no_vat!=null?+i.total_no_vat:(+i.qty||1)*(+i.unit_price||0),cat:CATS.includes(i.cat)?i.cat:'Outros / consumíveis'}));
+  const items=(r.items||[]).map(lineItem);
   const b=+r.totalNoVat||items.reduce((a,i)=>a+i.total,0),t=+r.total||items.reduce((a,i)=>a+i.total*(1+i.vat/100),0);
   D={kind:'inv',obra,store:r.store||'',nif:r.nif||'',date:r.date||new Date().toISOString().slice(0,10),number:r.number||'',items,base:b,total:t,blob:LB,mime:LM};sheet();
  }catch(err){if(D!==loading)return;D=null;sheet();alert('Não consegui ler a fatura: '+(err.message||err.code||'erro')+'.')}});
@@ -360,7 +410,7 @@ function sheet(){
  if(d.kind==='loading'){sh.innerHTML='<div class="grab"></div><div class="empty">A ler a fatura. Pode demorar alguns segundos.</div>'}else if(d.kind==='product'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?productDetails(v,d.itemIndex):'<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='invoice'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?invoiceDetails(v):'<div class="empty">Fatura não encontrada.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='labor'){sh.innerHTML=laborForm(d)}else if(d.kind==='view'){sh.innerHTML=`<div class="grab"></div><h3>${esc(d.title)}</h3>${d.url?(d.mime==='application/pdf'?`<iframe src="${d.url}" style="width:100%;height:68vh;border:0;border-radius:12px;background:#fff"></iframe>`:`<img src="${d.url}" alt="Fatura" style="width:100%;border-radius:12px">`):'<div class="empty">A abrir a fatura…</div>'}${d.url?`<a class="btn alt" href="${d.url}" target="_blank" rel="noopener">Abrir anexo</a>`:''}<button class="btn alt" data-a="invoice" data-id="${esc(d.invoiceId)}">Voltar aos dados da fatura</button><button class="btn alt" data-a="close">Fechar</button>`}else if(d.kind==='inv'){
   if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(d.blob);
   sh.innerHTML=`<div class="grab"></div><h3>Confirmar fatura</h3>${d.mime==='application/pdf'?`<a class="btn alt" href="${previewUrl}" target="_blank" rel="noopener">Abrir PDF original</a>`:`<img src="${previewUrl}" alt="Foto da fatura a guardar" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px">`}<p class="note">Obra: ${esc((S.obras.find(o=>o.id===d.obra)||{}).name)}</p><div class="fld"><label><span>N.º da fatura</span><input data-k="number" value="${esc(d.number)}"></label><label><span>Fornecedor</span><input data-k="store" value="${esc(d.store)}"></label><label><span>NIF</span><input data-k="nif" inputmode="numeric" value="${esc(d.nif)}"></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label><label><span>Total sem IVA (€)</span><input data-k="base" inputmode="decimal" value="${(+d.base).toFixed(2)}"></label><label><span>Total com IVA (€)</span><input data-k="total" inputmode="decimal" value="${(+d.total).toFixed(2)}"></label></div>
-  <h2 style="margin-top:14px">Materiais (${d.items.length})</h2><div class="grp">${d.items.map((i,n)=>`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(i.name)}</b><span>${i.qty} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span></div><div class="rr"><b>${eur(i.total)}</b></div><select data-i="${n}" style="width:100%;margin-top:6px;border:0;background:var(--chip);border-radius:9px;padding:8px">${opt(CATS.map(c=>[c,c]),i.cat)}</select></div>`).join('')||'<div class="empty">Nenhum artigo lido.</div>'}</div>
+  <h2 style="margin-top:14px">Materiais (${d.items.length})</h2><div class="grp">${d.items.map((i,n)=>`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(i.name)}</b><span>${i.qty} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span>${hasDisc(i)?`<span class="was">Sem desconto <s>${eur(i.list_price)}</s> · −${esc(r2(i.discount))}%</span>`:''}</div><div class="rr"><b>${eur(i.total)}</b></div><select data-i="${n}" style="width:100%;margin-top:6px;border:0;background:var(--chip);border-radius:9px;padding:8px">${opt(CATS.map(c=>[c,c]),i.cat)}</select></div>`).join('')||'<div class="empty">Nenhum artigo lido.</div>'}</div>
   <button class="btn" data-a="saveinv">Guardar na obra</button><button class="btn alt" data-a="close">Cancelar</button>`;
  }else if(d.kind==='obra'){
   sh.innerHTML=`<div class="grab"></div><h3>${d.id?'Editar obra':'Nova obra'}</h3><div class="fld">
@@ -438,6 +488,7 @@ document.addEventListener('click',async e=>{
  else if(a==='scan'){if(!b.dataset.o){alert('Escolha uma obra primeiro.');return}V.scanObra=b.dataset.o;$('#file').click();return}
  else if(a==='sug')V.q=id;
  else if(a==='mc')V.mc=id;
+ else if(a==='reread'){reread();return}
  else if(a==='eq'){D.equip=D.equip||[];const i=D.equip.indexOf(id);i<0?D.equip.push(id):D.equip.splice(i,1);sheet();return}
  else if(a==='saveinv'){
   if(D.saving)return;
@@ -449,7 +500,7 @@ document.addEventListener('click',async e=>{
    await subirFoto(iid,d.blob,d.mime);
    const tid=uid(),st=(d.store||'').trim()||'Fornecedor';
    S.tx.push({id:tid,obra:d.obra,type:'fatura',desc:st+(d.number?' · '+d.number:''),topic:'Geral / outros',date:d.date,total:t,base:bs,iva:t-bs,rate:Math.round((t/bs-1)*100),fx:1});
-   S.inv.push({id:iid,mime:d.mime,foto:1,tx:tid,obra:d.obra,store:st,nif:d.nif,date:d.date,number:d.number,items:d.items});save();
+   S.inv.push({id:iid,mime:d.mime,foto:1,tx:tid,obra:d.obra,store:st,nif:d.nif,date:d.date,number:d.number,items:d.items,rv:1});save();
    clearTimeout(pt);
    const r=await API('estado',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:S,sheets:tabelas()})});
    if(!r.ok)throw new Error('O anexo foi enviado, mas falta sincronizar a fatura.');
@@ -466,6 +517,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',e=>{const t=e.target,k=t.dataset&&t.dataset.k;
  if(t.id==='q'){V.q=t.value;navEntries[navIndex].v=navView();$('#res').innerHTML=matRes();return}
  if(t.dataset&&t.dataset.i!==undefined&&D&&D.items){D.items[+t.dataset.i].cat=t.value;return}
+ if(t.dataset?.pcat!==undefined){const p=products().find(p=>p.key===t.dataset.pcat);if(p){p.buys.forEach(b=>b.i.cat=t.value);save()}return}
  if(t.dataset?.labor!==undefined&&D?.entries){D.entries[+t.dataset.labor][t.dataset.field]=t.value;return}
  if(k&&D)D[k]=t.value});
 /* ---------- sincronização entre dispositivos ---------- */

@@ -4,11 +4,25 @@ import OpenAI from 'openai';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
+const CATS = ['Equipamentos', 'Material elétrico', 'Cablagem', 'Cobre', 'Tubagem', 'Acessórios e fixação', 'Outros / consumíveis'];
 const PROMPT = `Esta imagem ou PDF é uma fatura portuguesa de um fornecedor de materiais. Devolve APENAS JSON:
 {"store": nome da loja, "nif": NIF do fornecedor (9 dígitos, nunca o do cliente), "date": "AAAA-MM-DD", "number": "nº da fatura",
 "totalNoVat": total sem IVA, "total": total com IVA,
-"items": [{"name": nome do artigo, "qty": quantidade, "unit": "un"|"m"|"kg"|"cx", "unit_price": preço unitário líquido SEM IVA já com descontos (por metro se vendido a metro), "vat": taxa de IVA em %, "total_no_vat": total da linha sem IVA, "cat": uma de: Equipamentos | Cablagem | Tubagem | Acessórios e fixação | Outros / consumíveis}]}
-Regras: cabos e fios são Cablagem; bombas de calor, ar condicionado, VMC, unidades e painéis são Equipamentos; tubos são Tubagem; parafusos, abraçadeiras, fita e buchas são Acessórios e fixação; o resto é Outros / consumíveis. Não inventes valores; usa null se não existir.`;
+"items": [{"name": descrição do artigo, "qty": quantidade, "unit": "un"|"m"|"kg"|"cx",
+"list_price": preço unitário SEM IVA antes de qualquer desconto (preço de tabela/PVP), ou null se a linha não tiver desconto,
+"discount": desconto total da linha em % (ex.: 35 para 35%; descontos em cascata como 30+10 dão 37), ou null se não houver,
+"unit_price": preço unitário líquido SEM IVA depois de todos os descontos (por metro se vendido a metro),
+"vat": taxa de IVA em %, "total_no_vat": total da linha sem IVA depois do desconto,
+"cat": uma de: ${CATS.join(' | ')}}]}
+Descontos: lê as colunas "Desc.", "Desc %", "D1/D2", "Desconto" ou semelhantes. Se houver um desconto comercial sobre toda a fatura, aplica-o também ao unit_price e inclui-o no discount de cada linha.
+Categorias: aparelhos completos (bombas de calor, ar condicionado, unidades interiores/exteriores, VMC, termoacumuladores, caldeiras, painéis solares e fotovoltaicos, inversores, ventiloconvectores) são Equipamentos;
+disjuntores, diferenciais, quadros elétricos, tomadas, interruptores, caixas de derivação, calhas, tubo VD/ERFE/corrugado elétrico, terminais, ligadores, contactores, termóstatos e sondas são Material elétrico;
+cabos e fios elétricos ou de comunicação são Cablagem;
+tubo de cobre, rolos e pares de cobre (frigorífico/ar condicionado) e acessórios de cobre (curvas, uniões, tês de cobre) são Cobre;
+tubos multicamada, PEX, PPR, PVC, ferro e respetivo isolamento são Tubagem;
+acessórios de canalização (latão, press, joelhos, tês, uniões, casquilhos, válvulas, vasos de expansão, grupos de segurança) e fixação (parafusos, buchas, abraçadeiras, suportes, fita) são Acessórios e fixação;
+o resto (colas, silicone, gás refrigerante, transporte, consumíveis) é Outros / consumíveis.
+Não inventes valores; usa null se não existir.`;
 
 const json = (status, body) => new Response(body == null ? '' : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -150,41 +164,55 @@ export default async (req) => {
     if (req.method === 'DELETE') { await store.delete('foto-' + id); return json(200, { ok: true }); }
   }
 
+  // Volta a ler o anexo já guardado de uma fatura, para obter descontos e categorias atualizadas.
+  if (path.startsWith('reler/') && req.method === 'POST') {
+    const id = path.slice(6);
+    if (!/^[a-z0-9]{4,40}$/.test(id)) return json(400);
+    const r = await store.getWithMetadata('foto-' + id, { type: 'arrayBuffer' });
+    if (!r) return json(404, { error: 'Anexo não encontrado.' });
+    const mime = (r.metadata && r.metadata.mime) || 'image/jpeg';
+    return lerDocumento(['image/jpeg', 'image/png', 'application/pdf'].includes(mime) ? mime : 'image/jpeg', Buffer.from(r.data).toString('base64'));
+  }
+
   if (path === 'ler-fatura' && req.method === 'POST') {
     let b; try { b = await req.json(); } catch { return json(400); }
     const { mime, data } = b || {};
     if (!['image/jpeg', 'image/png', 'application/pdf'].includes(mime) || typeof data !== 'string' || !data.length || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return json(400, { error: 'Envie uma foto ou um PDF válido.' });
     if (data.length > 5_400_000) return json(413, { error: 'Ficheiro demasiado grande. Envie um PDF até 4 MB ou uma foto.' });
-    try {
-      // The default SDK uses the credentials and endpoint injected by AI Gateway.
-      const ai = new OpenAI({ timeout: 45000, maxRetries: 0 });
-      const document = mime === 'application/pdf'
-        ? { type: 'input_file', filename: 'fatura.pdf', file_data: `data:${mime};base64,${data}` }
-        : { type: 'input_image', image_url: `data:${mime};base64,${data}`, detail: 'high' };
-      const r = await ai.responses.create({
-        model: 'gpt-4.1-mini',
-        input: [{ role: 'user', content: [{ type: 'input_text', text: PROMPT }, document] }],
-        text: { format: { type: 'json_object' } },
-        max_output_tokens: 10000,
-        temperature: 0,
-      });
-      const text = r.output_text;
-      if (!text || r.status !== 'completed') return json(422, { error: 'Não foi possível ler a fatura completa. Tente um documento mais nítido ou com menos páginas.' });
-      const invoice = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
-      if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice) || !Array.isArray(invoice.items) || invoice.items.some(item => !item || typeof item !== 'object') || (!invoice.store && invoice.total == null && !invoice.items.length)) {
-        return json(422, { error: 'Não foram encontrados dados de uma fatura. Envie uma foto nítida ou o PDF original.' });
-      }
-      return json(200, invoice);
-    } catch (e) {
-      const status = Number(e.status || e.code);
-      console.error('ler-fatura', { status: Number.isFinite(status) ? status : undefined, type: e.name });
-      if (e instanceof SyntaxError) return json(422, { error: 'A leitura devolveu dados incompletos. Tente novamente com uma foto mais nítida.' });
-      if (status === 429) return json(429, { error: 'O serviço de leitura está ocupado. Aguarde um minuto e tente novamente.' });
-      return json(502, { error: 'O serviço de leitura está temporariamente indisponível. Tente novamente dentro de instantes.' });
-    }
+    return lerDocumento(mime, data);
   }
 
   return json(404);
 };
+
+async function lerDocumento(mime, data) {
+  try {
+    // The default SDK uses the credentials and endpoint injected by AI Gateway.
+    const ai = new OpenAI({ timeout: 45000, maxRetries: 0 });
+    const document = mime === 'application/pdf'
+      ? { type: 'input_file', filename: 'fatura.pdf', file_data: `data:${mime};base64,${data}` }
+      : { type: 'input_image', image_url: `data:${mime};base64,${data}`, detail: 'high' };
+    const r = await ai.responses.create({
+      model: 'gpt-4.1-mini',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: PROMPT }, document] }],
+      text: { format: { type: 'json_object' } },
+      max_output_tokens: 10000,
+      temperature: 0,
+    });
+    const text = r.output_text;
+    if (!text || r.status !== 'completed') return json(422, { error: 'Não foi possível ler a fatura completa. Tente um documento mais nítido ou com menos páginas.' });
+    const invoice = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
+    if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice) || !Array.isArray(invoice.items) || invoice.items.some(item => !item || typeof item !== 'object') || (!invoice.store && invoice.total == null && !invoice.items.length)) {
+      return json(422, { error: 'Não foram encontrados dados de uma fatura. Envie uma foto nítida ou o PDF original.' });
+    }
+    return json(200, invoice);
+  } catch (e) {
+    const status = Number(e.status || e.code);
+    console.error('ler-fatura', { status: Number.isFinite(status) ? status : undefined, type: e.name });
+    if (e instanceof SyntaxError) return json(422, { error: 'A leitura devolveu dados incompletos. Tente novamente com uma foto mais nítida.' });
+    if (status === 429) return json(429, { error: 'O serviço de leitura está ocupado. Aguarde um minuto e tente novamente.' });
+    return json(502, { error: 'O serviço de leitura está temporariamente indisponível. Tente novamente dentro de instantes.' });
+  }
+}
 
 export const config = { path: '/api/*' };

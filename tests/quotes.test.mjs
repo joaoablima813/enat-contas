@@ -98,7 +98,7 @@ test('editor uses one address field and exposes quantity and deletion in the sav
  assert.doesNotMatch(editor,/Localidade|Alínea|Produto ou serviço 1/);
  assert.match(editor,/data-qf="address"/);assert.match(editor,/data-field="quantity"/);assert.match(editor,/rows="1"/);
  assert.match(editor,/data-qa="delete"/);
- vm.runInContext('quoteDraft=null;quoteRows=[{id:7,document:sample}]',c);
+ vm.runInContext('quoteDraft=null;quoteRows=[{id:7,document:sample}];quoteClient=quoteClientKey(sample)',c);
  assert.match(vm.runInContext('vQuotes()',c),/data-qa="delete-saved" data-id="7"/);
 });
 
@@ -142,4 +142,18 @@ test('equipment brand is saved and appended to the quote title',async()=>{
  assert.equal((await vm.runInContext('handleQuotes(req,path)',s)).status,201);assert.equal(saved.brand,'LG');
  s.req={method:'POST',json:async()=>({...structuredClone(sample),brand:'x'.repeat(201)})};
  assert.equal((await vm.runInContext('handleQuotes(req,path)',s)).status,400);
+});
+
+test('quotes with the same client name and contact share a folder and new quotes reuse the client details',()=>{
+ const c=vm.createContext({window:{},document:{addEventListener(){},querySelector:()=>null},S:{vat:23},TOPICS:sample.topics,esc:s=>String(s),eur:n=>String(n),ic:()=>'',fd:s=>s,render(){},V:{tab:'orc'}});
+ vm.runInContext(math+'\n'+ui,c);c.sample=sample;
+ vm.runInContext("quoteRows=[{id:9,document:{...sample,client:'cliente  de TESTE ',contact:'+351 900 000 000',brand:'Daikin'}},{id:8,document:{...sample,client:'Outro',contact:'911111111'}},{id:7,document:{...sample,brand:'LG'}}]",c);
+ const groups=vm.runInContext('quoteClients()',c);
+ assert.equal(groups.length,2);assert.equal(groups[0].rows.map(r=>r.id).join(),"9,7");
+ const list=vm.runInContext('vQuotes()',c);assert.match(list,/2 orçamentos · ORC 2026\/0009, ORC 2026\/0007/);
+ vm.runInContext('quoteClient=quoteClients()[0].key',c);
+ const folder=vm.runInContext('vQuotes()',c);assert.match(folder,/data-qa="new-client"/);assert.match(folder,/data-id="9"/);assert.match(folder,/data-id="7"/);assert.doesNotMatch(folder,/data-id="8"/);
+ vm.runInContext("quoteDraft=newQuote();Object.assign(quoteDraft,{client:'Cliente de teste',contact:'900000000'})",c);
+ assert.match(vm.runInContext('quoteMatchNote()',c),/já tem 2 orçamentos/);
+ vm.runInContext("quoteDraft.contact='922222222'",c);assert.equal(vm.runInContext('quoteMatchNote()',c),'');
 });

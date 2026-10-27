@@ -22,3 +22,19 @@
 .q-delete{margin-top:24px!important}
 .q-field input:focus-visible,.q-field textarea:focus-visible,.q-field select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .q-match{margin:12px 0 0;color:var(--blue)}.q-match:empty{display:none}
+/* WhatsApp delivery: pick quotes, number and PDF version, then send. */
+.q-wa-list{display:grid;gap:8px;margin:12px 0 16px}
+.q-wa-pick{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer}
+.q-wa-pick input{width:20px;height:20px;margin:2px 0 0;flex:none;accent-color:var(--blue)}
+.q-wa-pick span{display:grid;gap:2px;min-width:0}.q-wa-pick small{color:var(--mute);font-size:13px;overflow-wrap:anywhere}
+.q-wa-pick:has(input:checked){border-color:var(--blue)}
+.q-wa-kind{border:0;padding:0;margin:0 0 16px;display:flex;flex-wrap:wrap;gap:8px}
+.q-wa-kind legend{font-size:13px;font-weight:600;color:var(--mute);margin-bottom:7px}
+.q-wa-kind label{display:flex;gap:8px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:12px;font-size:14px;cursor:pointer}
+.q-wa-kind input{accent-color:var(--blue)}
+.q-wa-preview{margin:0 0 14px;font-size:13px}.q-wa-preview summary{cursor:pointer;color:var(--blue);font-weight:600}
+.q-wa-preview p{margin:10px 0 0;padding:12px 14px;background:#e7f8dc;color:#1f2a1f;border-radius:4px 14px 14px 14px;line-height:1.5}
+.q-wa #quote-wa-msg:empty{display:none}
+.q-wa-open{display:block;text-align:center;text-decoration:none;color:#fff;background:#1fa855}
+.q-wa .link{display:block;margin:10px auto 0}
+.q-mail-open{display:block;text-align:center;text-decoration:none}

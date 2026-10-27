@@ -100,12 +100,24 @@ export default async (req) => {
     const { handleExcel } = await import('../lib/excel-access.mjs');
     return handleExcel(req, path, store, autorizado);
   }
+  if (path.startsWith('pdf/') && req.method === 'GET') {
+    const { servePdf } = await import('../lib/whatsapp.ts');
+    return servePdf(path, store);
+  }
   if (path.startsWith('auth/')) return auth(req, path, store, autorizado);
   if (!autorizado) return json(401);
 
   if (path === 'orcamentos' || path.startsWith('orcamentos/')) {
     const { handleQuotes } = await import('../lib/quotes.ts');
     return handleQuotes(req, path);
+  }
+  if (path.startsWith('email/')) {
+    const { handleEmail } = await import('../lib/whatsapp.ts');
+    return handleEmail(req, path, store);
+  }
+  if (path.startsWith('whatsapp/')) {
+    const { handleWhatsapp } = await import('../lib/whatsapp.ts');
+    return handleWhatsapp(req, path, store);
   }
 
   if (path === 'estado') {

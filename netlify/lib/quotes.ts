@@ -22,11 +22,15 @@ export async function handleQuotes(req:Request,path:string){
     if(!Array.isArray(b.lines)||!b.lines.length||b.lines.length>200||b.lines.some((l:any)=>!l||!['Equipamento / material','Equipamento','Material','Acessórios','Mão de obra','Outros'].includes(l.kind)||typeof l.description!=='string'||!l.description.trim()||l.description.length>4000||typeof l.value!=='number'||!Number.isFinite(l.value)||l.value<0||l.value>1e8||(l.quantity!==undefined&&(typeof l.quantity!=='number'||!Number.isFinite(l.quantity)||l.quantity<=0||l.quantity>1e6))||(l.unit!==undefined&&!['un.','m','m²','m³','h','dia','serviço'].includes(l.unit)))||!b.lines.some((l:any)=>l.value>0))return fail(400,'Preencha as descrições, quantidades e pelo menos um valor positivo.');
     if(b.brand!==undefined&&(typeof b.brand!=='string'||b.brand.length>200))return fail(400,'Marca inválida.');
     b.brand=(b.brand||'').trim();
+    // The client email is optional; when present it must look like a real address.
+    if(b.email!==undefined&&(typeof b.email!=='string'||b.email.length>320))return fail(400,'Email inválido.');
+    b.email=(b.email||'').trim();
+    if(b.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email))return fail(400,'Indique um email válido ou deixe o campo vazio.');
     if(b.locality!==undefined&&(typeof b.locality!=='string'||b.locality.length>2000))return fail(400,'Morada inválida.');
     // Accept older clients while storing a single address in new documents.
     b.address=[b.address,b.locality].filter(Boolean).join(', ');
     if(b.address.length>4000)return fail(400,'Morada demasiado longa.');
-    const document=Object.fromEntries([...fields,'topics','brand','lines','margin','vat'].map(k=>[k,b[k]]));
+    const document=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat'].map(k=>[k,b[k]]));
     const rows=match?await db.update(quotes).set({document,updatedAt:new Date()}).where(eq(quotes.id,Number(match[1]))).returning():await db.insert(quotes).values({document}).returning();
     return rows.length?Response.json(rows[0],{status:match?200:201}):fail(404,'Orçamento não encontrado.');
   }catch(error){return fail(error instanceof SyntaxError?400:503,error instanceof SyntaxError?'Dados inválidos.':'Não foi possível aceder aos orçamentos. Tente novamente.');}

@@ -48,3 +48,4 @@
 .q-pick-row em{font-style:normal;font-weight:700;color:var(--blue);text-align:right;white-space:nowrap;display:grid}
 .q-pick-group em{font-size:20px}
 .q-line-src{grid-column:1/-1;margin:0;font-size:12px}
+.q-line .q-line-pick{display:block;margin:-8px 0 14px;font-size:13px}.q-line .q-pick{margin:0 0 16px;background:var(--bg)}.q-line .q-pick-row{background:var(--card)}

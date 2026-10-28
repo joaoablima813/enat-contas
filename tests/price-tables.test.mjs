@@ -55,3 +55,14 @@ test('tapping a line description opens the quote brand on its typology and fills
  run("quotePick.path=['Ar condicionado','Multisplit']");assert.match(run('quotePickResults()'),/Unidade exterior/);
  assert.equal(run("quotePickStart(0).brand"),null);
 });
+test('typing a description suggests products from every table and the invoices, starting with the quote brand',()=>{
+ run("quoteDraft=newQuote();quoteDraft.brand='Marca B';quoteDraft.topics=['VMC'];quotePick={...quotePickStart(0),q:'recup'}");
+ let html=run('quotePicker()');assert.match(html,/Sugestões/);assert.match(html,/Recuperador/);assert.match(html,/data-brand="1"/);
+ run("quotePick.q='marca a 2,5'");html=run('quotePicker()');assert.match(html,/M25/);assert.match(html,/I25/);assert.doesNotMatch(html,/X50|Recuperador/);
+ run("quotePick.q='nada disto'");assert.match(run('quotePicker()'),/Nenhum produto encontrado/);
+});
+test('an empty line stays at the end for the next product and is not counted as a product',()=>{
+ run("quoteDraft=newQuote();quoteDraft.lines[0]=quoteCatalogLine(PRICE_TABLES[0],PRICE_TABLES[0].products[0]);quoteEnsureBlank();quoteEnsureBlank()");
+ assert.equal(run('quoteDraft.lines.length'),2);assert.equal(run('quoteLineBlank(quoteDraft.lines[1])'),true);
+ assert.equal(run('quoteTotals({...quoteDraft,margin:0}).cost'),650);
+});

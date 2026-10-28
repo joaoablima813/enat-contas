@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+const read=f=>readFileSync(new URL('../public/'+f,import.meta.url),'utf8');
+const load=()=>{const c=vm.createContext({document:{addEventListener(){},querySelector(){return null}},esc:s=>String(s??'').replace(/"/g,'&quot;').replace(/</g,'&lt;'),eur:n=>Number(n).toFixed(2)+' €',ic:()=>'',TOPICS:['Ar condicionado','VMC'],S:{vat:23}});vm.runInContext(read('quote-math.js')+'\n'+read('price-tables.js')+'\n'+read('quotes.js'),c);return s=>vm.runInContext(s,c)};
+test('the supplied tables have the agreed discounts and well-formed products',()=>{
+ const real=load();
+ const tables=JSON.parse(real('JSON.stringify(PRICE_TABLES.map(t=>({brand:t.brand,discount:t.discount,n:t.products.length,bad:t.products.filter(p=>!(p.price>0)||!p.name||!p.group.length).length})))'));
+ assert.deepEqual(tables.map(t=>[t.brand,t.discount]),[['S. Energias',35],['LG',50],['Ekallor',45]]);
+ for(const t of tables){assert.ok(t.n>100,t.brand);assert.equal(t.bad,0,t.brand)}
+ assert.deepEqual(JSON.parse(real("JSON.stringify(PRICE_TABLES[1].products.find(p=>p.ref==='MU2R15.U18A0').group)")),['Ar condicionado','Multisplit','Unidade exterior','Tubagem direta']);
+ assert.equal(real("quoteNetPrice(PRICE_TABLES[1],PRICE_TABLES[1].products.find(p=>p.ref==='MU2R15.U18A0'))"),647.5);
+ assert.equal(real("quoteNetPrice(PRICE_TABLES[2],PRICE_TABLES[2].products.find(p=>p.ref==='ACM-09FQTS/PRO'))"),248.6);
+});
+const run=load();
+run(`PRICE_TABLES.splice(0,PRICE_TABLES.length,{brand:'Marca A',table:'Tabela 2026',discount:35,products:[
+ {group:['Ar condicionado','Monosplit','Mural'],ref:'M25',name:'Conjunto mural 2,5 kW',price:1000},
+ {group:['Ar condicionado','Multisplit','Unidade exterior'],ref:'X50',name:'Unidade exterior 2 saídas 5,0 kW',price:1450},
+ {group:['Ar condicionado','Multisplit','Unidade interior'],ref:'I25',name:'Unidade interior mural 2,5 kW',price:410}
+]},{brand:'Marca B',discount:20,products:[{group:['VMC'],ref:'V1',name:'Recuperador',price:500}]});
+quoteDraft=newQuote();`);
+test('the table price gets the brand discount and stays without VAT',()=>{
+ assert.equal(run('quoteNetPrice(PRICE_TABLES[0],PRICE_TABLES[0].products[1])'),942.5);
+ assert.equal(run('quoteNetPrice(PRICE_TABLES[1],PRICE_TABLES[1].products[0])'),400);
+});
+test('the picker starts with the brands, then walks the product groups',()=>{
+ run("quotePick={brand:null,path:[],q:''}");
+ let html=run('quotePicker()');assert.match(html,/Marca A/);assert.match(html,/Marca B/);assert.match(html,/−35%/);assert.match(html,/Linha livre/);
+ run("quotePick={brand:0,path:['Ar condicionado'],q:''}");
+ html=run('quotePickResults()');assert.match(html,/Monosplit/);assert.match(html,/Multisplit/);assert.doesNotMatch(html,/X50/);
+ run("quotePick.path.push('Multisplit','Unidade exterior')");
+ html=run('quotePickResults()');assert.match(html,/X50/);assert.match(html,/942.50 €/);assert.doesNotMatch(html,/I25/);
+ run("quotePick={brand:0,path:[],q:'interior 2,5'}");
+ html=run('quotePickResults()');assert.match(html,/I25/);assert.doesNotMatch(html,/X50|M25/);
+});
+test('picked products fill description, cost and table reference, replacing the empty first line',()=>{
+ run("quoteAddLine(quoteCatalogLine(PRICE_TABLES[0],PRICE_TABLES[0].products[1]));quoteAddLine(quoteCatalogLine(PRICE_TABLES[0],PRICE_TABLES[0].products[2]))");
+ const lines=run('quoteDraft.lines');assert.equal(lines.length,2);
+ assert.equal(lines[0].description,'Marca A X50 – Unidade exterior 2 saídas 5,0 kW');assert.equal(lines[0].value,942.5);
+ assert.deepEqual({...lines[1].catalog},{brand:'Marca A',ref:'I25',price:410,discount:35});assert.equal(lines[1].value,266.5);
+ const t=run('quoteTotals({...quoteDraft,margin:0})');assert.equal(t.cost,1209);assert.equal(t.total,1487.07);
+});

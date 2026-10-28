@@ -33,7 +33,9 @@ export async function handleQuotes(req:Request,path:string){
     // Accept older clients while storing a single address in new documents.
     b.address=[b.address,b.locality].filter(Boolean).join(', ');
     if(b.address.length>4000)return fail(400,'Morada demasiado longa.');
-    const document=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat'].map(k=>[k,b[k]]));
+    // The optional PV sizing keeps its inputs and the figures shown in the PDF.
+    if(b.pv!==undefined&&b.pv!==null&&(typeof b.pv!=='object'||Array.isArray(b.pv)||JSON.stringify(b.pv).length>30000))return fail(400,'Dimensionamento fotovoltaico inválido.');
+    const document=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[])].map(k=>[k,b[k]]));
     const rows=match?await db.update(quotes).set({document,updatedAt:new Date()}).where(eq(quotes.id,Number(match[1]))).returning():await db.insert(quotes).values({document}).returning();
     return rows.length?Response.json(rows[0],{status:match?200:201}):fail(404,'Orçamento não encontrado.');
   }catch(error){return fail(error instanceof SyntaxError?400:503,error instanceof SyntaxError?'Dados inválidos.':'Não foi possível aceder aos orçamentos. Tente novamente.');}

@@ -125,6 +125,10 @@ export default async (req) => {
     const { handleQuotes } = await import('../lib/quotes.ts');
     return handleQuotes(req, path);
   }
+  if (path.startsWith('pv/')) {
+    const { handlePv } = await import('../lib/pv.mjs');
+    return handlePv(req, path);
+  }
   if (path.startsWith('email/')) {
     const { handleEmail } = await import('../lib/whatsapp.ts');
     return handleEmail(req, path, store);

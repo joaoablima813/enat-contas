@@ -66,3 +66,12 @@ test('an empty line stays at the end for the next product and is not counted as 
  assert.equal(run('quoteDraft.lines.length'),2);assert.equal(run('quoteLineBlank(quoteDraft.lines[1])'),true);
  assert.equal(run('quoteTotals({...quoteDraft,margin:0}).cost'),650);
 });
+test('a newly saved or re-read invoice reaches the quote suggestions without any refresh',()=>{
+ const c=load();
+ c(`var S={vat:23,inv:[]};function products(){const m=new Map();S.inv.forEach(v=>v.items.forEach((i,index)=>{if(!m.has(i.name))m.set(i.name,{name:i.name,cat:i.cat,buys:[],last:{v,i,index}})}));return [...m.values()]};quoteDraft=newQuote();`);
+ assert.doesNotMatch(c("quoteSuggest('zzteste esfera')"),/Zzteste/);
+ c(`S.inv.push({id:'f1',store:'Fersil',date:'2026-10-28',items:[{name:'Zzteste esfera 1/2',cat:'Tubagem',unit:'un',unit_price:4.2}]})`);
+ assert.match(c("quoteSuggest('zzteste esfera')"),/Zzteste esfera 1\/2[\s\S]*4.20 €/);
+ c(`S.inv[0].items[0].unit_price=3.9`);
+ assert.match(c("quoteSuggest('zzteste esfera')"),/3.90 €/);
+});

@@ -58,10 +58,10 @@ const quoteField=(label,key,type='text',extra='')=>`<label class="q-field"><span
 function quoteSummary(){const t=quoteTotals(quoteDraft);return `<div class="q-break"><span>Valor de venda sem IVA (custo)</span><b>${eur(t.cost)}</b></div><div class="q-break"><span>IVA</span><b>${quoteDraft.vat}%</b></div><div class="q-break"><span>Total com IVA</span><b>${eur(t.costVat)}</b></div><div class="q-break"><span>Margem</span><b>${quoteDraft.margin}%</b></div><div class="q-total"><span>Valor final cliente</span><strong>${eur(t.total)}</strong></div><div class="q-break"><span>Lucro</span><b>${eur(t.profitVat)}</b></div><p class="note">Total com IVA = custo × (1 + IVA). Valor final cliente = total com IVA × (1 + margem). Lucro = valor final cliente − total com IVA.</p>`}
 // Price tables: pick a brand, walk its product groups (e.g. Ar condicionado › Multisplit › Unidade exterior) and add the product at the discounted price.
 let quotePick=null,quotePickLast=null,quotePickOff=null;
-// Products read from invoices (photo or PDF) join the brand tables as "Faturas (compras)", grouped by category and supplier, at the last net price paid.
+// Products read from invoices (photo or PDF) join the brand tables automatically as soon as an invoice is saved or edited as "Faturas (compras)", grouped by category and supplier, at the last net price paid.
 let quoteInvCache=null;
 function quoteInvoiceTable(){
- const inv=(typeof S!=='undefined'&&S.inv)||[],key=inv.length+'|'+inv.reduce((n,v)=>n+(v.items||[]).length,0)+'|'+(inv[0]?.id||'');
+ const inv=(typeof S!=='undefined'&&S.inv)||[],key=inv.map(v=>v.id+'@'+(v.store||'')+(v.date||'')+(v.number||'')+':'+(v.items||[]).map(i=>i.name+'='+i.unit_price+'/'+(i.unit||'')+'/'+(i.cat||'')).join(',')).join('|');
  if(quoteInvCache?.key===key)return quoteInvCache.t;
  const unit=u=>{u=quoteNorm(u||'').replace(/[.\s]/g,'');return /^(m|ml|mt|mts|metro|metros)$/.test(u)?'m':/^(m2|mq)$/.test(u)?'m²':/^(m3)$/.test(u)?'m³':/^(h|hora|horas)$/.test(u)?'h':'un.'};
  const kind=c=>c==='Equipamentos'?'Equipamento':c==='Acessórios e fixação'?'Acessórios':'Material';

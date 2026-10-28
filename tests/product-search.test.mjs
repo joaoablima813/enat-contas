@@ -35,24 +35,24 @@ run(`S.inv=[{id:'f1',obra:'obra',store:'Ekallor',nif:'123456789',number:'FT 2026
 test('search matches product descriptions, suppliers, NIFs and invoice numbers',()=>{
  run("V.q='Bomba de calor'");
  let result=run('matRes()');
- assert.match(result,/Produtos \(1\)/);
+ assert.match(result,/Produtos das faturas \(1\)/);
  assert.match(result,/Bomba de calor AQS/);
  assert.doesNotMatch(result,/Curva|União|Tubo/);
  for(const q of ['Ekallor','123456789','FT 2026']){
   run(`V.q=${JSON.stringify(q)}`);
   result=run('matRes()');
   assert.match(result,/Faturas do fornecedor \(1\)/);
-  assert.match(result,/Produtos \(4\)/);
+  assert.match(result,/Produtos das faturas \(4\)/);
  }
  run("V.q='bomba ekallor'");
- assert.match(run('matRes()'),/Produtos \(1\)/);
+ assert.match(run('matRes()'),/Produtos das faturas \(1\)/);
  run("V.q='Obra'");
  assert.match(run('matRes()'),/Nenhum produto/);
 });
 test('all significant terms match, with accents, partial names and optional prepositions',()=>{
  for(const q of ['curva latao','CURVA EM LATÃO','cur lat','latão curva']){
   run(`V.q=${JSON.stringify(q)}`);
-  assert.match(run('matRes()'),/Produtos \(1\)/);
+  assert.match(run('matRes()'),/Produtos das faturas \(1\)/);
   assert.match(run('matRes()'),/Curva em latão/);
  }
  run("V.q='curva cobre'");
@@ -60,7 +60,7 @@ test('all significant terms match, with accents, partial names and optional prep
  run("V.q='bomba';V.mc='Tubagem'");
  assert.match(run('matRes()'),/Nenhum produto/);
  run("V.mc='Equipamentos'");
- assert.match(run('matRes()'),/Produtos \(1\)/);
+ assert.match(run('matRes()'),/Produtos das faturas \(1\)/);
  run("V.mc=''");
 });
 test('choosing a category without text lists its products',()=>{
@@ -73,7 +73,7 @@ test('choosing a category without text lists its products',()=>{
 test('the same product from several invoices is one product with its purchase history and discounts',()=>{
  run("V.q='tubo cobre'");
  const list=run('matRes()');
- assert.match(list,/Produtos \(1\)/);
+ assert.match(list,/Produtos das faturas \(1\)/);
  assert.match(list,/4.50 \/ m/);
  assert.match(list,/Sem desconto <s>9.00<\/s> · −50%/);
  const result=run('productDetails(S.inv[0],3)');
@@ -106,4 +106,17 @@ test('clearing search restores recent invoices and recent products',()=>{
  run("V.q=''");
  assert.match(run('matRes()'),/Últimas faturas anexadas/);
  assert.match(run('matRes()'),/Produtos recentes \(4\)/);
+});
+test('the brand price tables are searchable by brand, reference and name',()=>{
+ run(`globalThis.PRICE_TABLES=[{brand:'LG',table:'Tabela LG',discount:50,products:[{group:['Ar condicionado','Multisplit','Unidade exterior'],ref:'MU2R15.U18A0',name:'Unidade exterior multisplit 2 saídas',price:1295}]},
+ {brand:'Mitsubishi Electric',table:'Tabela ME',discount:35,products:[{group:['Ar condicionado','Mural'],ref:'MFZ-KT50VGK',name:'Consola 5,0 kW',price:1170}]}];S.vat=23`);
+ run("V.q='MU2R15'");let r=run('matRes()');
+ assert.match(r,/Tabelas de preços \(1\)/);assert.match(r,/Unidade exterior multisplit/);assert.match(r,/647.50/);assert.doesNotMatch(r,/Consola/);
+ run("V.q='mitsubishi consola'");r=run('matRes()');
+ assert.match(r,/Consola 5,0 kW/);assert.match(r,/data-a="tprod" data-b="1" data-index="0"/);
+ assert.match(run('tableProductDetails(1,0)'),/760.50/);
+ run("V.q='cobre'");r=run('matRes()');
+ assert.match(r,/Produtos das faturas \(1\)/);assert.doesNotMatch(r,/Tabelas de preços/);
+ run("V.q=''");assert.match(run('matRes()'),/Mitsubishi Electric/);
+ globalThis.PRICE_TABLES=undefined;run('globalThis.PRICE_TABLES=undefined');
 });

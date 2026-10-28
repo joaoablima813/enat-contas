@@ -88,7 +88,7 @@ nav button.on{color:var(--blue)}
 <script src="/vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="/quote-math.js?v=20261028"></script>
 <script src="/price-tables.js?v=20261028"></script>
-<script src="/quotes.js?v=20261028"></script>
+<script src="/quotes.js?v=20261028b"></script>
 <script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
 <script src="/vendor/exceljs.min.js"></script>
 <script src="/excel-export.js"></script>
@@ -343,19 +343,37 @@ function matchesProduct(name,query){
 const invText=v=>[v.store,v.nif,v.number].filter(Boolean).join(' ');
 const productRow=p=>`<button class="row invoice-row" data-a="product" data-id="${esc(p.last.v.id)}" data-index="${p.last.index}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(p.name)}</b><span>${esc(p.cat)} · ${esc(p.last.v.store)} · ${esc(fd(p.last.v.date))}${p.buys.length>1?' · '+p.buys.length+' faturas':''}</span></div><div class="rr">${priceTag(p.last.i)}</div></button>`;
 const productList=(l,title)=>`<h2>${title} (${l.length})</h2><div class="grp invoice-items">${l.map(productRow).join('')}</div>`;
+// Tabelas de preços das marcas (S. Energias, LG, Ekallor, Daikin, Mitsubishi…): pesquisáveis pela marca, referência, nome ou grupo.
+const priceTables=()=>globalThis.PRICE_TABLES||[];
+const tableNet=(t,p)=>Math.round(Number(p.price)*(1-Number(t.discount||0)/100)*100)/100;
+const tableText=new WeakMap();
+function tableMatches(q){
+ const out=[];
+ priceTables().forEach((t,b)=>t.products.forEach((p,i)=>{let h=tableText.get(p);if(h===undefined){h=[t.brand,p.ref,p.name,...p.group].join(' ');tableText.set(p,h)}if(matchesProduct(h,q))out.push({t,b,p,i})}));
+ return out;
+}
+const tableRow=({t,b,p,i})=>`<button class="row invoice-row" data-a="tprod" data-b="${b}" data-index="${i}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(p.name)}</b><span>${esc([t.brand,p.ref,p.group[p.group.length-1]].filter(Boolean).join(' · '))}</span></div><div class="rr"><b>${eur(tableNet(t,p))}</b><span>Tabela ${eur(p.price)} · −${esc(Number(t.discount||0))}%</span></div></button>`;
+const tableList=l=>`<h2>Tabelas de preços (${l.length})</h2><div class="grp invoice-items">${l.slice(0,50).map(tableRow).join('')}</div>${l.length>50?`<p class="note">A mostrar 50 de ${l.length} produtos das tabelas. Escreva mais palavras ou a referência para afinar.</p>`:''}`;
+const tableBrands=()=>{const l=priceTables();return l.length?`<h2>Tabelas de preços</h2><div class="grp">${l.map(t=>`<button class="row invoice-row" data-a="sug" data-id="${esc(t.brand)}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(t.brand)}</b><span>${esc(t.table||'Tabela de preços')} · ${t.products.length} produtos</span></div><div class="rr"><b>−${esc(Number(t.discount||0))}%</b><span>desconto</span></div></button>`).join('')}</div>`:''};
+function tableProductDetails(b,index){
+ const t=priceTables()[b],p=t?.products[index];if(!p)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
+ const net=tableNet(t,p),vat=Number(S.vat??23);
+ return`<div class="grab"></div><h3>${esc(p.name)}</h3><h2>${esc(t.brand)} · ${esc(t.table||'Tabela de preços')}</h2><div class="grp invoice-items">${p.ref?kv('Referência',esc(p.ref)):''}${kv('Grupo',esc(p.group.join(' › ')))}${kv('Preço de tabela, sem IVA',eur(p.price))}${kv('Desconto da marca',esc(Number(t.discount||0))+'%')}${kv('Preço com desconto, sem IVA',eur(net),'tot')}${kv('Preço com desconto e IVA ('+esc(vat)+'%)',eur(net*(1+vat/100)))}</div><p class="note">Nos orçamentos, escreva o nome ou a referência na descrição de um produto para o adicionar com este preço.</p><button class="btn alt" data-a="close">Fechar</button>`;
+}
 function matRes(){
  const q=(V.q||'').trim(),all=products(),inCat=all.filter(p=>!V.mc||p.cat===V.mc);
  if(!q){
   if(V.mc)return inCat.length?productList(inCat,V.mc):`<div class="grp"><div class="empty">Ainda não há produtos em ${esc(V.mc)}.</div></div>`;
   const recent=S.inv.slice().reverse().slice(0,3);
-  return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>${all.length?productList(all.slice(0,30),'Produtos recentes'):''}`}
- // Cada palavra pode corresponder ao produto, ao fornecedor, ao NIF ou ao n.º da fatura.
+  return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>${all.length?productList(all.slice(0,30),'Produtos recentes'):''}${tableBrands()}`}
+ // Cada palavra pode corresponder ao produto, ao fornecedor, ao NIF ou ao n.º da fatura; nas tabelas, à marca, referência ou grupo.
  const found=inCat.filter(p=>matchesProduct(p.name,q)||p.buys.some(b=>matchesProduct(p.name+' '+invText(b.v),q)));
  const invs=S.inv.slice().reverse().filter(v=>matchesProduct(invText(v),q));
- if(!found.length&&!invs.length)return'<div class="grp"><div class="empty">Nenhum produto encontrado para esta pesquisa.</div></div>';
- return`${invs.length&&!V.mc?`<h2>Faturas do fornecedor (${invs.length})</h2><div class="grp">${invs.slice(0,20).map(invRow).join('')}</div>`:''}${found.length?productList(found,'Produtos'):''}`;
+ const fromTables=V.mc?[]:tableMatches(q);
+ if(!found.length&&!invs.length&&!fromTables.length)return'<div class="grp"><div class="empty">Nenhum produto encontrado para esta pesquisa.</div></div>';
+ return`${invs.length&&!V.mc?`<h2>Faturas do fornecedor (${invs.length})</h2><div class="grp">${invs.slice(0,20).map(invRow).join('')}</div>`:''}${found.length?productList(found,'Produtos das faturas'):''}${fromTables.length?tableList(fromTables):''}`;
 }
-function vMat(){const n=products().length,todo=S.inv.filter(v=>v.foto&&!v.rv).length;return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Produto, fornecedor ou NIF" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>${n&&todo?`<p class="note">${todo} fatura${todo>1?'s':''} lida${todo>1?'s':''} antes desta atualização. Volte a ler para obter os descontos e as novas categorias (Material elétrico, Cobre).</p><button class="btn alt" data-a="reread">${RR?esc(RR):'Voltar a ler faturas antigas'}</button>`:''}`}
+function vMat(){const n=products().length,todo=S.inv.filter(v=>v.foto&&!v.rv).length;return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Produto, referência, marca, fornecedor ou NIF" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>${n&&todo?`<p class="note">${todo} fatura${todo>1?'s':''} lida${todo>1?'s':''} antes desta atualização. Volte a ler para obter os descontos e as novas categorias (Material elétrico, Cobre).</p><button class="btn alt" data-a="reread">${RR?esc(RR):'Voltar a ler faturas antigas'}</button>`:''}`}
 const due=o=>{const d=new Date(o.done+'T12:00');d.setFullYear(d.getFullYear()+1);return d};
 const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.join(', ')}) na obra ${o.name}. Para manter tudo a funcionar bem e válido na garantia, quer agendar a manutenção? Enat Energias`;
 function vMan(){
@@ -408,7 +426,7 @@ function sheet(){
  trackNavigation();
  const sh=$('#sh'),d=D;
  if(!d){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}$('#ov').classList.remove('on');return}
- if(d.kind==='loading'){sh.innerHTML='<div class="grab"></div><div class="empty">A ler a fatura. Pode demorar alguns segundos.</div>'}else if(d.kind==='product'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?productDetails(v,d.itemIndex):'<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='invoice'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?invoiceDetails(v):'<div class="empty">Fatura não encontrada.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='labor'){sh.innerHTML=laborForm(d)}else if(d.kind==='view'){sh.innerHTML=`<div class="grab"></div><h3>${esc(d.title)}</h3>${d.url?(d.mime==='application/pdf'?`<iframe src="${d.url}" style="width:100%;height:68vh;border:0;border-radius:12px;background:#fff"></iframe>`:`<img src="${d.url}" alt="Fatura" style="width:100%;border-radius:12px">`):'<div class="empty">A abrir a fatura…</div>'}${d.url?`<a class="btn alt" href="${d.url}" target="_blank" rel="noopener">Abrir anexo</a>`:''}<button class="btn alt" data-a="invoice" data-id="${esc(d.invoiceId)}">Voltar aos dados da fatura</button><button class="btn alt" data-a="close">Fechar</button>`}else if(d.kind==='inv'){
+ if(d.kind==='loading'){sh.innerHTML='<div class="grab"></div><div class="empty">A ler a fatura. Pode demorar alguns segundos.</div>'}else if(d.kind==='tprod'){sh.innerHTML=tableProductDetails(d.b,d.itemIndex)}else if(d.kind==='product'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?productDetails(v,d.itemIndex):'<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='invoice'){const v=S.inv.find(v=>v.id===d.id);sh.innerHTML=v?invoiceDetails(v):'<div class="empty">Fatura não encontrada.</div><button class="btn alt" data-a="close">Fechar</button>'}else if(d.kind==='labor'){sh.innerHTML=laborForm(d)}else if(d.kind==='view'){sh.innerHTML=`<div class="grab"></div><h3>${esc(d.title)}</h3>${d.url?(d.mime==='application/pdf'?`<iframe src="${d.url}" style="width:100%;height:68vh;border:0;border-radius:12px;background:#fff"></iframe>`:`<img src="${d.url}" alt="Fatura" style="width:100%;border-radius:12px">`):'<div class="empty">A abrir a fatura…</div>'}${d.url?`<a class="btn alt" href="${d.url}" target="_blank" rel="noopener">Abrir anexo</a>`:''}<button class="btn alt" data-a="invoice" data-id="${esc(d.invoiceId)}">Voltar aos dados da fatura</button><button class="btn alt" data-a="close">Fechar</button>`}else if(d.kind==='inv'){
   if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(d.blob);
   sh.innerHTML=`<div class="grab"></div><h3>Confirmar fatura</h3>${d.mime==='application/pdf'?`<a class="btn alt" href="${previewUrl}" target="_blank" rel="noopener">Abrir PDF original</a>`:`<img src="${previewUrl}" alt="Foto da fatura a guardar" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px">`}<p class="note">Obra: ${esc((S.obras.find(o=>o.id===d.obra)||{}).name)}</p><div class="fld"><label><span>N.º da fatura</span><input data-k="number" value="${esc(d.number)}"></label><label><span>Fornecedor</span><input data-k="store" value="${esc(d.store)}"></label><label><span>NIF</span><input data-k="nif" inputmode="numeric" value="${esc(d.nif)}"></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label><label><span>Total sem IVA (€)</span><input data-k="base" inputmode="decimal" value="${(+d.base).toFixed(2)}"></label><label><span>Total com IVA (€)</span><input data-k="total" inputmode="decimal" value="${(+d.total).toFixed(2)}"></label></div>
   <h2 style="margin-top:14px">Materiais (${d.items.length})</h2><div class="grp">${d.items.map((i,n)=>`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(i.name)}</b><span>${i.qty} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span>${hasDisc(i)?`<span class="was">Sem desconto <s>${eur(i.list_price)}</s> · −${esc(r2(i.discount))}%</span>`:''}</div><div class="rr"><b>${eur(i.total)}</b></div><select data-i="${n}" style="width:100%;margin-top:6px;border:0;background:var(--chip);border-radius:9px;padding:8px">${opt(CATS.map(c=>[c,c]),i.cat)}</select></div>`).join('')||'<div class="empty">Nenhum artigo lido.</div>'}</div>
@@ -473,6 +491,7 @@ document.addEventListener('click',async e=>{
   const o={id:D.id||uid(),name:D.name.trim(),client:(D.client||'').trim()||'Sem cliente',status:D.status||'em_curso',valor:num(D.valor),phone:D.phone||'',done:D.done||'',equip:D.equip||[]};
   const i=S.obras.findIndex(y=>y.id===o.id);i<0?S.obras.push(o):S.obras[i]=o;save();D=null;sheet()}
  else if(a==='delobra'){if(!confirm('Eliminar a obra e todos os seus movimentos?'))return;S.obras=S.obras.filter(o=>o.id!==D.id);S.tx=S.tx.filter(x=>x.obra!==D.id);S.inv=S.inv.filter(v=>v.obra!==D.id);V.obra=null;save();D=null;sheet()}
+ else if(a==='tprod'){D={kind:'tprod',b:Number(b.dataset.b),itemIndex:Number(b.dataset.index)};sheet();return}
  else if(a==='product'){D={kind:'product',id,itemIndex:Number(b.dataset.index)};sheet();return}
  else if(a==='invoice'){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}D={kind:'invoice',id};sheet();return}
  else if(a==='addlabor'){D.entries.push({topic:'Geral / outros',desc:'',total:'',billing:'nao_faturado'});sheet();return}

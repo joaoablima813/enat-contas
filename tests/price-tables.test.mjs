@@ -7,11 +7,14 @@ const load=()=>{const c=vm.createContext({document:{addEventListener(){},querySe
 test('the supplied tables have the agreed discounts and well-formed products',()=>{
  const real=load();
  const tables=JSON.parse(real('JSON.stringify(PRICE_TABLES.map(t=>({brand:t.brand,discount:t.discount,n:t.products.length,bad:t.products.filter(p=>!(p.price>0)||!p.name||!p.group.length).length})))'));
- assert.deepEqual(tables.map(t=>[t.brand,t.discount]),[['S. Energias',35],['LG',50],['Ekallor',45]]);
+ assert.deepEqual(tables.map(t=>[t.brand,t.discount]),[['S. Energias',35],['LG',50],['Ekallor',45],['Daikin',35],['Mitsubishi Electric',35]]);
  for(const t of tables){assert.ok(t.n>100,t.brand);assert.equal(t.bad,0,t.brand)}
  assert.deepEqual(JSON.parse(real("JSON.stringify(PRICE_TABLES[1].products.find(p=>p.ref==='MU2R15.U18A0').group)")),['Ar condicionado','Multisplit','Unidade exterior','Tubagem direta']);
  assert.equal(real("quoteNetPrice(PRICE_TABLES[1],PRICE_TABLES[1].products.find(p=>p.ref==='MU2R15.U18A0'))"),647.5);
  assert.equal(real("quoteNetPrice(PRICE_TABLES[2],PRICE_TABLES[2].products.find(p=>p.ref==='ACM-09FQTS/PRO'))"),248.6);
+ assert.equal(real("PRICE_TABLES[3].products.find(p=>p.ref==='SB.FTXZ25N').price"),2515);
+ assert.equal(real("quoteNetPrice(PRICE_TABLES[3],PRICE_TABLES[3].products.find(p=>p.ref==='SB.FTXZ25N'))"),1634.75);
+ assert.equal(real("PRICE_TABLES[4].products.find(p=>p.ref==='MFZ-KT50VGK').price"),1170);
 });
 const run=load();
 run(`PRICE_TABLES.splice(0,PRICE_TABLES.length,{brand:'Marca A',table:'Tabela 2026',discount:35,products:[
@@ -40,4 +43,15 @@ test('picked products fill description, cost and table reference, replacing the 
  assert.equal(lines[0].description,'Marca A X50 – Unidade exterior 2 saídas 5,0 kW');assert.equal(lines[0].value,942.5);
  assert.deepEqual({...lines[1].catalog},{brand:'Marca A',ref:'I25',price:410,discount:35});assert.equal(lines[1].value,266.5);
  const t=run('quoteTotals({...quoteDraft,margin:0})');assert.equal(t.cost,1209);assert.equal(t.total,1487.07);
+});
+test('tapping a line description opens the quote brand on its typology and fills that line',()=>{
+ run("quoteDraft=newQuote();quoteDraft.brand='marca b';quoteDraft.topics=['VMC'];quoteDraft.lines[0].quantity=2;quotePick=quotePickStart(0)");
+ assert.deepEqual(JSON.parse(run('JSON.stringify(quotePick)')),{brand:1,path:['VMC'],q:'',line:0});
+ run("quoteDraft.brand='Marca A';quoteDraft.topics=['Ar condicionado'];quotePick=quotePickStart(0)");
+ assert.deepEqual(JSON.parse(run('JSON.stringify(quotePick.path)')),['Ar condicionado']);
+ assert.match(run('quoteEditor()'),/Escreva na descrição para procurar/);
+ run("quoteDraft.topics=['Ar condicionado','VMC'];quoteDraft.brand='';quotePick=quotePickFor(0,0)");
+ assert.deepEqual(JSON.parse(run('JSON.stringify(quotePick)')),{brand:0,path:['Ar condicionado'],q:'',line:0});
+ run("quotePick.path=['Ar condicionado','Multisplit']");assert.match(run('quotePickResults()'),/Unidade exterior/);
+ assert.equal(run("quotePickStart(0).brand"),null);
 });

@@ -1,6 +1,6 @@
 # Enat Contas
 
-App da Enat Energias para obras, faturas, orçamentos, clientes e relatórios. A página está em `public/` (a app publicada é `public/index.html`) e o servidor em `netlify/functions/api.mjs`, com módulos em `netlify/lib/`. A pasta `src/` tem componentes React de referência para o modelo financeiro. Não é usada pela app publicada.
+App da Enat - Ponte de Lima para obras, faturas, orçamentos, clientes e relatórios. A página está em `public/` (a app publicada é `public/index.html`) e o servidor em `netlify/functions/api.mjs`, com módulos em `netlify/lib/`. A pasta `src/` tem componentes React de referência para o modelo financeiro. Não é usada pela app publicada.
 
 ## 1. Publicar
 1. A leitura de faturas usa o Netlify AI Gateway: não é preciso chave.

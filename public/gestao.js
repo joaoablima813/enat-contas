@@ -14,7 +14,7 @@
   });
   return{items,overdue:r2(items.filter(x=>x.state==='atraso').reduce((s,x)=>s+x.missing,0)),next:items.find(x=>x.state!=='pago')||null};
  }
- const reminder=(o,m)=>`Olá ${o.client}, esperamos que esteja tudo bem. Lembramos que está pendente o pagamento de ${m.missingText} referente a «${m.desc}» da obra ${o.name}${m.date?', com vencimento a '+m.date.split('-').reverse().join('/'):''}. Pode fazer a transferência para o IBAN ${IBAN}. Se já tiver pago, ignore esta mensagem. Obrigado! Enat - Energias`;
+ const reminder=(o,m)=>`Olá ${o.client}, esperamos que esteja tudo bem. Lembramos que está pendente o pagamento de ${m.missingText} referente a «${m.desc}» da obra ${o.name}${m.date?', com vencimento a '+m.date.split('-').reverse().join('/'):''}. Pode fazer a transferência para o IBAN ${IBAN}. Se já tiver pago, ignore esta mensagem. Obrigado! Enat - Ponte de Lima`;
 
  // Períodos dos relatórios, sempre com datas AAAA-MM-DD.
  const iso=(y,m,d)=>new Date(Date.UTC(y,m,d)).toISOString().slice(0,10);

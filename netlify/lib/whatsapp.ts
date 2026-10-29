@@ -81,7 +81,7 @@ async function saveSent(c: ReturnType<typeof mail>, raw: Buffer) {
 const htmlEsc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // Turns the WhatsApp-style text (*bold*, bare links) into a branded email with the logo and a button per quote.
 export const emailHtml = (text: string, origin = '') => '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#122c3b;max-width:600px">'
-  + (origin ? '<div style="padding:4px 0 14px;border-bottom:3px solid #f3a51c;margin-bottom:18px"><img src="' + htmlEsc(origin) + '/enat-logo.png" alt="Enat - Energias" width="131" height="47" style="display:block"></div>' : '')
+  + (origin ? '<div style="padding:4px 0 14px;border-bottom:3px solid #f3a51c;margin-bottom:18px"><img src="' + htmlEsc(origin) + '/enat-logo.png" alt="Enat - Ponte de Lima" width="131" height="47" style="display:block"></div>' : '')
   + htmlEsc(text).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="display:inline-block;margin:6px 0;padding:11px 18px;background:#2f8f3a;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:bold">Ver e responder ao orçamento</a>').replace(/\n/g, '<br>')
   + '</div>';
 
@@ -111,7 +111,7 @@ export async function handleEmail(req: Request, path: string, store: any) {
     const t = createTransport({ host: c.host, port: c.port, secure: c.port === 465, auth: { user: c.user, pass: c.pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
     const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
     // Composed once, so the client and the Sent folder get the very same message (same Message-ID).
-    const raw: Buffer = await new MailComposer({ from: { name: 'Enat - Energias', address: c.from }, to, replyTo: c.from, subject: b.subject.trim(), text, html: emailHtml(b.text, req.url ? new URL(req.url).origin : ''), attachments }).compile().build();
+    const raw: Buffer = await new MailComposer({ from: { name: 'Enat - Ponte de Lima', address: c.from }, to, replyTo: c.from, subject: b.subject.trim(), text, html: emailHtml(b.text, req.url ? new URL(req.url).origin : ''), attachments }).compile().build();
     const info = await t.sendMail({ envelope: { from: c.from, to: [to] }, raw });
     const accepted = (info.accepted || []).map((a: any) => String(a?.address || a).toLowerCase());
     if (!accepted.includes(to.toLowerCase())) {

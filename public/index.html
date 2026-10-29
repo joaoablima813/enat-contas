@@ -100,11 +100,11 @@ nav button.on{color:var(--blue)}
 <script src="/excel-export.js"></script>
 </head>
 <body>
-<div class="top"><img src="/enat-logo.png" alt="Enat Energias"><button id="sync" class="sync" data-a="tab" data-id="def" aria-live="polite"></button></div>
+<div class="top"><img src="/enat-logo.png" alt="Enat - Ponte de Lima"><button id="sync" class="sync" data-a="tab" data-id="def" aria-live="polite"></button></div>
 <main id="app"></main>
 <nav><div id="nav"></div></nav>
 <div id="ov"><div id="sh" role="dialog" aria-modal="true"></div></div>
-<div id="lock"><img src="/enat-logo.png" alt="Enat Energias"><div id="lk"></div></div>
+<div id="lock"><img src="/enat-logo.png" alt="Enat - Ponte de Lima"><div id="lk"></div></div>
 <input type="file" id="file" accept="image/*,application/pdf" hidden>
 <script>
 const $=s=>document.querySelector(s);
@@ -417,7 +417,7 @@ function matRes(){
 }
 function vMat(){const n=products().length,todo=S.inv.filter(v=>v.foto&&!v.rv).length;return`<h1>Pesquisa</h1><div class="sbar">${ic('search')}<input id="q" value="${esc(V.q||'')}" aria-label="Pesquisar produtos" placeholder="Produto, referência, marca, fornecedor ou NIF" autocomplete="off"></div><div class="chips">${['',...CATS].map(c=>`<button class="${(V.mc||'')===c?'on':''}" data-a="mc" data-id="${c}">${c||'Todos'}</button>`).join('')}</div><div id="res">${matRes()}</div>${n&&todo?`<p class="note">${todo} fatura${todo>1?'s':''} lida${todo>1?'s':''} antes desta atualização. Volte a ler para obter os descontos e as novas categorias (Material elétrico, Cobre).</p><button class="btn alt" data-a="reread">${RR?esc(RR):'Voltar a ler faturas antigas'}</button>`:''}`}
 const due=o=>{const d=new Date(o.done+'T12:00');d.setFullYear(d.getFullYear()+1);return d};
-const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.join(', ')}) na obra ${o.name}. Para manter tudo a funcionar bem e válido na garantia, quer agendar a manutenção? Enat Energias`;
+const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.join(', ')}) na obra ${o.name}. Para manter tudo a funcionar bem e válido na garantia, quer agendar a manutenção? Enat - Ponte de Lima`;
 function vMan(){
  const l=S.obras.filter(o=>o.done&&(o.equip||[]).length).map(o=>({o,d:due(o)})).sort((a,b)=>a.d-b.d),now=new Date();
  return`<h1>Manutenção</h1><p class="note" style="margin:-6px 6px 14px">Cada obra concluída, com equipamentos indicados, fica agendada para um ano depois. Quando chegar a data, envie a mensagem ao cliente com um toque.</p><div class="grp">${l.length?l.map(({o,d})=>{const dias=Math.round((d-now)/864e5),tel=(o.phone||'').replace(/\D/g,'');return`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(o.name)}</b><span>${esc(o.client)} · ${o.equip.join(', ')}</span></div><div class="rr"><b class="${dias<=0?'neg':''}">${d.toLocaleDateString('pt-PT')}</b><span>${dias<=0?'em atraso':'daqui a '+dias+' dias'}</span></div>${tel?`<a class="btn" style="margin:8px 0 0;padding:10px;font-size:15px;text-align:center;text-decoration:none;color:#fff" target="_blank" rel="noopener" href="https://wa.me/${tel.length===9?'351'+tel:tel}?text=${encodeURIComponent(msg(o))}">Enviar mensagem por WhatsApp</a>`:'<span class="sub" style="width:100%;padding-top:6px">Falta o telemóvel do cliente. Edite a obra.</span>'}</div>`}).join(''):'<div class="empty">Nenhuma obra com data de conclusão e equipamentos. Edite uma obra para os indicar.</div>'}</div>`}

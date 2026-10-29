@@ -26,7 +26,7 @@ test('client folder lets the user pick only that client\'s quotes for WhatsApp',
 test('message lists every selected quote with its link and a professional sign-off',()=>{
  const c=browser();
  const one=vm.runInContext("quoteWaText([{...sample,id:42}],['https://x/api/pdf/a'])",c);
- assert.match(one,/Segue o orçamento ORC 2026\/0042, referente a Ar condicionado LG, no valor total de \*147\.60 €\*/);assert.match(one,/:\nhttps:\/\/x\/api\/pdf\/a/);assert.match(one,/A proposta é válida por 15 dias/);assert.match(one,/João Lima\nEnat - Energias$/);
+ assert.match(one,/Segue o orçamento ORC 2026\/0042, referente a Ar condicionado LG, no valor total de \*147\.60 €\*/);assert.match(one,/:\nhttps:\/\/x\/api\/pdf\/a/);assert.match(one,/A proposta é válida por 15 dias/);assert.match(one,/João Lima\nEnat - Ponte de Lima$/);
  const many=vm.runInContext("quoteWaText([{...sample,id:42},{...sample,id:43}],['https://x/1','https://x/2'])",c);
  assert.match(many,/Seguem os orçamentos/);assert.match(many,/\*ORC 2026\/0042\*.*\nhttps:\/\/x\/1/);assert.match(many,/\*ORC 2026\/0043\*.*\nhttps:\/\/x\/2/);assert.match(many,/As propostas são válidas/);
 });
@@ -51,7 +51,7 @@ test('email field is optional, shown in the editor and copied into the send pane
  assert.match(html,/Email do cliente \(opcional\)/);assert.doesNotMatch(html,/data-qf="email"[^>]*required/);
  assert.match(html,/data-qw="email" value="cliente@exemplo\.pt"/);assert.match(html,/data-qa="mail-send"/);assert.match(html,/Enviar orçamento por email/);
  const link=vm.runInContext("quoteMailto('cliente@exemplo.pt',[{...sample,id:42}],quoteWaText([{...sample,id:42}],['https://x/1']))",c);
- assert.match(link,/^mailto:cliente%40exemplo\.pt\?subject=Or%C3%A7amento%20ORC%202026%2F0042%20%C2%B7%20Enat%20-%20Energias&body=Ol%C3%A1/);assert.doesNotMatch(decodeURIComponent(link),/\*/);
+ assert.match(link,/^mailto:cliente%40exemplo\.pt\?subject=Or%C3%A7amento%20ORC%202026%2F0042%20%C2%B7%20Enat%20-%20Ponte%20de%20Lima&body=Ol%C3%A1/);assert.doesNotMatch(decodeURIComponent(link),/\*/);
 });
 
 test('server email: validates input, explains missing setup and formats a branded HTML body',async()=>{

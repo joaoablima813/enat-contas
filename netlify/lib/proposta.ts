@@ -12,7 +12,7 @@ const G: any = globalThis;
 export const ANSWERS: Record<string, string> = { adjudicar: 'Adjudicado', revisao: 'Pedido de revisão', pensar: 'Vai pensar', mais_tarde: 'Fica para mais tarde', rejeitar: 'Rejeitado' };
 // Link previews (WhatsApp, Gmail, Outlook…) open the link by themselves; they must not count as "Visto".
 export const isBot = (ua: string) => !ua || /bot|crawl|spider|preview|facebookexternalhit|whatsapp|telegram|slack|discord|skype|googleimageproxy|google-safety|proofpoint|mimecast|barracuda|curl|wget|python|headless|lighthouse/i.test(ua);
-const COMPANY = { name: 'Enat - Energias', email: 'pontedelima@enat.pt' };
+const COMPANY = { name: 'Enat - Ponte de Lima', email: 'pontedelima@enat.pt' };
 const quoteNumber = (id: number, date: string) => 'ORC ' + (String(date || '').slice(0, 4) || new Date().getFullYear()) + '/' + String(id).padStart(4, '0');
 const subject = (q: any) => [(q.topics || []).join(' + '), String(q.brand || '').trim()].filter(Boolean).join(' ');
 const validity = (q: any) => Number(q.validity) || 15;
@@ -139,11 +139,13 @@ ${list}
  <p class="muted">Escolha uma opção. A sua resposta chega diretamente à nossa equipa.</p>
  ${current}
  <div class="options" role="radiogroup" aria-label="Resposta à proposta">${OPTIONS.map(([k, t, d]) => `<button type="button" class="opt o-${k}" role="radio" aria-checked="false" data-kind="${k}">${icon(k)}<span><b>${t}</b><small>${d}</small></span></button>`).join('')}</div>
- <form id="form" hidden>
+ <form id="form">
+  <div id="fields" hidden>
   <div id="terms" hidden><h3>Condições da proposta</h3><ul>${terms.map(t => `<li>${esc(t)}</li>`).join('')}</ul><p class="muted">Valor a pagar na adjudicação (50%): <b>${esc(eur(Math.round(total * 50) / 100))}</b></p><label class="check"><input type="checkbox" id="accept"> Li e aceito a proposta ${esc(number)} e as condições acima.</label></div>
   <label class="field"><span id="note-label">Comentário (opcional)</span><textarea id="note" rows="3" maxlength="2000"></textarea></label>
+  </div>
   <p class="error" id="error" role="alert"></p>
-  <button class="btn" id="send" type="submit">Enviar resposta</button>
+  <button class="btn" id="send" type="submit" disabled>Escolha uma opção acima</button>
  </form>
  <div id="thanks" class="thanks" hidden></div>
 </section>
@@ -154,15 +156,15 @@ ${list}
  try{owner=!!localStorage.getItem('enat-contas-2')&&!sessionStorage.getItem('enat-as-client')}catch(e){}
  var $=function(id){return document.getElementById(id)};
  var send=function(b){if(owner)return;try{navigator.sendBeacon?navigator.sendBeacon(url,JSON.stringify(b)):fetch(url,{method:'POST',body:JSON.stringify(b),keepalive:true})}catch(e){}};
- if(owner){$('owner').hidden=false;document.querySelectorAll('.opt').forEach(function(b){b.disabled=true})}
+ if(owner){$('owner').hidden=false;$('send').textContent='Respostas desativadas neste dispositivo';document.querySelectorAll('.opt').forEach(function(b){b.disabled=true})}
  $('as-client').onclick=function(){try{sessionStorage.setItem('enat-as-client','1')}catch(e){}location.reload()};
  send({kind:'visto'});
  $('pdf').addEventListener('click',function(){send({kind:'pdf'})});
  var LABELS={adjudicar:['Comentário (opcional)','Confirmar adjudicação','Ex.: melhor dia para começar'],revisao:['O que gostaria de alterar?','Pedir revisão','Ex.: trocar para 2 splits, outra marca…'],pensar:['Comentário (opcional)','Enviar resposta','Ex.: decido até ao fim do mês'],mais_tarde:['Quando pensa avançar? (opcional)','Enviar resposta','Ex.: na primavera'],rejeitar:['Motivo (opcional)','Rejeitar proposta','Ex.: encontrei outra solução']};
  document.querySelectorAll('.opt').forEach(function(b){b.onclick=function(){
   kind=b.dataset.kind;document.querySelectorAll('.opt').forEach(function(x){x.setAttribute('aria-checked',String(x===b))});
-  var l=LABELS[kind];$('form').hidden=false;$('thanks').hidden=true;$('terms').hidden=kind!=='adjudicar';$('note-label').textContent=l[0];$('send').textContent=l[1];$('note').placeholder=l[2];$('note').required=kind==='revisao';$('error').textContent='';
-  $('send').className='btn'+(kind==='rejeitar'?' danger':'');$('form').scrollIntoView({behavior:'smooth',block:'nearest'});
+  var l=LABELS[kind];$('fields').hidden=false;$('send').disabled=false;$('thanks').hidden=true;$('terms').hidden=kind!=='adjudicar';$('note-label').textContent=l[0];$('send').textContent=l[1];$('note').placeholder=l[2];$('note').required=kind==='revisao';$('error').textContent='';
+  $('send').className='btn'+(kind==='rejeitar'?' danger':'');$('send').scrollIntoView({behavior:'smooth',block:'nearest'});
  }});
  $('form').onsubmit=function(e){
   e.preventDefault();if(!kind||owner)return;
@@ -171,10 +173,10 @@ ${list}
   $('send').disabled=true;$('send').textContent='A enviar…';
   fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:kind,note:note})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw Error(j.error||'');return j})}).then(function(j){
    var T={adjudicar:'<b>Obrigado pela confiança!</b> A proposta foi adjudicada. Vamos entrar em contacto para combinar a data da instalação.<br>Para confirmar, transfira o valor de adjudicação (50%) para o IBAN ${esc(G.ENAT_IBAN)}.',revisao:'<b>Pedido recebido.</b> Vamos rever a proposta e enviamos-lhe uma nova versão.',pensar:'<b>Sem problema.</b> Fica registado que vai pensar. Estamos disponíveis para qualquer dúvida.',mais_tarde:'<b>Fica registado.</b> Quando for altura, fale connosco e atualizamos a proposta.',rejeitar:'<b>Obrigado pela resposta.</b> Se mudar de ideias, pode voltar a esta página.'};
-   $('form').hidden=true;$('thanks').hidden=false;$('thanks').innerHTML=T[kind]+'<small>Pode mudar a sua resposta a qualquer momento nesta página.</small>';
+   $('fields').hidden=true;$('thanks').hidden=false;$('thanks').innerHTML=T[kind]+'<small>Pode mudar a sua resposta a qualquer momento nesta página.</small>';
    var c=$('current');c.className='answer a-'+kind;c.innerHTML='<span class="dot"></span><div><b>A sua resposta: '+j.label+'</b><small>Agora mesmo'+(note?' · «'+note.replace(/[&<>"]/g,function(s){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]})+'»':'')+'</small></div></div>';
-   document.querySelectorAll('.opt').forEach(function(x){x.setAttribute('aria-checked','false')});kind='';$('note').value='';$('accept').checked=false;
-  }).catch(function(err){$('error').textContent=err.message||'Não foi possível enviar. Verifique a ligação e tente novamente.'}).finally(function(){$('send').disabled=false;if(kind)$('send').textContent=LABELS[kind][1]});
+   document.querySelectorAll('.opt').forEach(function(x){x.setAttribute('aria-checked','false')});kind='';$('send').className='btn';$('note').value='';$('accept').checked=false;
+  }).catch(function(err){$('error').textContent=err.message||'Não foi possível enviar. Verifique a ligação e tente novamente.'}).finally(function(){$('send').disabled=!kind;$('send').textContent=kind?LABELS[kind][1]:'Escolha uma opção acima'});
  };
 })();
 </script>`;
@@ -214,7 +216,7 @@ dl{display:flex;gap:28px;margin:16px 4px 20px}dl div{display:flex;flex-direction
 .opt:hover{border-color:color-mix(in srgb,var(--blue) 35%,var(--line))}.opt[aria-checked=true]{border-color:var(--blue);background:var(--tint);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 14%,transparent)}
 .o-adjudicar svg{background:var(--green);color:#fff}.o-adjudicar[aria-checked=true]{border-color:var(--green);background:var(--okbg);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 14%,transparent)}
 .o-rejeitar svg{color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent)}.opt:disabled{opacity:.55;cursor:default}
-form{margin-top:16px;border-top:1px solid var(--line);padding-top:16px}form ul{margin:0 0 10px;padding-left:20px;font-size:14.5px}form li{margin:3px 0}
+form{margin-top:16px}#fields{border-top:1px solid var(--line);padding-top:16px}form ul{margin:0 0 10px;padding-left:20px;font-size:14.5px}form li{margin:3px 0}
 .check{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;font-weight:600;margin:4px 0 14px}.check input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--green)}
 .field span{display:block;font-size:14px;font-weight:600;margin-bottom:6px}textarea{width:100%;border:1.5px solid var(--line);border-radius:14px;padding:11px 13px;font:inherit;resize:vertical;background:var(--card);color:var(--ink)}textarea:focus{outline:none;border-color:var(--blue)}
 .error{color:var(--red);font-size:14px;min-height:1px;margin:8px 0}

@@ -44,7 +44,7 @@ test('the link opens a branded quote page with the PDF and the five answers, and
  const token=await s.send(42);
  const r=await s.call(token);assert.equal(r.status,200);assert.match(r.headers.get('x-robots-tag'),/noindex/);
  const html=await r.text();
- assert.match(html,/enat-logo\.png/);assert.match(html,/Enat - Energias/);assert.match(html,/ORC \d{4}\/0042/);assert.match(html,/Olá, Família Araújo/);
+ assert.match(html,/enat-logo\.png/);assert.match(html,/Enat - Ponte de Lima/);assert.match(html,/ORC \d{4}\/0042/);assert.match(html,/Olá, Família Araújo/);
  assert.match(html,new RegExp('/proposta/'+token+'/pdf'));
  for(const k of ['adjudicar','revisao','pensar','mais_tarde','rejeitar'])assert.match(html,new RegExp('data-kind="'+k+'"'));
  assert.match(html,/1771,20 €/,'total with VAT and margin');assert.match(html,/885,60 €/,'50% due on award');

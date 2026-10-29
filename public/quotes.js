@@ -71,11 +71,13 @@ function quoteInvoiceTable(){
 }
 const quoteTables=()=>{const t=globalThis.PRICE_TABLES||[],f=quoteInvoiceTable();return f?[...t,f]:t};
 const quoteNetPrice=(t,p)=>Math.round(Number(p.price)*(1-Number(t.discount||0)/100)*100)/100;
+// The supplier's name (S. Energias) never reaches the client, also in quotes saved before.
+const quoteClientText=t=>String(t??'').replace(/^S\.? ?Energias\s+/i,'');
 const quoteBlankLine=()=>({kind:'Equipamento',description:'',quantity:1,unit:'un.',value:0});
 const quoteLineBlank=l=>!String(l.description||'').trim()&&!l.value&&!l.catalog;
 // Keeps an empty line at the end so the next product can be typed straight away.
 function quoteEnsureBlank(){const ls=quoteDraft.lines;if(ls.length<200&&(!ls.length||!quoteLineBlank(ls[ls.length-1])))ls.push(quoteBlankLine())}
-function quoteCatalogLine(t,p){return {kind:p.kind||(p.group.some(g=>g.startsWith('Acessórios'))?'Acessórios':'Equipamento'),description:t.invoices?p.name:t.brand+' '+(p.ref?p.ref+' – ':'')+p.name,quantity:1,unit:p.unit||'un.',value:quoteNetPrice(t,p),catalog:{brand:t.brand,ref:p.ref||'',price:Number(p.price),discount:Number(t.discount||0),...(p.src?{src:p.src}:{})}}}
+function quoteCatalogLine(t,p){return {kind:p.kind||(p.group.some(g=>g.startsWith('Acessórios'))?'Acessórios':'Equipamento'),description:t.invoices?p.name:quoteClientText(t.brand+' '+(p.ref?p.ref+' – ':'')+p.name),quantity:1,unit:p.unit||'un.',value:quoteNetPrice(t,p),catalog:{brand:t.brand,ref:p.ref||'',price:Number(p.price),discount:Number(t.discount||0),...(p.src?{src:p.src}:{})}}}
 // Adds a line, replacing the empty line a new quote starts with.
 function quoteAddLine(l){const ls=quoteDraft.lines;if(ls.length===1&&!ls[0].description.trim()&&!ls[0].value)ls[0]=l;else if(ls.length<200)ls.push(l)}
 // Opens a brand on the quote's typologies: one ticked typology goes straight in (LG › Ar condicionado), several are listed alone.
@@ -149,6 +151,8 @@ function quoteReadInput(t,typing){
  const title=document.querySelector('#quote-title');if(title&&(t.dataset.qt||t.dataset.qf==='brand'))title.textContent=quoteDraft.topics.length?quoteTitle(quoteDraft):'Prepare uma proposta à medida do seu cliente.';
  const match=document.querySelector('#quote-match');if(match&&['client','contact'].includes(t.dataset.qf))match.textContent=quoteMatchNote();
  const summary=document.querySelector('#quote-summary');if(summary&&quoteDraft.margin>=0&&quoteDraft.margin<100)summary.innerHTML=quoteSummary();
+ // A battery typed or picked as an ordinary line changes the PV figures and the payback.
+ if((t.dataset.ql!==undefined||['margin','vat'].includes(t.dataset.qf))&&quoteDraft.pv&&typeof pvRefreshResults==='function')pvRefreshResults();
 }
 document.addEventListener('input',e=>quoteReadInput(e.target,true));
 // Tapping an empty description opens the price table list of the quote's brand right under it.
@@ -293,7 +297,7 @@ async function buildQuotePdf(q,detailed=true){
  const margin={left:16,right:16,top:46,bottom:20},later=()=>{if(doc.internal.getCurrentPageInfo().pageNumber>1)header(false)};
  doc.autoTable({startY:y+2,margin,theme:'plain',
   // The summary version lists what is included without revealing line prices.
-  ...(detailed?{head:[['Descrição','Qtd.','Un.','Preço unit.','Total']],body:q.lines.map((l,i)=>[l.description,quantity(l.quantity??1),l.unit||'un.',money(cents[i]/100/(l.quantity??1)),money(cents[i]/100)])}:{head:[['Descrição','Qtd.','Un.']],body:q.lines.map(l=>[l.description,quantity(l.quantity??1),l.unit||'un.'])}),
+  ...(detailed?{head:[['Descrição','Qtd.','Un.','Preço unit.','Total']],body:q.lines.map((l,i)=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.',money(cents[i]/100/(l.quantity??1)),money(cents[i]/100)])}:{head:[['Descrição','Qtd.','Un.']],body:q.lines.map(l=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.'])}),
   styles:{font:'helvetica',fontSize:9,cellPadding:{top:3,right:2.5,bottom:3,left:2.5},overflow:'linebreak',textColor:navy,lineColor:[221,228,231],lineWidth:{bottom:.2}},headStyles:{fillColor:navy,textColor:255,fontStyle:'bold',fontSize:8.5,lineWidth:0},alternateRowStyles:{fillColor:[249,251,252]},
   columnStyles:detailed?{0:{cellWidth:82},1:{cellWidth:16,halign:'right'},2:{cellWidth:16},3:{cellWidth:32,halign:'right'},4:{cellWidth:32,halign:'right',fontStyle:'bold'}}:{0:{cellWidth:146},1:{cellWidth:16,halign:'right'},2:{cellWidth:16}},
   didParseCell:d=>{if(d.section==='head'&&d.column.index>0&&d.column.index!==2)d.cell.styles.halign='right'},rowPageBreak:'avoid',didDrawPage:later});

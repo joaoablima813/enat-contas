@@ -32,6 +32,8 @@
     const m=name.match(/(\d+(?:[.,]\d+)?)\s?kwh/i)||name.match(/lynx (?:lv u|hv d)\s?(\d+(?:\.\d+)?)/i)||name.match(/m-bat-(\d+(?:\.\d+)?)p/i);
     return m?dec(m[1]):0;
   }
+  // S. Energias is the supplier, not a product brand: the client never sees it.
+  const label=(brand,text)=>(/^s\.? ?energias$/i.test(brand)?'':brand+' ')+text;
   // Groups every PV product of the price tables by role, with the figures parsed from its name.
   function pvCatalog(tables){
     const c={panels:[],inverters:[],batteries:[],backups:[],chargers:[],structures:[],fixings:[],boards:[]};
@@ -45,7 +47,7 @@
       }
       else if(pv&&/microinversor/.test(g[2]||'')){const w=n.match(/potencia (\d+)\s?w/);if(w)c.inverters.push({...item,kw:Number(w[1])/1000,phase:0,hybrid:false,micro:true})}
       else if(pv&&(/^inversor/.test(g[2]||'')||/^inversor/.test(n))&&!/^bateria/.test(n)){const kw=inverterKw(name);if(kw)c.inverters.push({...item,kw,phase:phaseOf(text)||1,hybrid:/hibrid|retrofit|alpha ?ess/.test(text),micro:false})}
-      if(pv&&(/bateria/.test(g.slice(1).join(' '))||/^bateria/.test(n))&&!/base|bmu|pdu|bcu|cabo|armario|suporte|bracket|asas|wall|floor|modulo hv/.test(n)){const kwh=batteryKwh(name);if(kwh)c.batteries.push({...item,kwh})}
+      if(pv&&(/bateria/.test(g.slice(1).join(' '))||/^bateria/.test(n))&&(/^bateria/.test(n)||!/base|bmu|pdu|bcu|cabo|armario|suporte|bracket|asas|wall|floor|modulo hv/.test(n))){const kwh=batteryKwh(name);if(kwh)c.batteries.push({...item,kwh})}
       if(pv&&/backup/.test(n))c.backups.push({...item,phase:phaseOf(n)});
       if((ev&&!/^acessorios/.test(g[1]||'')&&!/adaptador|cabo|tomada|bolsa|pedestal|suporte|card|sensor/.test(n))||(pv&&/^carregador/.test(n))){
         const kw=n.match(/(\d+(?:[.,]\d+)?)\s?kw?\b/);c.chargers.push({...item,kw:kw?dec(kw[1]):0,phase:phaseOf(n)});
@@ -90,7 +92,7 @@
     return [...out];
   }
   const find=(list,key)=>list.find(i=>i.key===key);
-  function pvDesign(pv,c){
+  function pvDesign(pv,c,extraKwh=0){
     const warnings=[],consumption=Math.max(Number(pv.consumption)||0,0);
     const panel=find(c.panels,pv.panel)||c.panels[0]||null;
     const fresh=pv.yield&&pv.yield.key===yieldKey(pv)&&pv.yield.annual>0;
@@ -104,7 +106,7 @@
     const kwp=panel?round(n*panel.wp/1000,2):0;
     const battery=find(c.batteries,pv.battery)||null,batteryQty=battery?Math.max(1,Math.round(Number(pv.batteryQty)||1)):0;
     // Suggests the smallest inverter for the phase (hybrid with a battery) keeping DC/AC up to 1.25.
-    const fits=c.inverters.filter(i=>!i.micro&&i.phase===Number(pv.phase)&&(!battery||i.hybrid));
+    const fits=c.inverters.filter(i=>!i.micro&&i.phase===Number(pv.phase)&&(!(battery||extraKwh>0)||i.hybrid));
     const suggestedInv=kwp?(fits.filter(i=>i.kw>=kwp/1.25)[0]||fits[fits.length-1]||null):null;
     const inverter=pv.inverter==='none'?null:find(c.inverters,pv.inverter)||suggestedInv;
     const inverterQty=inverter?(inverter.micro?n:Math.max(1,Math.round(Number(pv.inverterQty)||1))):0;
@@ -112,7 +114,7 @@
     if(inverter&&!inverter.micro&&ratio>1.35)warnings.push(`Os painéis (${fmt(kwp)} kWp) estão muito acima do inversor (${fmt(ac)} kW): escolha um inversor maior.`);
     if(inverter&&!inverter.micro&&ratio&&ratio<.8)warnings.push(`O inversor (${fmt(ac)} kW) está sobredimensionado para ${fmt(kwp)} kWp.`);
     if(inverter&&!inverter.micro&&inverter.phase!==Number(pv.phase))warnings.push(`O inversor escolhido é ${inverter.phase===3?'trifásico':'monofásico'} e a instalação é ${Number(pv.phase)===3?'trifásica':'monofásica'}.`);
-    if(battery&&inverter&&!inverter.hybrid)warnings.push('Com bateria é preciso um inversor híbrido; o inversor escolhido é de rede.');
+    if((battery||extraKwh>0)&&inverter&&!inverter.hybrid)warnings.push('Com bateria é preciso um inversor híbrido; o inversor escolhido é de rede.');
     if(Number(pv.phase)===1&&ac>6.9)warnings.push('Acima de 6,9 kW de inversor, a ligação costuma ter de ser trifásica.');
     if(inverter&&inverter.micro&&panel&&panel.wp>inverter.kw*1000*1.35)warnings.push(`O microinversor de ${fmt(inverter.kw*1000,0)} W é pequeno para painéis de ${panel.wp} W.`);
     const backup=find(c.backups,pv.backup)||null,charger=find(c.chargers,pv.charger)||null;
@@ -142,32 +144,32 @@
     const boards=c.boards.filter(b=>!b.phase||b.phase===Number(pv.phase)).sort((a,b)=>a.kw-b.kw);
     const board=pv.board==='none'||(inverter&&inverter.micro)?null:find(c.boards,pv.board)||(ac?boards.find(b=>b.kw>=ac)||boards[boards.length-1]:null)||null;
     // Monthly balance: daytime use is covered first, the battery stores part of the surplus for the night.
-    const dayShare=Math.min(Math.max(Number(pv.dayShare)||0,0),100)/100,store=battery?battery.kwh*batteryQty*.9:0;
+    const dayShare=Math.min(Math.max(Number(pv.dayShare)||0,0),100)/100,storage=(battery?battery.kwh*batteryQty:0)+(Number(extraKwh)||0),store=storage*.9;
     const months=MONTHS.map((label,m)=>{
       const cons=consumption*DAYS[m]/365,prod=kwp*monthlyKwp[m],direct=Math.min(prod,cons*dayShare);
       const charged=Math.min((prod-direct)*.95,cons-direct,store*DAYS[m]*.85),self=direct+charged;
-      return {label,cons,prod,self,exported:Math.max(prod-direct-charged/.95,0),grid:Math.max(cons-self,0)};
+      return {label,cons,prod,self,stored:charged,exported:Math.max(prod-direct-charged/.95,0),grid:Math.max(cons-self,0)};
     });
-    const sum=k=>months.reduce((s,m)=>s+m[k],0),production=sum('prod'),self=sum('self'),exported=sum('exported');
+    const sum=k=>months.reduce((s,m)=>s+m[k],0),production=sum('prod'),self=sum('self'),exported=sum('exported'),stored=sum('stored');
     const savings=self*(Number(pv.buy)||0)+exported*(Number(pv.sell)||0);
     const dailyNight=consumption/365*(1-dayShare);
     const lines=[];
-    const add=(item,qty,kind='Equipamento')=>{if(item&&qty>0)lines.push({kind,description:item.brand+' '+(item.p.ref?item.p.ref+' – ':'')+item.name,quantity:qty,unit:item.p.unit||'un.',value:item.cost,catalog:{brand:item.brand,ref:item.p.ref||'',price:Number(item.p.price),discount:Number(item.t.discount||0)},pv:true})};
+    const add=(item,qty,kind='Equipamento')=>{if(item&&qty>0)lines.push({kind,description:label(item.brand,(item.p.ref?item.p.ref+' – ':'')+item.name),quantity:qty,unit:item.p.unit||'un.',value:item.cost,catalog:{brand:item.brand,ref:item.p.ref||'',price:Number(item.p.price),discount:Number(item.t.discount||0)},pv:true})};
     add(panel,n);add(inverter,inverterQty);add(battery,batteryQty);add(backup,1);add(charger,1);
     structureLines.forEach(s=>add(s.item,s.qty,c.fixings.includes(s.item)?'Acessórios':'Material'));add(board,board?1:0,'Material');
     return {panel,n,suggested,fit,kwp,kwhKwp,source:fresh?pv.yield.source||'PVGIS':'estimativa',inverter,suggestedInv,inverterQty,ac,ratio,battery,batteryQty,
-      batteryHint:round(dailyNight*.8,1),backup,charger,structureLines,structureNote,structureOptions:options,board,months,production,self,exported,
+      batteryHint:round(dailyNight*.8,1),backup,charger,structureLines,structureNote,structureOptions:options,board,months,production,self,exported,stored,storage,extraKwh:Number(extraKwh)||0,
       grid:sum('grid'),consumption,selfShare:production?self/production:0,coverage:consumption?self/consumption:0,savings,warnings,lines};
   }
   function fmt(n,d=1){return Number(n||0).toLocaleString('pt-PT',{maximumFractionDigits:d,minimumFractionDigits:0})}
   // What the PDF shows; kept in the quote so it does not change when the price tables do.
   function pvSnapshot(d,pv,price){
-    return {kwp:d.kwp,panels:d.n,panel:d.panel?d.panel.brand+' '+d.panel.name:'',inverter:d.inverter?(d.inverterQty>1?d.inverterQty+' × ':'')+d.inverter.brand+' '+d.inverter.name:'',
-      battery:d.battery?(d.batteryQty>1?d.batteryQty+' × ':'')+d.battery.brand+' '+d.battery.name:'',batteryKwh:d.battery?round(d.battery.kwh*d.batteryQty,2):0,
-      backup:d.backup?d.backup.name:'',charger:d.charger?d.charger.brand+' '+d.charger.name:'',roof:roofOf(pv.roof).label,tilt:Number(pv.tilt),orientation:(ORIENTATIONS.find(o=>o[0]===Number(pv.azimuth))||[0,Number(pv.azimuth)+'°'])[1],
+    return {kwp:d.kwp,panels:d.n,panel:d.panel?label(d.panel.brand,d.panel.name):'',inverter:d.inverter?(d.inverterQty>1?d.inverterQty+' × ':'')+label(d.inverter.brand,d.inverter.name):'',
+      battery:d.battery?(d.batteryQty>1?d.batteryQty+' × ':'')+label(d.battery.brand,d.battery.name):'',batteryKwh:round(d.storage,2),extraBattery:round(d.extraKwh,2),stored:round(d.stored,0),grid:round(d.grid,0),
+      backup:d.backup?d.backup.name:'',charger:d.charger?label(d.charger.brand,d.charger.name):'',roof:roofOf(pv.roof).label,tilt:Number(pv.tilt),orientation:(ORIENTATIONS.find(o=>o[0]===Number(pv.azimuth))||[0,Number(pv.azimuth)+'°'])[1],
       consumption:round(d.consumption,0),production:round(d.production,0),self:round(d.self,0),exported:round(d.exported,0),selfShare:round(d.selfShare*100,0),coverage:round(d.coverage*100,0),
       savings:round(d.savings,0),buy:Number(pv.buy),sell:Number(pv.sell),price:round(price||0,2),payback:d.savings>0&&price?round(price/d.savings,1):0,source:d.source,
       months:d.months.map(m=>({label:m.label,prod:round(m.prod,0),cons:round(m.cons,0)}))};
   }
-  Object.assign(root,{pvCatalog,pvDesign,pvSnapshot,newPv,pvYieldKey:yieldKey,pvEstimateYield:estimateYield,pvStructuresFor:structuresFor,pvFmt:fmt,PV_ROOFS:ROOFS,PV_ORIENTATIONS:ORIENTATIONS});
+  Object.assign(root,{pvCatalog,pvBatteryKwh:batteryKwh,pvLabel:label,pvDesign,pvSnapshot,newPv,pvYieldKey:yieldKey,pvEstimateYield:estimateYield,pvStructuresFor:structuresFor,pvFmt:fmt,PV_ROOFS:ROOFS,PV_ORIENTATIONS:ORIENTATIONS});
 })(globalThis);

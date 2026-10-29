@@ -76,3 +76,17 @@ test('the PDF gets a PV study page',async()=>{
  const out=text.join('\n');for(const t of ['ESTUDO FOTOVOLTAICO','Produção anual estimada','Poupança anual estimada','Retorno do investimento','PRODUÇÃO E CONSUMO POR MÊS (kWh)'])assert.ok(out.includes(t),t);
  assert.ok(pdf.getNumberOfPages()>=2);
 });
+test('the supplier name stays out of the lines and a battery added as a quote line lowers grid use and changes the payback',()=>{
+ const run=load();run('cat=pvCatalog(PRICE_TABLES)');
+ assert.ok(run('cat.batteries').some(b=>/BSL Powerwall 10,24kWh/.test(b.name)&&b.kwh===10.24));
+ run(`quoteDraft=newQuote();quoteDraft.pv={...newPv(),consumption:5000};quoteDraft.lines=pvDesignNow(quoteDraft.pv,cat).lines`);
+ assert.ok(run('quoteDraft.lines').every(l=>!/Energias/.test(l.description)));
+ const snap=()=>{run('pvResults()');return run('quoteDraft.pv.result')};
+ const before=snap();assert.equal(before.batteryKwh,0);
+ run(`quoteDraft.lines.push(quoteCatalogLine(PRICE_TABLES[0],PRICE_TABLES[0].products.find(p=>/BSL Powerwall 10,24/.test(p.name))))`);
+ assert.doesNotMatch(run('quoteDraft.lines.at(-1).description'),/Energias/);
+ const after=snap();
+ assert.equal(after.batteryKwh,10.24);assert.ok(after.self>before.self&&after.grid<before.grid&&after.savings>before.savings);
+ assert.ok(after.price>before.price&&after.payback!==before.payback);
+ assert.equal(run(`quoteClientText('S. Energias Bateria X')`),'Bateria X');
+});

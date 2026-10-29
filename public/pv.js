@@ -12,10 +12,18 @@ function pvSelect(label,key,items,first,info=i=>''){
  const v=quoteDraft.pv[key]||'';
  return `<label class="q-field"><span>${label}</span><select data-pv="${key}">${first.map(([val,text])=>`<option value="${esc(val)}" ${v===val?'selected':''}>${esc(text)}</option>`).join('')}${[...groups].map(([g,list])=>`<optgroup label="${esc(g)}">${list.map(i=>`<option value="${esc(i.key)}" ${v===i.key?'selected':''}>${esc(i.name+info(i)+' · '+eur(i.cost))}</option>`).join('')}</optgroup>`).join('')}</select></label>`;
 }
-// The sale price of the PV lines with the quote's VAT and margin, used for the payback time.
-const pvPrice=d=>d.lines.length?quoteTotals({vat:quoteDraft.vat,margin:quoteDraft.margin,lines:d.lines}).total:0;
+// Batteries added as ordinary quote lines also count: the capacity is read from the product name.
+function pvExtraBatteries(c){
+ return quoteDraft.lines.filter(l=>!l.pv&&String(l.description||'').trim()).map(l=>{
+  const d=String(l.description),b=c.batteries.find(b=>d.endsWith(b.name)),kwh=b?b.kwh:/bateria/i.test(d)?pvBatteryKwh(d):0;
+  return kwh?{line:l,kwh:kwh*(Number(l.quantity)||1)}:null}).filter(Boolean);
+}
+const pvExtraKwh=c=>pvExtraBatteries(c).reduce((s,b)=>s+b.kwh,0);
+const pvDesignNow=(pv,c)=>pvDesign(pv,c,pvExtraKwh(c));
+// The sale price of the PV lines (and extra batteries) with the quote's VAT and margin, used for the payback time.
+const pvPrice=d=>{const lines=[...d.lines,...pvExtraBatteries(pvCatalogNow()).map(b=>b.line)];return lines.length?quoteTotals({vat:quoteDraft.vat,margin:quoteDraft.margin,lines}).total:0};
 function pvResults(){
- const pv=quoteDraft.pv,c=pvCatalogNow(),d=pvDesign(pv,c),price=pvPrice(d),snap=pvSnapshot(d,pv,price),f=pvFmt;
+ const pv=quoteDraft.pv,c=pvCatalogNow(),d=pvDesignNow(pv,c),price=pvPrice(d),snap=pvSnapshot(d,pv,price),f=pvFmt;
  pv.result=snap;
  if(!d.panel)return '<p class="note neg">Não há painéis nas tabelas de preços.</p>';
  const max=Math.max(...d.months.map(m=>Math.max(m.prod,m.cons)),1);
@@ -28,11 +36,13 @@ ${row('Inversor',d.inverter?(d.inverterQty>1?d.inverterQty+' × ':'')+esc(d.inve
 ${row('Autoconsumo',f(d.self,0)+' kWh · '+f(d.selfShare*100,0)+'% da produção')}
 ${row('Consumo coberto pelo solar',f(d.coverage*100,0)+'%')}
 ${row('Excedente para a rede',f(d.exported,0)+' kWh')}
-${d.battery?row('Bateria',f(d.battery.kwh*d.batteryQty,1)+' kWh'):row('Bateria sugerida (consumo noturno)','cerca de '+f(d.batteryHint)+' kWh')}
+${d.storage?row('Energia usada da bateria',f(d.stored,0)+' kWh por ano'):''}
+${row('Energia ainda comprada à rede',f(d.grid,0)+' de '+f(d.consumption,0)+' kWh por ano')}
+${d.storage?row('Bateria',f(d.storage,1)+' kWh'+(d.extraKwh?' (inclui '+f(d.extraKwh,1)+' kWh das linhas do orçamento)':'')):row('Bateria sugerida (consumo noturno)','cerca de '+f(d.batteryHint)+' kWh')}
 <div class="pv-chart" role="img" aria-label="Produção e consumo por mês">${d.months.map(m=>`<div><i style="height:${m.prod/max*100}%" title="Produção ${f(m.prod,0)} kWh"></i><i style="height:${m.cons/max*100}%" title="Consumo ${f(m.cons,0)} kWh"></i><small>${m.label[0]}</small></div>`).join('')}</div>
 <p class="pv-legend"><span>Produção</span><span>Consumo</span></p>
 ${d.warnings.map(w=>`<p class="note neg">${esc(w)}</p>`).join('')}${d.structureNote?`<p class="note">${esc(d.structureNote)}</p>`:''}
-<h3 class="pv-sub">Material a adicionar</h3>${d.lines.map(l=>`<div class="q-break"><span>${f(l.quantity,0)} × ${esc(l.description.replace(/^S\. Energias /,''))}</span><b>${eur(l.value*l.quantity)}</b></div>`).join('')}
+<h3 class="pv-sub">Material a adicionar</h3>${d.lines.map(l=>`<div class="q-break"><span>${f(l.quantity,0)} × ${esc(l.description)}</span><b>${eur(l.value*l.quantity)}</b></div>`).join('')}
 <button type="button" class="btn" data-pva="apply" ${d.lines.length?'':'disabled'}>${applied?'Atualizar o material no orçamento':'Adicionar o material ao orçamento'}</button>
 <p class="note">${applied?'Substitui as linhas adicionadas antes pelo dimensionamento; as outras linhas ficam como estão.':'Os preços são os da tabela com o desconto da marca. Mão de obra e outros materiais ficam por adicionar.'}</p>`;
 }
@@ -41,7 +51,7 @@ function pvSection(){
  const pv=quoteDraft.pv;
  if(!pv)return `<h2>Dimensionamento fotovoltaico</h2><div class="q-card" id="pv-card"><p class="note">Calcula os painéis, o inversor e a bateria a partir do consumo do cliente, e acrescenta o material ao orçamento.</p><button type="button" class="btn alt" data-pva="start">Dimensionar sistema fotovoltaico</button></div>`;
  const c=pvCatalogNow(),phase=Number(pv.phase),roofs=PV_ROOFS,structures=pvStructuresFor(c,pv.roof);
- const inv=c.inverters.filter(i=>i.micro||i.phase===phase),bat=c.batteries,first=pvDesign(pv,c);
+ const inv=c.inverters.filter(i=>i.micro||i.phase===phase),bat=c.batteries,first=pvDesignNow(pv,c);
  return `<h2>Dimensionamento fotovoltaico</h2><div class="q-card pv" id="pv-card">
 <h3 class="pv-sub">Consumo</h3>
 ${pvNum('Consumo anual (kWh)','consumption','min="0" max="10000000" step="1" placeholder="Ex.: 4500"','Some os kWh das faturas de 12 meses, ou multiplique a média mensal por 12.')}
@@ -111,7 +121,7 @@ document.addEventListener('click',async e=>{
   return;
  }
  if(a==='apply'){
-  const d=pvDesign(quoteDraft.pv,pvCatalogNow());
+  const d=pvDesignNow(quoteDraft.pv,pvCatalogNow());
   const keep=quoteDraft.lines.filter(l=>!l.pv&&!quoteLineBlank(l));
   quoteDraft.lines=[...d.lines.map(l=>({...l})),...keep];quoteEnsureBlank();
   if(!quoteDraft.topics.includes('UPAC (fotovoltaico)'))quoteDraft.topics.push('UPAC (fotovoltaico)');
@@ -121,13 +131,13 @@ document.addEventListener('click',async e=>{
  }
 });
 // PDF page with the study: system, yearly figures and the monthly chart.
-function pvPdfSection(doc,r,{navy,grey,soft,money}){
- const f=pvFmt;let y=50;
+function pvPdfSection(doc,r0,{navy,grey,soft,money}){
+ const f=pvFmt,r={...r0};['panel','inverter','battery','charger'].forEach(k=>{if(r[k])r[k]=String(r[k]).replace(/(^|× )S\.? ?Energias\s+/i,'$1')});let y=50;
  doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...grey);doc.text('ESTUDO FOTOVOLTAICO',16,y);
  doc.setFontSize(13);doc.setTextColor(...navy);doc.text(`Sistema de ${f(r.kwp,2)} kWp · ${r.panels} painéis`,16,y+7);y+=12;
- const rows=[['Painéis',r.panels+' × '+r.panel],r.inverter&&['Inversor',r.inverter],r.battery&&['Bateria',r.battery+' ('+f(r.batteryKwh)+' kWh)'],r.backup&&['Backup',r.backup],r.charger&&['Carregador para carro elétrico',r.charger],
+ const rows=[['Painéis',r.panels+' × '+r.panel],r.inverter&&['Inversor',r.inverter],r.batteryKwh&&['Bateria',(r.battery?r.battery+' (':'')+f(r.batteryKwh)+' kWh'+(r.battery?')':'')],r.backup&&['Backup',r.backup],r.charger&&['Carregador para carro elétrico',r.charger],
   ['Cobertura',r.roof+' · inclinação '+f(r.tilt,0)+'° · orientação '+r.orientation],['Consumo anual',f(r.consumption,0)+' kWh'],['Produção anual estimada',f(r.production,0)+' kWh'],
-  ['Energia consumida diretamente',f(r.self,0)+' kWh ('+f(r.selfShare,0)+'% da produção)'],['Consumo coberto pelo solar',f(r.coverage,0)+'%'],['Excedente para a rede',f(r.exported,0)+' kWh'],
+  ['Autoconsumo'+(r.batteryKwh?' (direto e bateria)':''),f(r.self,0)+' kWh ('+f(r.selfShare,0)+'% da produção)'],r.batteryKwh&&r.stored!=null&&['Energia usada da bateria',f(r.stored,0)+' kWh por ano'],r.grid!=null&&['Energia ainda comprada à rede',f(r.grid,0)+' kWh por ano'],['Consumo coberto pelo solar',f(r.coverage,0)+'%'],['Excedente para a rede',f(r.exported,0)+' kWh'],
   ['Poupança anual estimada',money(r.savings)],r.payback&&['Retorno do investimento','cerca de '+f(r.payback)+' anos']].filter(Boolean);
  doc.autoTable({startY:y,margin:{left:16,right:16,top:46,bottom:20},theme:'plain',body:rows,styles:{font:'helvetica',fontSize:9.5,cellPadding:2.4,textColor:navy,lineColor:[221,228,231],lineWidth:{bottom:.2}},columnStyles:{0:{cellWidth:62,textColor:grey},1:{fontStyle:'bold'}}});
  y=doc.lastAutoTable.finalY+10;if(y>200){doc.addPage();y=50}

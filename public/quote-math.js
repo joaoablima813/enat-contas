@@ -10,4 +10,6 @@
     return {cost,costVat,net,vat:round(total-net),total,profit:round(net-cost),profitVat:round(total-costVat)};
   }
   root.quoteTotals=quoteTotals;
+  // Bank account shown in the quote PDF and in payment reminders.
+  root.ENAT_IBAN='PT50 0007 0000 0088 6037 7712 3';
 })(globalThis);

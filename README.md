@@ -1,17 +1,30 @@
-# Enat Contas – publicar fora do Claude
+# Enat Contas
+
+App da Enat Energias para obras, faturas, orçamentos, clientes e relatórios. A página está em `public/` (a app publicada é `public/index.html`) e o servidor em `netlify/functions/api.mjs`, com módulos em `netlify/lib/`. A pasta `src/` tem componentes React de referência para o modelo financeiro. Não é usada pela app publicada.
 
 ## 1. Publicar
-1. A leitura de faturas usa o Gemini através do Netlify AI Gateway: não é preciso chave.
-2. GitHub: crie um repositório privado e carregue TODOS estes ficheiros (Add file > Upload files), mantendo as pastas.
-3. Netlify: Add new site > Import an existing project > escolha o repositório (sem mudar nada).
-4. Netlify > Site configuration > Environment variables:
-   - GEMINI_API_KEY (opcional) = só se quiser usar a sua própria chave do Gemini em vez do AI Gateway
+1. A leitura de faturas usa o Netlify AI Gateway: não é preciso chave.
+2. O site publica a partir do repositório GitHub ligado ao Netlify, sem configuração de build.
+3. Netlify > Site configuration > Environment variables:
    - APP_CODE (recomendado) = código de recuperação, só usado para registar um dispositivo novo quando não há outro com sessão iniciada
-   - GEMINI_MODEL (opcional) = outro modelo, se o predefinido deixar de existir
-5. Deploys > Trigger deploy. Abra o link.
+   - SMTP_PASSWORD (opcional) = envio automático de emails (ver secção 5)
+4. Os dados, as fotos das faturas e as cópias de segurança ficam guardados no Netlify (Blobs). Os orçamentos ficam na base de dados do Netlify.
 
-Dados, fotos das faturas e sincronização ficam guardados no Netlify (Blobs). A página fica em `public/` e a função do servidor em `netlify/functions/api.mjs`.
 No telemóvel: abra o link e use "Adicionar ao ecrã principal"; o ícone é o logo da Enat.
+
+## Uso no dia a dia
+- **Início:** pesquisa em toda a app (obras, clientes, orçamentos, faturas e movimentos), botão **Fotografar fatura** (escolhe a obra e abre a câmara), pagamentos em atraso com lembrete por WhatsApp e atalhos para Clientes, Relatórios, Movimentos e Definições.
+- **Estado da sincronização:** no topo, ao lado do logótipo (Sincronizado, A sincronizar…, Sem ligação). Toque para abrir as Definições.
+- **Obras:** pesquisa e filtros por estado e ano. Cada obra tem email, NIF, morada e um **plano de pagamentos** (por omissão, 50% na adjudicação e 50% na conclusão). Em Recebimentos aparece o estado de cada prestação e o botão **Lembrar cliente por WhatsApp**, com o valor em falta e o IBAN.
+- **Orçamentos:** estados Rascunho, Enviado, Aceite, Recusado e Expirado, e validade em dias (30 por omissão; os orçamentos antigos mantêm 15). Ao preparar o envio por WhatsApp ou email, um rascunho passa a Enviado. **Duplicar orçamento** cria uma cópia com a data de hoje. **Converter em obra** cria a obra com o cliente, o valor, os custos previstos e o plano 50/50. A obra mostra depois o **orçamentado vs real**. O PDF inclui as condições, a validade, o IBAN para transferência e um espaço para a aceitação do cliente.
+- **Clientes:** junta as obras e os orçamentos com o mesmo nome de cliente: contactos, valores vendidos e por receber, obras e orçamentos.
+- **Relatórios:** mês, trimestre ou ano, com recebido, custos, resultado, margem e estimativa de IVA, mais gráficos dos últimos 12 meses, custos por categoria e lucro por obra. **Pacote para o contabilista:** um ZIP com o Excel do período (faturas, mão de obra, recebimentos, despesas e resumo de IVA) e os anexos originais das faturas, na pasta `Faturas`.
+- **Definições:** sincronização, cópias de segurança, Excel, dispositivos, terminar sessão e **Apagar todos os dados** (pede para escrever APAGAR e faz antes uma cópia).
+
+## Segurança dos dados
+- **Cópias de segurança:** na primeira alteração de cada dia, o servidor guarda uma cópia de todos os dados. Ficam guardadas as dos últimos 30 dias. Em Definições pode fazer uma cópia manual ou restaurar qualquer cópia. Antes de restaurar, o estado atual também fica guardado numa cópia.
+- **Vários dispositivos:** cada obra, movimento e fatura alterada fica com a hora da alteração. Se o telemóvel e o computador gravarem ao mesmo tempo, as duas versões juntam-se item a item, sem uma substituir a outra.
+- **Sem rede:** a app fica guardada no dispositivo e abre mesmo sem internet. Sem ligação, o ecrã de entrada mostra **Entrar sem ligação** (Face ID / Touch ID deste dispositivo) e usa os dados guardados nele. Quando a internet volta, a app pede login e sincroniza as alterações. A leitura de faturas, os orçamentos e o envio precisam de internet.
 
 ## 2. Excel no Ambiente de Trabalho ligado à app
 No Início da app, abra **Excel ligado à app — configurar**. O guia em `/excel.html` explica a criação de um acesso de leitura e o download de um assistente para Excel 2016+ no Windows (recomendado Microsoft 365).

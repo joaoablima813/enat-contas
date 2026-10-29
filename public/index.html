@@ -83,12 +83,15 @@ nav button.on{color:var(--blue)}
 .sbar{display:flex;align-items:center;gap:8px;background:var(--chip);border-radius:12px;padding:0 12px;margin-bottom:12px}.sbar svg{width:18px;height:18px;color:var(--mute)}.sbar input{flex:1;border:0;background:none;outline:0;padding:11px 0;font-size:17px}a{color:var(--blue)}.btn svg{vertical-align:-5px;margin-right:6px}.chips{flex-wrap:nowrap}
 .obra-seg{overflow-x:auto}.obra-seg button{flex:1 0 auto}.invoice-row{width:100%;border:0;background:var(--card);text-align:left}.invoice-row:focus-visible{outline-offset:-3px}.invoice-items .rt b,.invoice-items .rt span{white-space:normal;overflow-wrap:anywhere}.labor-entry{margin-top:14px}.labor-entry h2{margin-top:12px}.was{font-size:12px!important;color:var(--mute)}.was s{opacity:.8}.cat-pick{width:100%;border:0;background:var(--chip);border-radius:9px;padding:9px;font-size:15px}
 </style>
-<link rel="stylesheet" href="/quotes.css?v=20261028b">
+<link rel="stylesheet" href="/quotes.css?v=20261028b"><link rel="stylesheet" href="/app.css?v=20261029">
 <script src="/vendor/jspdf.umd.min.js"></script>
 <script src="/vendor/jspdf.plugin.autotable.min.js"></script>
-<script src="/quote-math.js?v=20261028"></script>
+<script src="/quote-math.js?v=20261029"></script>
+<script src="/sync.js?v=20261029"></script>
+<script src="/gestao.js?v=20261029"></script>
+<script src="/contabilista.js?v=20261029"></script>
 <script src="/price-tables.js?v=20261028"></script>
-<script src="/quotes.js?v=20261028c"></script>
+<script src="/quotes.js?v=20261029"></script>
 <script src="/pv-sizing.js?v=20261028"></script>
 <script src="/pv.js?v=20261028"></script>
 <script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
@@ -96,7 +99,7 @@ nav button.on{color:var(--blue)}
 <script src="/excel-export.js"></script>
 </head>
 <body>
-<div class="top"><img src="/enat-logo.png" alt="Enat Energias"></div>
+<div class="top"><img src="/enat-logo.png" alt="Enat Energias"><button id="sync" class="sync" data-a="tab" data-id="def" aria-live="polite"></button></div>
 <main id="app"></main>
 <nav><div id="nav"></div></nav>
 <div id="ov"><div id="sh" role="dialog" aria-modal="true"></div></div>
@@ -116,7 +119,7 @@ const P={
  iva:'<path d="M18 6L6 18"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
  recebimento:'<path d="M12 5v14M6 13l6 6 6-6"/>',fatura:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/>',
  despesa:'<path d="M5 8h14l-1 12H6zM9 8a3 3 0 016 0"/>',mao_obra:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
- mat:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>',manut:'<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"/>',search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/>',back:'<path d="M15 5l-7 7 7 7"/>',chev:'<path d="M9 5l7 7-7 7"/>'};
+ mat:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>',manut:'<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"/>',search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/>',back:'<path d="M15 5l-7 7 7 7"/>',chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',user:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 010 7M18 14.6c1.8.7 3 2.5 3.5 5.4"/>',chev:'<path d="M9 5l7 7-7 7"/>'};
 const ic=n=>`<svg viewBox="0 0 24 24">${P[n]}</svg>`;
 
 /* ---------- estado ---------- */
@@ -135,7 +138,8 @@ const demo=()=>({vat:23,obras:[
  {id:'t9',obra:'o2',type:'mao_obra',desc:'Instalação · 2 dias',topic:'Ar condicionado',date:'2026-10-08',total:640,rate:0}]});
 let S;try{S=JSON.parse(localStorage.getItem('enat-contas-2'))}catch(e){}
 if(!S||!S.obras)S={vat:23,obras:[],tx:[]};S.inv=S.inv||[];
-const save=()=>{S.ts=Date.now();try{localStorage.setItem('enat-contas-2',JSON.stringify(S))}catch(e){}push()};
+// Cada gravação marca as obras, movimentos e faturas alterados, para juntar com outros dispositivos sem perder nada.
+const save=()=>{LAST=EnatSync.stamp(S,LAST);S.ts=Date.now();try{localStorage.setItem('enat-contas-2',JSON.stringify(S))}catch(e){}push()};
 let V={tab:'home',obra:null,seg:'contas',f:'todos'},D=null;
 
 /* ---------- histórico de navegação ---------- */
@@ -195,6 +199,7 @@ const all=()=>S.obras.map(calc);
 const sumC=a=>a.reduce((r,c)=>{for(const k of['base','ivaLiq','fb','fi','de','mo','mt','mi','rec','custo','lucro','pago','ivaEst','caixa','porRec'])r[k]=(r[k]||0)+c[k];r.valor=(r.valor||0)+c.o.valor;return r},{});
 const withBase=x=>{if(x.fx)return x;const r=x.type==='mao_obra'?(x.billing==='faturado'?23:0):x.type==='fatura'?x.rate:0;x.rate=r;x.base=x.total/(1+r/100);x.iva=x.total-x.base;return x};
 S.tx.forEach(withBase);
+let LAST=EnatSync.snap(S);
 
 /* ---------- vistas ---------- */
 const sg=n=>`<span class="${n>=0?'pos':'neg'}">${eur(n)}</span>`;
@@ -209,26 +214,52 @@ function hero(c,label){
 }
 const acts=o=>{const labels={recebimento:'Recebimentos',fatura:'Faturas',mao_obra:'Mão de obra'},sections={recebimento:'recebimentos',fatura:'faturas',mao_obra:'mao_obra'};
  return`<div class="acts${o?' obra-acts':''}">${(o?['recebimento','fatura','mao_obra']:['recebimento','fatura','despesa','mao_obra']).map(t=>`<button class="act" data-a="${o?'seg':'newtx'}" ${o?`data-id="${sections[t]}" aria-pressed="${V.seg===sections[t]}"`:`data-t="${t}"`}><i>${ic(t)}</i>${o?labels[t]:TY[t]}</button>`).join('')}</div>`};
-const obraRow=c=>`<div class="row" data-a="open" data-id="${c.o.id}"><div class="av">${c.o.name[0]}</div><div class="rt"><b>${c.o.name}</b><span>${c.o.client} · ${STAT[c.o.status]}</span></div><div class="rr"><b>${sg(c.lucro)}</b><span>${pc(c.margem)}</span></div></div>`;
+const obraRow=c=>`<div class="row" data-a="open" data-id="${esc(c.o.id)}"><div class="av">${esc(c.o.name[0])}</div><div class="rt"><b>${esc(c.o.name)}</b><span>${esc(c.o.client)} · ${STAT[c.o.status]}${c.o.status!=='orcamento'&&planOf(c).overdue>.005?' · <span class="neg">pagamento em atraso</span>':''}</span></div><div class="rr"><b>${sg(c.lucro)}</b><span>${pc(c.margem)}</span></div></div>`;
 const txRow=(x,showObra)=>{const o=S.obras.find(o=>o.id===x.obra),inn=x.type==='recebimento';
  return`<div class="row" data-a="edittx" data-id="${x.id}"><div class="av">${ic(x.type)}</div><div class="rt"><b>${x.desc||TY[x.type]}</b><span>${[showObra&&o?o.name:'',x.topic,fd(x.date)].filter(Boolean).join(' · ')}</span></div><div class="rr"><b class="${inn?'pos':''}">${inn?'+':'−'}${eur(x.total)}</b><span>${TY[x.type]}${x.type==='fatura'?` · IVA ${x.rate}%`:x.type==='mao_obra'?` · ${x.billing==='faturado'?'Faturado · IVA 23%':'Não faturado · Sem IVA'}`:''}</span></div></div>`};
 const kv=(l,v,cls='')=>`<div class="row kv ${cls}"><div class="rt">${l}</div><div class="rr"><b>${v}</b></div></div>`;
 const srt=a=>[...a].sort((x,y)=>y.date.localeCompare(x.date));
 
+const today=()=>new Date().toISOString().slice(0,10);
+const waTel=p=>{const t=String(p||'').replace(/\D/g,'');return t.length===9?'351'+t:t};
+const planOf=c=>EnatGestao.planStatus(c.o,c.rec,today());
+// Lembrete de pagamento escrito no WhatsApp do cliente, com o valor em falta e o IBAN.
+const remindHref=(o,m)=>{const tel=waTel(o.phone);return tel&&m?'https://wa.me/'+tel+'?text='+encodeURIComponent(EnatGestao.reminder(o,{...m,missingText:eur(m.missing)})):''};
+const lateList=()=>all().filter(c=>c.o.status!=='orcamento').map(c=>({c,p:planOf(c)})).filter(x=>x.p.overdue>.005).sort((a,b)=>b.p.overdue-a.p.overdue);
+const lateRow=({c,p})=>{const m=p.items.find(x=>x.state==='atraso'),h=remindHref(c.o,m);return`<div class="row kv late"><div class="rt" data-a="open" data-id="${esc(c.o.id)}" data-s="recebimentos"><b>${esc(c.o.name)}</b><span>${esc(c.o.client)} · ${esc(m.desc)} · venceu ${esc(fd(m.date))}</span></div><div class="rr"><b class="neg">${eur(p.overdue)}</b>${h?`<a class="mini" target="_blank" rel="noopener" href="${h}">Lembrar no WhatsApp</a>`:'<span>Sem telemóvel</span>'}</div></div>`};
+const quoteMiniRow=r=>`<button class="row invoice-row" data-a="openquote" data-id="${r.id}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${quoteNumber(r.id,r.document.date)} ${quoteBadge(r.document)}</b><span>${esc(r.document.client)} · ${esc(quoteTitle(r.document).replace('Orçamento para ',''))}</span></div><div class="rr"><b>${eur(quoteTotals(r.document).total)}</b><span>${esc(fd(r.document.date))}</span></div></button>`;
+// Orçamentos para a pesquisa global e para os clientes; carregam uma vez, quando são precisos.
+function ensureQuotes(){if(quoteRows===null&&!quoteLoading&&SESS())loadQuotes().then(()=>{if(['cli','home'].includes(V.tab)&&!V.obra){const g=$('#gres');if(g&&V.tab==='home')g.innerHTML=globalRes();else if(idle())render()}})}
+const clientRow=c=>`<button class="row invoice-row" data-a="cli" data-id="${esc(c.key)}"><div class="av">${esc((c.name[0]||'?').toUpperCase())}</div><div class="rt"><b>${esc(c.name)}</b><span>${esc([c.phone,c.obras.length+(c.obras.length===1?' obra':' obras'),c.quotes.length+(c.quotes.length===1?' orçamento':' orçamentos')].filter(Boolean).join(' · '))}</span></div><div class="rr"><b>${eur(c.obras.reduce((s,o)=>s+(+o.valor||0),0))}</b><span>em obras</span></div></button>`;
+function globalRes(){
+ const q=V.gq||'',r=EnatGestao.search(S,quoteRows||[],q,r=>quoteNumber(r.id,r.document.date));if(!r)return'';
+ const cl=EnatGestao.clients(S.obras,quoteRows||[]).filter(c=>match([c.name,c.phone,c.email,c.nif].join(' '),q));
+ const sec=(t,l,f)=>l.length?`<h2>${t} (${l.length})</h2><div class="grp">${l.slice(0,15).map(f).join('')}</div>`:'';
+ const out=sec('Clientes',cl,clientRow)+sec('Obras',r.obras,o=>obraRow(calc(o)))+sec('Orçamentos',r.quotes,quoteMiniRow)+sec('Faturas',r.inv,invRow)+sec('Movimentos',srt(r.tx),x=>txRow(x,1));
+ return (out||'<div class="grp empty">Nada encontrado. Experimente outra palavra.</div>')+(quoteRows===null?'<p class="note">A carregar também os orçamentos…</p>':'');
+}
 function vHome(){
- const a=all(),c=sumC(a);
- return`<h1>Início</h1>${hero(c,'Lucro previsto em todas as obras')}${acts()}
- <h2>Obras</h2><div class="grp">${a.length?a.map(obraRow).join(''):'<div class="empty">Sem obras. Crie a primeira no separador Obras.</div>'}</div>
- <h2>Últimos movimentos</h2><div class="grp">${S.tx.length?srt(S.tx).slice(0,5).map(x=>txRow(x,1)).join(''):'<div class="empty">Ainda sem movimentos.</div>'}</div>
- <p class="note">${SYNC==='ok'?'Dados sincronizados com a sua conta, em todos os dispositivos.':'Dados guardados neste dispositivo.'}</p><a class="link" href="/excel.html">Excel ligado à app — configurar</a><button class="link" data-a="xlsx">Descarregar cópia Excel</button><button class="link" data-a="tab" data-id="mov">Ver todos os movimentos</button><button class="link" data-a="novodisp">Registar outro dispositivo (Face ID / Touch ID)</button><button class="link" data-a="sair">Terminar sessão</button><button class="link" data-a="clear">Limpar todos os dados</button>`;
+ const a=all(),c=sumC(a),late=lateList(),act=a.filter(x=>x.o.status==='em_curso');
+ return`<h1>Início</h1><div class="sbar">${ic('search')}<input id="gq" type="search" value="${esc(V.gq||'')}" aria-label="Pesquisar em toda a app" placeholder="Procurar obras, clientes, faturas, orçamentos" autocomplete="off"></div><div id="gres">${globalRes()}</div>
+ <div id="homebody" ${V.gq?'hidden':''}>${hero(c,'Lucro previsto em todas as obras')}<button class="btn quick" data-a="quickscan">${ic('cam')}Fotografar fatura</button>${acts()}
+ ${late.length?`<h2>Pagamentos em atraso · ${eur(late.reduce((s,x)=>s+x.p.overdue,0))}</h2><div class="grp">${late.map(lateRow).join('')}</div>`:''}
+ <div class="tiles">${[['cli','Clientes','user'],['rel','Relatórios','chart'],['mov','Movimentos','list'],['def','Definições','gear']].map(([k,l,i])=>`<button class="tile" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('')}</div>
+ <h2>Obras em curso</h2><div class="grp">${act.length?act.map(obraRow).join(''):'<div class="empty">Sem obras em curso. Veja todas no separador Obras.</div>'}</div>
+ <h2>Últimos movimentos</h2><div class="grp">${S.tx.length?srt(S.tx).slice(0,5).map(x=>txRow(x,1)).join(''):'<div class="empty">Ainda sem movimentos.</div>'}</div></div>`;
+}
+// Obras: pesquisa por nome, cliente ou morada, e filtros por estado e ano.
+function obrasList(){
+ const st=V.of||'',yr=V.oy||'',q=V.oq||'';
+ const a=all().filter(c=>(!st||c.o.status===st)&&(!yr||EnatGestao.obraYear(c.o,S.tx)===yr)&&(!q||match([c.o.name,c.o.client,c.o.address,c.o.phone].join(' '),q)));
+ return a.length?a.map(obraRow).join(''):`<div class="empty">${S.obras.length?'Nenhuma obra com estes filtros.':'Sem obras ainda.'}</div>`;
 }
 function vObras(){
- const a=all();
- return`<h1>Obras</h1><div class="grp">${a.length?a.map(obraRow).join(''):'<div class="empty">Sem obras ainda.</div>'}</div><button class="btn" data-a="newobra">Nova obra</button>`;
+ const years=[...new Set(S.obras.map(o=>EnatGestao.obraYear(o,S.tx)).filter(Boolean))].sort().reverse();
+ return`<h1>Obras</h1><div class="sbar">${ic('search')}<input id="oq" type="search" value="${esc(V.oq||'')}" aria-label="Procurar obras" placeholder="Obra, cliente ou morada" autocomplete="off"></div><div class="chips">${[['','Todas'],...Object.entries(STAT)].map(([k,l])=>`<button class="${(V.of||'')===k?'on':''}" data-a="of" data-id="${k}">${l}</button>`).join('')}</div>${years.length>1?`<div class="chips">${['',...years].map(y=>`<button class="${(V.oy||'')===y?'on':''}" data-a="oy" data-id="${y}">${y||'Todos os anos'}</button>`).join('')}</div>`:''}<div class="grp" id="olist">${obrasList()}</div><button class="btn" data-a="newobra">Nova obra</button>`;
 }
 function vMov(){
  const fs=['todos',...Object.keys(TY)],l=srt(S.tx).filter(x=>V.f==='todos'||x.type===V.f);
- return`<h1>Movimentos</h1><div class="chips">${fs.map(f=>`<button class="${V.f===f?'on':''}" data-a="filt" data-id="${f}">${f==='todos'?'Todos':TY[f]}</button>`).join('')}</div>
+ return`${backHome}<h1>Movimentos</h1><div class="chips">${fs.map(f=>`<button class="${V.f===f?'on':''}" data-a="filt" data-id="${f}">${f==='todos'?'Todos':TY[f]}</button>`).join('')}</div>
  <div class="grp">${l.length?l.map(x=>txRow(x,1)).join(''):'<div class="empty">Nada por aqui. Use os atalhos do Início para registar.</div>'}</div>`;
 }
 function vIva(){
@@ -236,6 +267,12 @@ function vIva(){
  return`<h1>IVA</h1><div class="grp">${kv('IVA cobrado aos clientes',eur(c.ivaLiq))}${kv('IVA suportado nas faturas',eur(-c.fi))}${kv(c.ivaEst>=0?'A entregar ao Estado':'Crédito de IVA',sg(c.ivaEst),'tot')}</div>
  <p class="note">Taxa aplicada aos valores das obras: ${S.vat}%. Mão de obra faturada inclui IVA a 23%, deduzido no acerto. Despesas e mão de obra não faturadas não deduzem IVA.</p>
  <h2>Por obra</h2><div class="grp">${a.map(x=>`<div class="row" data-a="open" data-id="${x.o.id}" data-s="iva"><div class="av">${x.o.name[0]}</div><div class="rt"><b>${x.o.name}</b><span>Cobrado ${eur(x.ivaLiq)} · deduzido ${eur(x.fi)}</span></div><div class="rr"><b>${eur(x.ivaEst)}</b><span>${x.ivaEst>=0?'a entregar':'crédito'}</span></div></div>`).join('')||'<div class="empty">Sem obras.</div>'}</div>`;
+}
+// Plano de pagamentos da obra: cada prestação mostra se está paga, pendente ou em atraso.
+function planHtml(c){
+ const o=c.o,p=planOf(c);if(!(o.plano||[]).length)return`<h2>Plano de pagamentos</h2><p class="note">Esta obra ainda não tem plano de pagamentos. Defina as prestações para ver os valores em atraso.</p><button class="btn alt" data-a="editobra" data-id="${esc(o.id)}">Definir plano de pagamentos</button>`;
+ const late=p.items.find(m=>m.state==='atraso'),h=remindHref(o,late);
+ return`<h2>Plano de pagamentos</h2><div class="grp">${p.items.map(m=>`<div class="row kv"><div class="rt"><b>${esc(m.desc)} · ${esc(m.pct)}%</b><span>${m.date?'Vence a '+esc(fd(m.date)):'Vence na conclusão da obra'}</span></div><div class="rr"><b class="${m.state==='atraso'?'neg':m.state==='pago'?'pos':''}">${eur(m.amount)}</b><span>${m.state==='pago'?'Pago':m.state==='atraso'?'Em atraso · falta '+eur(m.missing):m.paid?'Pago '+eur(m.paid)+' · falta '+eur(m.missing):'Pendente'}</span></div></div>`).join('')}</div>${late?(h?`<a class="btn" href="${h}" target="_blank" rel="noopener">Lembrar cliente por WhatsApp (${eur(p.overdue)})</a>`:'<p class="note">Indique o telemóvel do cliente na obra para enviar um lembrete por WhatsApp.</p>'):''}`;
 }
 function vObra(){
  const o=S.obras.find(o=>o.id===V.obra);if(!o){V.obra=null;return vHome()}
@@ -247,14 +284,15 @@ function vObra(){
  <h2>Custos sem IVA</h2><div class="grp">${kv('Materiais (faturas)',eur(c.fb))}${kv('Despesas sem fatura',eur(c.de))}${kv('Mão de obra',eur(c.mo))}${kv('Total de custos',eur(c.custo),'tot')}</div>
  <h2>Resultado</h2><div class="grp">${kv('Receita sem IVA',eur(c.base))}${kv('Custos',eur(-c.custo))}${kv('Lucro',sg(c.lucro),'tot')}${kv('Margem',pc(c.margem))}</div>
  <h2>Custo por tópico</h2><div class="grp tpad">${Object.keys(tp).length?Object.entries(tp).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div style="margin-bottom:12px"><div class="tb"><div class="bt"><b>${k}</b></div><b>${eur(v)}</b></div><div class="trk"><i style="width:${v/mx*100}%"></i></div></div>`).join('').replace(/margin-bottom:12px"(?![\s\S]*margin-bottom)/,'"'):'<span class="sub">Sem custos registados.</span>'}</div>
- <button class="link" data-a="editobra" data-id="${o.id}">Editar obra</button>`;
+ ${o.previsto?`<h2>Orçamentado vs real</h2><div class="grp">${[['Materiais e despesas',c.fb+c.de,o.previsto.mat],['Mão de obra',c.mo,o.previsto.mo],['Total de custos',c.custo,o.previsto.mat+o.previsto.mo]].map(([l,r,p],i)=>`<div class="row kv${i===2?' tot':''}"><div class="rt">${l}</div><div class="rr"><b class="${r>p+.005?'neg':''}">${eur(r)}</b><span>previsto ${eur(p)}${p?' · '+pc(r/p*100):''}</span></div></div>`).join('')}</div><p class="note">${c.custo>o.previsto.mat+o.previsto.mo?'Os custos reais já passam o orçamentado em '+eur(c.custo-o.previsto.mat-o.previsto.mo)+'. A margem prevista está a diminuir.':'Ainda há '+eur(o.previsto.mat+o.previsto.mo-c.custo)+' até chegar ao custo orçamentado.'}</p>`:''}
+ ${o.orc?`<button class="btn alt" data-a="openquote" data-id="${esc(o.orc)}">Ver o orçamento de origem</button>`:''}<button class="link" data-a="editobra" data-id="${o.id}">Editar obra</button>`;
  else if(V.seg==='faturas')body=`<h2>Faturas desta obra</h2><div class="grp">${c.t.filter(x=>x.type==='fatura').length?srt(c.t.filter(x=>x.type==='fatura')).map(x=>invOf(x.id)?invRow(invOf(x.id)):txRow(x)).join(''):'<div class="empty">Ainda sem faturas nesta obra. Adicione a primeira por foto ou PDF.</div>'}${kv('Total de faturas c/ IVA',eur(c.ft),'tot')}</div><button class="btn" data-a="scan" data-o="${o.id}">${ic('cam')}Adicionar fatura por foto ou PDF</button>`;
- else if(V.seg==='recebimentos')body=`<h2>Recebimentos desta obra</h2><div class="grp">${c.t.some(x=>x.type==='recebimento')?srt(c.t.filter(x=>x.type==='recebimento')).map(x=>txRow(x)).join(''):'<div class="empty">Ainda sem recebimentos nesta obra.</div>'}${kv('Total recebido',eur(c.rec),'tot')}${kv('Por receber',eur(c.porRec))}</div><button class="btn" data-a="newtx" data-t="recebimento" data-o="${o.id}">Adicionar recebimento</button>`;
+ else if(V.seg==='recebimentos')body=`<h2>Recebimentos desta obra</h2><div class="grp">${c.t.some(x=>x.type==='recebimento')?srt(c.t.filter(x=>x.type==='recebimento')).map(x=>txRow(x)).join(''):'<div class="empty">Ainda sem recebimentos nesta obra.</div>'}${kv('Total recebido',eur(c.rec),'tot')}${kv('Por receber',eur(c.porRec))}</div><button class="btn" data-a="newtx" data-t="recebimento" data-o="${o.id}">Adicionar recebimento</button>${planHtml(c)}`;
  else if(V.seg==='mao_obra')body=`<h2>Mão de obra por tópico</h2><div class="grp">${c.t.some(x=>x.type==='mao_obra')?srt(c.t.filter(x=>x.type==='mao_obra')).map(x=>txRow(x)).join(''):'<div class="empty">Adicione a mão de obra de cada tópico desta obra.</div>'}${kv('Custo de mão de obra s/ IVA',eur(c.mo))}${kv('IVA da mão de obra',eur(c.mi))}${kv('Total pago de mão de obra',eur(c.mt),'tot')}</div><button class="btn" data-a="newtx" data-t="mao_obra" data-o="${o.id}">Adicionar mão de obra</button>`;
  else if(V.seg==='mov')body=`<div style="height:12px"></div><div class="grp">${c.t.length?srt(c.t).map(x=>txRow(x)).join(''):'<div class="empty">Sem movimentos nesta obra.</div>'}</div>`;
  else body=`<h2>Acerto de IVA</h2><div class="grp">${kv('IVA cobrado ao cliente',eur(c.ivaLiq))}${kv('IVA suportado nas faturas',eur(-c.fi))}${kv(c.ivaEst>=0?'A entregar ao Estado':'Crédito de IVA',sg(c.ivaEst),'tot')}</div>
  <p class="note">Valor sem IVA da obra ${eur(c.base)}. Depois de pagar fornecedores e entregar o IVA, o líquido previsto é ${eur(c.lucro)}.</p>`;
- return`<button class="back" data-a="back">${ic('back')}Obras</button><h1 style="margin-top:2px">${o.name}</h1><div class="sub" style="margin:-8px 0 14px">${o.client} · ${STAT[o.status]}</div>${hero(c,'Lucro previsto da obra')}${acts(o.id)}
+ return`<button class="back" data-a="back">${ic('back')}Obras</button><h1 style="margin-top:2px">${esc(o.name)}</h1><div class="sub" style="margin:-8px 0 14px">${esc(o.client)} · ${STAT[o.status]}</div>${hero(c,'Lucro previsto da obra')}${acts(o.id)}
  <div class="seg obra-seg">${[['contas','Contas'],['recebimentos','Recebimentos'],['faturas','Faturas'],['mao_obra','Mão de obra'],['mov','Movimentos'],['iva','IVA']].map(([k,l])=>`<button class="${V.seg===k?'on':''}" data-a="seg" data-id="${k}">${l}</button>`).join('')}</div>${body}`;
 }
 
@@ -381,6 +419,73 @@ const msg=o=>`Olá ${o.client}, passou um ano desde a instalação (${o.equip.jo
 function vMan(){
  const l=S.obras.filter(o=>o.done&&(o.equip||[]).length).map(o=>({o,d:due(o)})).sort((a,b)=>a.d-b.d),now=new Date();
  return`<h1>Manutenção</h1><p class="note" style="margin:-6px 6px 14px">Cada obra concluída, com equipamentos indicados, fica agendada para um ano depois. Quando chegar a data, envie a mensagem ao cliente com um toque.</p><div class="grp">${l.length?l.map(({o,d})=>{const dias=Math.round((d-now)/864e5),tel=(o.phone||'').replace(/\D/g,'');return`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(o.name)}</b><span>${esc(o.client)} · ${o.equip.join(', ')}</span></div><div class="rr"><b class="${dias<=0?'neg':''}">${d.toLocaleDateString('pt-PT')}</b><span>${dias<=0?'em atraso':'daqui a '+dias+' dias'}</span></div>${tel?`<a class="btn" style="margin:8px 0 0;padding:10px;font-size:15px;text-align:center;text-decoration:none;color:#fff" target="_blank" rel="noopener" href="https://wa.me/${tel.length===9?'351'+tel:tel}?text=${encodeURIComponent(msg(o))}">Enviar mensagem por WhatsApp</a>`:'<span class="sub" style="width:100%;padding-top:6px">Falta o telemóvel do cliente. Edite a obra.</span>'}</div>`}).join(''):'<div class="empty">Nenhuma obra com data de conclusão e equipamentos. Edite uma obra para os indicar.</div>'}</div>`}
+/* ---------- clientes, relatórios e definições ---------- */
+const backHome=`<button class="back" data-a="tab" data-id="home">${ic('back')}Início</button>`;
+function vClientes(){
+ ensureQuotes();const l=EnatGestao.clients(S.obras,quoteRows||[]),c=V.cli&&l.find(c=>c.key===V.cli);
+ if(c){
+  const cs=c.obras.map(calc),tel=waTel(c.phone),tot=k=>cs.reduce((s,x)=>s+x[k],0);
+  return`<button class="back" data-a="cli" data-id="">${ic('back')}Clientes</button><h1>${esc(c.name)}</h1>
+  <div class="grp">${kv('Telemóvel',c.phone?`<a href="tel:${esc(c.phone.replace(/[^\d+]/g,''))}">${esc(c.phone)}</a>`:'Não indicado','wrap')}${kv('Email',c.email?`<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:'Não indicado','wrap')}${kv('NIF',esc(c.nif||'Não indicado'))}${kv('Morada',esc(c.address||'Não indicada'),'wrap')}</div>
+  ${tel?`<a class="btn alt" href="https://wa.me/${tel}" target="_blank" rel="noopener">Abrir conversa no WhatsApp</a>`:''}
+  <h2>Resumo</h2><div class="grp">${kv('Vendido em obras (c/ IVA)',eur(c.obras.reduce((s,o)=>s+(+o.valor||0),0)))}${kv('Recebido',eur(tot('rec')))}${kv('Por receber',eur(tot('porRec')),'tot')}${kv('Lucro previsto',sg(tot('lucro')))}</div>
+  <h2>Obras (${cs.length})</h2><div class="grp">${cs.length?cs.map(obraRow).join(''):'<div class="empty">Sem obras deste cliente.</div>'}</div>
+  <h2>Orçamentos (${c.quotes.length})</h2><div class="grp">${c.quotes.length?c.quotes.map(quoteMiniRow).join(''):`<div class="empty">${quoteRows===null?'A carregar orçamentos…':'Sem orçamentos deste cliente.'}</div>`}</div>
+  <button class="btn" data-a="cliquote" data-id="${esc(c.key)}">Novo orçamento para este cliente</button><p class="note">Os contactos vêm das obras e dos orçamentos com o mesmo nome de cliente. Para corrigir o NIF ou a morada, edite a obra.</p>`;
+ }
+ return`${backHome}<h1>Clientes</h1><div class="sbar">${ic('search')}<input id="cq" type="search" value="${esc(V.cq||'')}" aria-label="Procurar clientes" placeholder="Nome, telemóvel, email ou NIF" autocomplete="off"></div><div class="grp" id="clist">${clientsList(l)}</div>${quoteRows===null?'<p class="note">A carregar também os clientes dos orçamentos…</p>':''}`;
+}
+const clientsList=(l=EnatGestao.clients(S.obras,quoteRows||[]))=>{const f=l.filter(c=>!V.cq||match([c.name,c.phone,c.email,c.nif].join(' '),V.cq));return f.length?f.map(clientRow).join(''):`<div class="empty">${l.length?'Nenhum cliente encontrado.':'Ainda sem clientes. Crie uma obra ou um orçamento.'}</div>`};
+const PERIODS=[['mes','Este mês'],['mes_ant','Mês anterior'],['tri','Este trimestre'],['tri_ant','Trimestre anterior'],['ano','Este ano'],['ano_ant','Ano anterior']];
+function vRel(){
+ const p=EnatGestao.period(V.per||'mes',today()),r=EnatGestao.report(S,p.from,p.to),ms=EnatGestao.months(S,today()),cats=EnatGestao.costByCat(S,p.from,p.to);
+ const mx=Math.max(1,...ms.map(m=>Math.max(m.rec,m.custos))),cmx=Math.max(1,...cats.map(c=>c[1]));
+ const ob=all().filter(c=>c.base||c.custo).sort((a,b)=>b.lucro-a.lucro),omx=Math.max(1,...ob.map(c=>Math.abs(c.lucro)));
+ const kpi=(l,v,cls='')=>`<div class="kpi ${cls}"><span>${l}</span><b>${v}</b></div>`,bar=(l,v,w,cls='',sub='')=>`<div class="hb"><div class="tb"><div class="bt"><b>${esc(l)}</b>${sub?`<span class="sub">${sub}</span>`:''}</div><b>${eur(v)}</b></div><div class="trk"><i class="${cls}" style="width:${Math.max(1,w)}%"></i></div></div>`;
+ return`${backHome}<h1>Relatórios</h1><div class="chips">${PERIODS.map(([k,l])=>`<button class="${(V.per||'mes')===k?'on':''}" data-a="per" data-id="${k}">${l}</button>`).join('')}</div>
+ <p class="note" style="margin:-4px 6px 12px">Resumo de ${esc(p.label)}, pelas datas dos movimentos.</p>
+ <div class="kpis">${kpi('Recebido s/ IVA',eur(r.recBase))}${kpi('Custos s/ IVA',eur(r.custos))}${kpi('Resultado',sg(r.lucro))}${kpi('Margem',r.recBase?pc(r.margem):'—')}${kpi(r.ivaEst>=0?'IVA a entregar (estimativa)':'Crédito de IVA (estimativa)',eur(Math.abs(r.ivaEst)),'wide')}</div>
+ <h2>Exportar para o contabilista</h2><p class="note" style="margin:-4px 6px 10px">Excel com faturas, mão de obra, recebimentos, despesas e resumo de IVA de ${esc(p.label)}. O ZIP junta também as fotos e PDFs originais das faturas.</p><button class="btn" data-a="contab">Descarregar pacote ZIP (Excel + faturas)</button><button class="btn alt" data-a="contabxlsx">Descarregar só o Excel</button>
+ <h2>Últimos 12 meses</h2><div class="chart"><div class="legend"><span><b class="cr"></b>Recebido s/ IVA</span><span><b class="cc"></b>Custos s/ IVA</span></div><div class="cols" role="img" aria-label="Recebido e custos por mês nos últimos 12 meses">${ms.map(m=>`<div title="${esc(m.label)}: recebido ${eur(m.rec)}, custos ${eur(m.custos)}"><i class="cr" style="height:${m.rec/mx*100}%"></i><i class="cc" style="height:${m.custos/mx*100}%"></i></div>`).join('')}</div><div class="cols-l">${ms.map(m=>`<span>${esc(m.label)}</span>`).join('')}</div></div>
+ <h2>Custos por categoria</h2><div class="grp tpad">${cats.length?cats.map(([k,v])=>bar(k,v,v/cmx*100)).join(''):'<span class="sub">Sem custos neste período.</span>'}</div>
+ <h2>Lucro previsto por obra</h2><div class="grp tpad">${ob.length?ob.map(c=>bar(c.o.name,c.lucro,Math.abs(c.lucro)/omx*100,c.lucro<0?'neg':'pos',' '+pc(c.margem)+' de margem')).join(''):'<span class="sub">Sem obras com valores.</span>'}</div>`;
+}
+// Pacote para o contabilista: Excel do período e, no ZIP, os anexos originais das faturas.
+async function contab(zip){
+ const b=document.querySelector(`[data-a="${zip?'contab':'contabxlsx'}"]`);if(!b||b.disabled)return;
+ if(!window.ExcelJS||!window.EnatContab){alert('Não foi possível carregar a exportação. Atualize a página e tente novamente.');return}
+ const p=EnatGestao.period(V.per||'mes',today()),name=EnatContab.clean('ENAT contabilidade '+p.label),label=b.textContent;b.disabled=true;b.textContent='A preparar…';
+ const get=(blob,file)=>{const url=URL.createObjectURL(blob),l=document.createElement('a');l.href=url;l.download=file;l.click();setTimeout(()=>URL.revokeObjectURL(url),10000)};
+ try{
+  const x=new Uint8Array(await EnatContab.accountantWorkbook(ExcelJS,S,p.from,p.to,p.label).xlsx.writeBuffer());
+  if(!zip)return get(new Blob([x],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),name+'.xlsx');
+  const files=[{name:name+'.xlsx',data:x}],list=EnatContab.attachments(S,p.from,p.to);let fail=0;
+  for(const [i,v] of list.entries()){b.textContent=`A juntar faturas ${i+1} de ${list.length}…`;try{const r=await API('foto/'+v.id);if(!r.ok)throw 0;files.push({name:'Faturas/'+EnatContab.attachmentName(v,v.mime),data:new Uint8Array(await r.arrayBuffer())})}catch(e){fail++}}
+  get(new Blob([EnatContab.makeZip(files)],{type:'application/zip'}),name+'.zip');
+  if(fail)alert(`${fail} anexo${fail>1?'s':''} não ${fail>1?'puderam':'pôde'} ser descarregado${fail>1?'s':''}. Os dados dessas faturas estão no Excel; tente de novo com ligação estável.`);
+ }catch(e){alert('Não foi possível preparar os documentos. Tente novamente.')}
+ finally{b.disabled=false;b.textContent=label}
+}
+let COPIAS=null,COPIAS_ERR='';
+async function loadCopias(){COPIAS_ERR='';try{const r=await API('estado/copias');if(!r.ok)throw 0;COPIAS=await r.json()}catch(e){COPIAS=[];COPIAS_ERR='Sem ligação ao servidor. As cópias aparecem quando houver internet.'}if(V.tab==='def'&&idle())render()}
+const copiaLabel=id=>{const [d,t]=id.split('T');return d.split('-').reverse().join('/')+(t?' às '+t.slice(0,5).replace('-',':')+' (antes de restaurar ou apagar)':' (início do dia)')};
+function vDef(){
+ if(COPIAS===null)loadCopias();
+ return`${backHome}<h1>Definições</h1>
+ <h2>Sincronização</h2><div class="grp">${kv('Estado',syncText(),'wrap')}</div><button class="btn alt" data-a="syncnow">Sincronizar agora</button><p class="note">Pode usar a app no telemóvel e no computador ao mesmo tempo: as alterações feitas nos dois juntam-se, obra a obra e movimento a movimento.</p>
+ <h2>Cópias de segurança</h2><p class="note" style="margin:-4px 6px 10px">Todos os dias, na primeira alteração, o servidor guarda uma cópia de todos os dados. Ficam guardadas as cópias dos últimos 30 dias.</p><div class="grp">${COPIAS===null?'<div class="empty">A carregar cópias…</div>':COPIAS_ERR?`<div class="empty">${esc(COPIAS_ERR)}</div>`:COPIAS.length?COPIAS.map(c=>`<div class="row kv"><div class="rt"><b>${esc(copiaLabel(c.id))}</b><span>${esc(c.obras||0)} obras · ${esc(c.tx||0)} movimentos · ${esc(c.inv||0)} faturas</span></div><div class="rr"><button class="mini" style="color:var(--blue)" data-a="restore" data-id="${esc(c.id)}">Restaurar</button></div></div>`).join(''):'<div class="empty">Ainda não há cópias. A primeira é feita na próxima alteração.</div>'}</div><button class="btn alt" data-a="copianow">Fazer uma cópia agora</button>
+ <h2>Excel</h2><p class="note" style="margin:-4px 6px 0">O Excel ligado atualiza-se sozinho com os dados da app. A cópia é um ficheiro com todos os dados, sem ligação.</p><a class="link" href="/excel.html">Excel ligado à app — configurar</a><button class="link" data-a="xlsx">Descarregar cópia Excel</button>
+ <h2>Acesso</h2><div class="grp"><button class="row invoice-row" data-a="novodisp"><div class="av">${ic('user')}</div><div class="rt"><b>Registar outro dispositivo</b><span>Face ID / Touch ID</span></div></button><button class="row invoice-row" data-a="sair"><div class="av">${ic('back')}</div><div class="rt"><b>Terminar sessão</b><span>Volta a pedir Face ID / Touch ID</span></div></button></div>
+ <h2>Zona de perigo</h2><button class="btn del" data-a="clear">Apagar todos os dados</button><p class="note">Pede confirmação escrita e faz antes uma cópia de segurança, que pode restaurar acima.</p>`;
+}
+// Antes de restaurar ou apagar, envia as alterações pendentes e guarda o estado atual numa cópia.
+async function copiaAgora(){clearTimeout(pt);if(!(await sendState().catch(()=>null)))throw new Error('Precisa de ligação à internet para esta operação.');const r=await API('estado/copias',{method:'POST'});if(!r.ok)throw new Error('Não foi possível fazer a cópia de segurança.')}
+async function restaurar(id){
+ if(!confirm(`Restaurar a cópia de ${copiaLabel(id)}? O estado atual fica guardado numa cópia nova antes do restauro.`))return;
+ try{await copiaAgora();const r=await API('estado/copias/'+id);if(!r.ok)throw new Error('Cópia não encontrada.');const {state}=await r.json();
+  S={...state,del:S.del||{}};S.obras=S.obras||[];S.tx=S.tx||[];S.inv=S.inv||[];S.tx.forEach(withBase);save();COPIAS=null;render();alert('Cópia restaurada.')}
+ catch(e){alert(e.message||'Não foi possível restaurar a cópia.')}
+}
 const jpg=c=>new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('Não foi possível preparar a foto.')),'image/jpeg',.9));
 async function toImages(f){
  if(f.type==='application/pdf'){
@@ -433,6 +538,9 @@ function sheet(){
   sh.innerHTML=`<div class="grab"></div><h3>Confirmar fatura</h3>${d.mime==='application/pdf'?`<a class="btn alt" href="${previewUrl}" target="_blank" rel="noopener">Abrir PDF original</a>`:`<img src="${previewUrl}" alt="Foto da fatura a guardar" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px">`}<p class="note">Obra: ${esc((S.obras.find(o=>o.id===d.obra)||{}).name)}</p><div class="fld"><label><span>N.º da fatura</span><input data-k="number" value="${esc(d.number)}"></label><label><span>Fornecedor</span><input data-k="store" value="${esc(d.store)}"></label><label><span>NIF</span><input data-k="nif" inputmode="numeric" value="${esc(d.nif)}"></label><label><span>Data</span><input type="date" data-k="date" value="${esc(d.date)}"></label><label><span>Total sem IVA (€)</span><input data-k="base" inputmode="decimal" value="${(+d.base).toFixed(2)}"></label><label><span>Total com IVA (€)</span><input data-k="total" inputmode="decimal" value="${(+d.total).toFixed(2)}"></label></div>
   <h2 style="margin-top:14px">Materiais (${d.items.length})</h2><div class="grp">${d.items.map((i,n)=>`<div class="row kv" style="flex-wrap:wrap"><div class="rt"><b>${esc(i.name)}</b><span>${i.qty} ${esc(i.unit)} × ${eur(i.unit_price)} s/ IVA</span>${hasDisc(i)?`<span class="was">Sem desconto <s>${eur(i.list_price)}</s> · −${esc(r2(i.discount))}%</span>`:''}</div><div class="rr"><b>${eur(i.total)}</b></div><select data-i="${n}" style="width:100%;margin-top:6px;border:0;background:var(--chip);border-radius:9px;padding:8px">${opt(CATS.map(c=>[c,c]),i.cat)}</select></div>`).join('')||'<div class="empty">Nenhum artigo lido.</div>'}</div>
   <button class="btn" data-a="saveinv">Guardar na obra</button><button class="btn alt" data-a="close">Cancelar</button>`;
+ }else if(d.kind==='pickobra'){
+  const l=[...S.obras].sort((a,b)=>(a.status==='em_curso'?0:1)-(b.status==='em_curso'?0:1));
+  sh.innerHTML=`<div class="grab"></div><h3>Fotografar fatura</h3><p class="note" style="margin:-6px 4px 12px">Escolha a obra. A seguir tire a foto ou escolha o PDF da fatura.</p><div class="grp">${l.length?l.map(o=>`<button class="row invoice-row" data-a="scan" data-o="${esc(o.id)}"><div class="av">${esc(o.name[0])}</div><div class="rt"><b>${esc(o.name)}</b><span>${esc(o.client)} · ${STAT[o.status]}</span></div><div class="rr">${ic('cam')}</div></button>`).join(''):'<div class="empty">Crie uma obra primeiro.</div>'}</div>${l.length?'':'<button class="btn" data-a="newobra">Nova obra</button>'}<button class="btn alt" data-a="close">Cancelar</button>`;
  }else if(d.kind==='obra'){
   sh.innerHTML=`<div class="grab"></div><h3>${d.id?'Editar obra':'Nova obra'}</h3><div class="fld">
   <label><span>Nome</span><input data-k="name" value="${d.name||''}" placeholder="Ex.: Moradia T3"></label>
@@ -440,7 +548,11 @@ function sheet(){
   <label><span>Valor c/ IVA (€)</span><input data-k="valor" inputmode="decimal" value="${d.valor||''}" placeholder="0,00"></label>
   <label><span>Estado</span><select data-k="status">${opt(Object.entries(STAT),d.status)}</select></label>
   <label><span>Telemóvel</span><input data-k="phone" inputmode="tel" value="${esc(d.phone)}" placeholder="9XX XXX XXX"></label>
+  <label><span>Email</span><input data-k="email" type="email" inputmode="email" value="${esc(d.email)}" placeholder="cliente@exemplo.pt"></label>
+  <label><span>NIF</span><input data-k="nif" inputmode="numeric" value="${esc(d.nif)}" placeholder="Opcional"></label>
+  <label><span>Morada</span><input data-k="address" value="${esc(d.address)}" placeholder="Local da obra"></label>
   <label><span>Conclusão</span><input type="date" data-k="done" value="${d.done||''}"></label></div>
+  <div class="sub" style="margin:14px 4px 6px">Plano de pagamentos</div>${(d.plano||[]).map((m,i)=>`<div class="fld plan-entry"><label><span>Prestação ${i+1}</span><input data-plan="${i}" data-field="desc" value="${esc(m.desc)}" placeholder="Ex.: Adjudicação"></label><label><span>Percentagem (%)</span><input data-plan="${i}" data-field="pct" inputmode="decimal" value="${esc(m.pct)}"></label><label><span>Vencimento</span><input type="date" data-plan="${i}" data-field="date" value="${esc(m.date)}"></label></div><button class="link neg" data-a="planrm" data-id="${i}">Remover prestação ${i+1}</button>`).join('')}<p class="note">${(d.plano||[]).length?`Soma: ${esc(r2((d.plano||[]).reduce((s,m)=>s+num(m.pct),0)))}% (tem de dar 100%). Sem data, a última prestação vence na conclusão da obra.`:'Sem plano de pagamentos.'}</p><button class="link" data-a="planadd">Adicionar prestação</button>${(d.plano||[]).length?'':'<button class="link" data-a="plan5050">Usar 50% na adjudicação e 50% na conclusão</button>'}
   <div class="sub" style="margin:0 4px 6px">Equipamentos instalados (para a manutenção)</div><div class="chips" style="flex-wrap:wrap;margin:0 0 10px;padding:0">${EQ.map(q=>`<button class="${(d.equip||[]).includes(q)?'on':''}" data-a="eq" data-id="${q}">${q}</button>`).join('')}</div>
   <button class="btn" data-a="saveobra">Guardar obra</button>${d.id?'<button class="btn del" data-a="delobra">Eliminar obra</button>':''}<button class="btn alt" data-a="close">Cancelar</button>`;
  }else{
@@ -463,15 +575,15 @@ const num=v=>{const n=parseFloat(String(v).replace(/\s/g,'').replace(',','.'));r
 /* ---------- render ---------- */
 function render(){
  trackNavigation();
- $('#app').innerHTML=V.obra?vObra():({home:vHome,obras:vObras,mov:vMov,iva:vIva,mat:vMat,man:vMan,orc:vQuotes}[V.tab])();
- $('#nav').innerHTML=[['home','Início','home'],['obras','Obras','obras'],['mat','Pesquisa','search'],['orc','Orçamentos','fatura'],['man','Manutenção','manut'],['iva','IVA','iva']].map(([k,l,i])=>`<button class="${V.tab===k&&!V.obra||(V.obra&&k==='obras')?'on':''}" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('');
+ $('#app').innerHTML=V.obra?vObra():({home:vHome,obras:vObras,mov:vMov,iva:vIva,mat:vMat,man:vMan,orc:vQuotes,cli:vClientes,rel:vRel,def:vDef}[V.tab]||vHome)();syncPill();
+ $('#nav').innerHTML=[['home','Início','home'],['obras','Obras','obras'],['mat','Pesquisa','search'],['orc','Orçamentos','fatura'],['man','Manutenção','manut'],['iva','IVA','iva']].map(([k,l,i])=>`<button class="${(V.obra?k==='obras':({cli:'home',rel:'home',def:'home',mov:'home'}[V.tab]||V.tab)===k)?'on':''}" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('');
 }
 document.addEventListener('click',async e=>{
  if(D?.saving)return;
  if(e.target.id==='ov'){D=null;sheet();return}
  const b=e.target.closest('[data-a]');if(!b)return;
  const a=b.dataset.a,id=b.dataset.id,today=new Date().toISOString().slice(0,10);
- if(a==='tab'){V.tab=id;V.obra=null;window.scrollTo(0,0)}
+ if(a==='tab'){V.tab=id;V.obra=null;V.cli='';if(id==='def')COPIAS=null;window.scrollTo(0,0)}
  else if(a==='open'){V.obra=id;V.seg=b.dataset.s||'contas';window.scrollTo(0,0)}
  else if(a==='back'){history.back();return}
  else if(a==='seg')V.seg=id;
@@ -480,8 +592,8 @@ document.addEventListener('click',async e=>{
  else if(a==='newtx'){D={kind:'tx',type:b.dataset.t,obra:b.dataset.o||V.obra||(S.obras[0]||{}).id,date:today,rate:b.dataset.t==='fatura'?S.vat:0};sheet();return}
  else if(a==='edittx'){D={kind:'tx',...S.tx.find(x=>x.id===id)};sheet();return}
  else if(a==='ty'){D.type=id;D.rate=id==='fatura'?(D.rate||S.vat):0;sheet();return}
- else if(a==='newobra'){D={kind:'obra',status:'em_curso'};sheet();return}
- else if(a==='editobra'){D={kind:'obra',...S.obras.find(o=>o.id===id)};D.equip=[...(D.equip||[])];sheet();return}
+ else if(a==='newobra'){D={kind:'obra',status:'em_curso',plano:EnatGestao.defaultPlan(today)};sheet();return}
+ else if(a==='editobra'){D={kind:'obra',...S.obras.find(o=>o.id===id)};D.equip=[...(D.equip||[])];D.plano=structuredClone(D.plano||[]);sheet();return}
  else if(a==='close'){D=null;sheet();return}
  else if(a==='savetx'){
   const t=num(D.total);if(!D.obra||t<=0){alert('Escolha uma obra e indique um valor maior que zero.');return}
@@ -490,9 +602,27 @@ document.addEventListener('click',async e=>{
  else if(a==='deltx'){S.tx=S.tx.filter(x=>x.id!==D.id);S.inv.filter(v=>v.tx===D.id&&v.foto).forEach(v=>API('foto/'+v.id,{method:'DELETE'}).catch(()=>{}));S.inv=S.inv.filter(v=>v.tx!==D.id);save();D=null;sheet()}
  else if(a==='saveobra'){
   if(!(D.name||'').trim()){alert('Dê um nome à obra.');return}
-  const o={id:D.id||uid(),name:D.name.trim(),client:(D.client||'').trim()||'Sem cliente',status:D.status||'em_curso',valor:num(D.valor),phone:D.phone||'',done:D.done||'',equip:D.equip||[]};
+  const plano=(D.plano||[]).map((m,i)=>({desc:String(m.desc||'').trim()||'Prestação '+(i+1),pct:num(m.pct),date:m.date||''}));
+  if(plano.length&&(plano.some(m=>m.pct<=0)||Math.abs(plano.reduce((s,m)=>s+m.pct,0)-100)>.01)){alert('As percentagens do plano de pagamentos têm de ser maiores que zero e somar 100%.');return}
+  // Mantém os dados que não estão no formulário, como o orçamento de origem e os custos previstos.
+  const old=S.obras.find(y=>y.id===D.id)||{};
+  const o={...old,id:D.id||uid(),name:D.name.trim(),client:(D.client||'').trim()||'Sem cliente',status:D.status||'em_curso',valor:num(D.valor),phone:D.phone||'',email:(D.email||'').trim(),nif:(D.nif||'').trim(),address:(D.address||'').trim(),done:D.done||'',equip:D.equip||[],plano};
   const i=S.obras.findIndex(y=>y.id===o.id);i<0?S.obras.push(o):S.obras[i]=o;save();D=null;sheet()}
  else if(a==='delobra'){if(!confirm('Eliminar a obra e todos os seus movimentos?'))return;S.obras=S.obras.filter(o=>o.id!==D.id);S.tx=S.tx.filter(x=>x.obra!==D.id);S.inv=S.inv.filter(v=>v.obra!==D.id);V.obra=null;save();D=null;sheet()}
+ else if(a==='of')V.of=id;
+ else if(a==='oy')V.oy=id;
+ else if(a==='per')V.per=id;
+ else if(a==='cli'){V.cli=id;window.scrollTo(0,0)}
+ else if(a==='openquote'){const qid=Number(id);V.tab='orc';V.obra=null;quoteClient=null;window.scrollTo(0,0);if(quoteRows===null||!quoteRows.some(r=>r.id===qid))await loadQuotes();quoteOpen(qid);if(!quoteDraft)alert('Orçamento não encontrado.')}
+ else if(a==='cliquote'){const c=EnatGestao.clients(S.obras,quoteRows||[]).find(c=>c.key===id);V.tab='orc';V.obra=null;quoteClient=null;quoteWa.key=null;quoteDraft=newQuote();if(c)Object.assign(quoteDraft,{client:c.name,address:c.address,contact:c.phone,email:c.email});window.scrollTo(0,0)}
+ else if(a==='quickscan'){D={kind:'pickobra'};sheet();return}
+ else if(a==='planadd'){const p=D.plano||[];D.plano=[...p,{desc:'',pct:Math.max(0,r2(100-p.reduce((s,m)=>s+num(m.pct),0))),date:''}];sheet();return}
+ else if(a==='planrm'){D.plano.splice(+id,1);sheet();return}
+ else if(a==='plan5050'){D.plano=EnatGestao.defaultPlan(today);sheet();return}
+ else if(a==='contab'||a==='contabxlsx'){contab(a==='contab');return}
+ else if(a==='syncnow'){clearTimeout(pt);sendState().then(r=>r&&pull()).catch(()=>setSync('off'));return}
+ else if(a==='copianow'){copiaAgora().then(()=>{COPIAS=null;render();alert('Cópia de segurança feita.')}).catch(e=>alert(e.message));return}
+ else if(a==='restore'){restaurar(id);return}
  else if(a==='tprod'){D={kind:'tprod',b:Number(b.dataset.b),itemIndex:Number(b.dataset.index)};sheet();return}
  else if(a==='product'){D={kind:'product',id,itemIndex:Number(b.dataset.index)};sheet();return}
  else if(a==='invoice'){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null}D={kind:'invoice',id};sheet();return}
@@ -524,8 +654,7 @@ document.addEventListener('click',async e=>{
    S.tx.push({id:tid,obra:d.obra,type:'fatura',desc:st+(d.number?' · '+d.number:''),topic:'Geral / outros',date:d.date,total:t,base:bs,iva:t-bs,rate:Math.round((t/bs-1)*100),fx:1});
    S.inv.push({id:iid,mime:d.mime,foto:1,tx:tid,obra:d.obra,store:st,nif:d.nif,date:d.date,number:d.number,items:d.items,rv:1});save();
    clearTimeout(pt);
-   const r=await API('estado',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:S,sheets:tabelas()})});
-   if(!r.ok)throw new Error('O anexo foi enviado, mas falta sincronizar a fatura.');
+   if(!(await sendState().catch(()=>null)))throw new Error('O anexo foi enviado, mas falta sincronizar a fatura.');
    D=null;sheet();
   }catch(err){
    const v=S.inv.find(v=>v.id===d.iid);
@@ -533,24 +662,51 @@ document.addEventListener('click',async e=>{
    d.saving=false;D=d;sheet();alert(err.message||'Não foi possível guardar. Tente novamente.');
   }
  }
- else if(a==='clear'){if(!confirm('Apagar todas as obras e movimentos?'))return;S={vat:23,obras:[],tx:[]};save()}
+ else if(a==='clear'){
+  // Apagar tudo pede confirmação escrita e guarda antes uma cópia de segurança no servidor.
+  if((prompt('Isto apaga todas as obras, movimentos e faturas em todos os dispositivos. Para confirmar, escreva APAGAR')||'').trim().toUpperCase()!=='APAGAR')return;
+  try{await copiaAgora()}catch(e){alert(e.message+' Nada foi apagado.');return}
+  S={vat:S.vat,obras:[],tx:[],inv:[],del:S.del||{}};save();COPIAS=null;alert('Dados apagados. Pode recuperá-los em Definições › Cópias de segurança.')}
  render();
 });
 document.addEventListener('input',e=>{const t=e.target,k=t.dataset&&t.dataset.k;
  if(t.id==='q'){V.q=t.value;navEntries[navIndex].v=navView();$('#res').innerHTML=matRes();return}
+ if(t.id==='gq'){V.gq=t.value;navEntries[navIndex].v=navView();ensureQuotes();$('#gres').innerHTML=globalRes();$('#homebody').hidden=!!t.value.trim();return}
+ if(t.id==='oq'){V.oq=t.value;navEntries[navIndex].v=navView();$('#olist').innerHTML=obrasList();return}
+ if(t.id==='cq'){V.cq=t.value;navEntries[navIndex].v=navView();$('#clist').innerHTML=clientsList();return}
+ if(t.dataset?.plan!==undefined&&D?.plano){D.plano[+t.dataset.plan][t.dataset.field]=t.dataset.field==='pct'?num(t.value):t.value;return}
  if(t.dataset&&t.dataset.i!==undefined&&D&&D.items){D.items[+t.dataset.i].cat=t.value;return}
  if(t.dataset?.pcat!==undefined){const p=products().find(p=>p.key===t.dataset.pcat);if(p){p.buys.forEach(b=>b.i.cat=t.value);save()}return}
  if(t.dataset?.labor!==undefined&&D?.entries){D.entries[+t.dataset.labor][t.dataset.field]=t.value;return}
  if(k&&D)D[k]=t.value});
 /* ---------- sincronização entre dispositivos ---------- */
-let SYNC='off',pt;
+let SYNC='off',pt,SYNCAT=0,OFFLINE=false;
+// BASE: versão do servidor que este dispositivo conhece. Se outro dispositivo gravou depois, as duas versões juntam-se.
+let BASE=(()=>{const v=localStorage.getItem('enat-base');return v===null?null:+v})();
+const setBase=t=>{BASE=t;try{localStorage.setItem('enat-base',String(t))}catch(e){}};
+const keep=()=>{try{localStorage.setItem('enat-contas-2',JSON.stringify(S))}catch(e){}};
 const idle=()=>!D&&!quoteDraft&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-const adopt=s=>{S=s;S.inv=S.inv||[];S.tx.forEach(withBase);try{localStorage.setItem('enat-contas-2',JSON.stringify(S))}catch(e){}if(idle())render()};
-const setSync=s=>{if(SYNC!==s){SYNC=s;if(idle())render()}};
-const push=()=>{clearTimeout(pt);pt=setTimeout(()=>API('estado',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:S,sheets:tabelas()})}).then(r=>setSync(r.ok?'ok':'off')).catch(()=>setSync('off')),900)};
-async function pull(){try{const r=await API('estado');if(r.status===401)return setSync('off');const d=await r.json();
- if(!d.state){if(S.obras.length||S.tx.length)push();return setSync('ok')}
- const a=d.state.ts||0,b=S.ts||0;if(a>b)adopt(d.state);else if(a<b)push();setSync('ok')}catch(e){setSync('off')}}
+const adopt=s=>{S=s;S.inv=S.inv||[];S.tx.forEach(withBase);LAST=EnatSync.snap(S);keep();if(idle())render()};
+function mergeRemote(r){S=EnatSync.merge(S,r);S.inv=S.inv||[];S.tx.forEach(withBase);LAST=EnatSync.snap(S);setBase(r.ts||0);S.ts=Date.now();keep();if(idle())render()}
+const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?'agora':m<60?'há '+m+' min':'há '+Math.round(m/60)+' h'};
+const syncText=()=>SYNC==='saving'?'A sincronizar…':SYNC==='ok'?'Sincronizado '+ago(SYNCAT):OFFLINE||!navigator.onLine?'Sem ligação · guardado neste dispositivo':'Por sincronizar · guardado neste dispositivo';
+function syncPill(){const b=$('#sync');if(!b)return;b.className='sync '+SYNC;b.textContent=SYNC==='ok'?'Sincronizado':SYNC==='saving'?'A sincronizar…':OFFLINE||!navigator.onLine?'Sem ligação':'Por sincronizar';b.title=syncText()}
+const setSync=s=>{SYNC=s;syncPill()};
+async function sendState(tries=3){
+ if(OFFLINE||!SESS()){setSync('off');return null}
+ const sent=S.ts;setSync('saving');
+ const r=await API('estado',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:S,base:BASE,sheets:tabelas()})});
+ if(r.status===409&&tries>0){mergeRemote((await r.json()).state);return sendState(tries-1)}
+ if(!r.ok)throw new Error('sync');
+ setBase(sent);SYNCAT=Date.now();setSync(S.ts===sent?'ok':'saving');return r;
+}
+const push=()=>{clearTimeout(pt);setSync('saving');pt=setTimeout(()=>sendState().catch(()=>setSync('off')),900)};
+async function pull(){if(OFFLINE)return;try{const r=await API('estado');if(r.status===401)return setSync('off');const d=await r.json();
+ if(!d.state){if(S.obras.length||S.tx.length)push();else{SYNCAT=Date.now();setSync('ok')}return}
+ const remote=d.state.ts||0,dirty=(S.ts||0)!==BASE;
+ if(remote===BASE){if(dirty)push();else{SYNCAT=Date.now();setSync('ok')}return}
+ if(dirty){mergeRemote(d.state);push()}else{adopt(d.state);setBase(remote);SYNCAT=Date.now();setSync('ok')}
+}catch(e){setSync('off')}}
 /* ---------- entrada com Face ID / Touch ID (passkeys) ---------- */
 const post=async(p,b,code)=>{const r=await fetch('/api/'+p,{method:'POST',headers:{'content-type':'application/json','x-session':SESS(),...(code?{'x-code':code}:{})},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'falha ('+r.status+')');return j};
 let LIGADO=false;
@@ -558,17 +714,28 @@ function bloquear(m){sessionStorage.removeItem('enat-sess');$('#lock').classList
 const CRED=()=>localStorage.getItem('enat-cred')||'';
 async function ecraLock(m,falhou){const lk=$('#lk');
  lk.innerHTML='<button class="btn" disabled aria-busy="true">Login</button>';
- let tem=true;try{tem=(await (await fetch('/api/auth/estado')).json()).temChaves}catch(e){}
+ let tem=true,semRede=!navigator.onLine;try{tem=(await (await fetch('/api/auth/estado')).json()).temChaves}catch(e){semRede=true}
+ // Sem rede, o Face ID / Touch ID deste dispositivo abre os dados guardados nele; sincroniza quando a ligação voltar.
+ const local=semRede&&CRED()&&(S.obras.length||S.tx.length)&&window.PublicKeyCredential;
  const aviso=window.PublicKeyCredential?'':'<p class="neg" role="alert">Este navegador não suporta Face ID / Touch ID.</p>';
  const erro=m?`<p class="neg" role="alert">${esc(m)}</p>`:'';
  lk.innerHTML=aviso+erro+`<button class="btn" data-l="${tem?'entrar':'registar'}">Login</button>`+
- (falhou&&tem?'<button class="link" data-l="novo">Registar este dispositivo</button>':'')}
+ (falhou&&tem?'<button class="link" data-l="novo">Registar este dispositivo</button>':'')+
+ (local?'<p style="margin-top:18px">Sem ligação à internet.</p><button class="btn alt" data-l="offline">Entrar sem ligação</button><p class="note">Usa os dados guardados neste dispositivo. As alterações sincronizam quando a internet voltar.</p>':'')}
+async function entrarOffline(){
+ const id=Uint8Array.from(atob(CRED().replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+ await navigator.credentials.get({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rpId:location.hostname,allowCredentials:[{type:'public-key',id}],userVerification:'required',timeout:60000}});
+ OFFLINE=true;$('#lock').classList.remove('on');setSync('off');render();
+}
+window.addEventListener('online',()=>{if(OFFLINE){OFFLINE=false;bloquear('A ligação voltou. Faça login para sincronizar as alterações feitas sem rede.')}else if(SESS())pull()});
+window.addEventListener('offline',()=>setSync('off'));
 
-function desbloquear(t){sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(pull,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render()}
+function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render()}
 async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});const t=(await post('auth/registo',{cid:o.cid,response},code)).token;localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 // Face ID: vai direto à chave guardada neste dispositivo. Touch ID: deixa o sistema escolher qualquer chave (outro sensor ou dispositivo).
 async function entrar(local){const o=await post('auth/entrar-opcoes',local&&CRED()?{id:CRED()}:{});const response=await SWA.startAuthentication({optionsJSON:o.options});const t=(await post('auth/entrar',{cid:o.cid,response})).token;if(response.authenticatorAttachment!=='cross-platform')localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 $('#lock').addEventListener('click',async e=>{const b=e.target.closest('[data-l]');if(!b)return;
+ if(b.dataset.l==='offline'){try{b.disabled=true;await entrarOffline()}catch(err){ecraLock(err.name==='NotAllowedError'?'Operação cancelada.':'Não foi possível confirmar a identidade.')}return}
  if(!window.SWA){ecraLock('A carregar, tente de novo dentro de um segundo.');return}
  try{const l=b.dataset.l;b.disabled=true;
   if(l==='entrar'){try{await entrar(false)}catch(err){return ecraLock(err.name==='NotAllowedError'?'':(err.message||'Erro'),true)}}
@@ -577,6 +744,7 @@ $('#lock').addEventListener('click',async e=>{const b=e.target.closest('[data-l]
   else if(l==='novo'){const c=SESS()?'':prompt('Para registar um novo dispositivo, indique o código de acesso (APP_CODE):');if(c===null)return ecraLock('',true);await registar((c||'').trim())}
  }catch(err){ecraLock(err.name==='NotAllowedError'?'Operação cancelada.':(err.message||'Erro'),b.dataset.l!=='registar')}});
 if(SESS())desbloquear(SESS());else bloquear();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 </script>
 </body>
 </html>

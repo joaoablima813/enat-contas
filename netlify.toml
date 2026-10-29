@@ -4,3 +4,9 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# The service worker must always be checked for updates.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

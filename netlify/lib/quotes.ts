@@ -1,10 +1,19 @@
 import { db } from '../../db/index.js';
-import { quotes } from '../../db/schema.js';
-import { desc, eq } from 'drizzle-orm';
+import { quotes, quoteEvents } from '../../db/schema.js';
+import { asc, desc, eq, and, isNull } from 'drizzle-orm';
 const fail=(status:number,error:string)=>Response.json({error},{status});
 export async function handleQuotes(req:Request,path:string){
   try {
-    if(path==='orcamentos' && req.method==='GET') return Response.json(await db.select().from(quotes).orderBy(desc(quotes.id)));
+    // Each quote comes with its follow-up: sent, opened, PDF opened and the client's answers.
+    if(path==='orcamentos' && req.method==='GET'){
+      const [rows,events]=await Promise.all([db.select().from(quotes).orderBy(desc(quotes.id)),db.select().from(quoteEvents).orderBy(asc(quoteEvents.id))]);
+      const by=new Map<number,any[]>();
+      for(const e of events){if(!by.has(e.quoteId))by.set(e.quoteId,[]);by.get(e.quoteId)!.push({id:e.id,kind:e.kind,note:e.note,at:e.createdAt,read:Boolean(e.readAt)})}
+      return Response.json(rows.map(r=>({...r,events:by.get(r.id)||[]})));
+    }
+    // The user has seen the client's new answers.
+    const read=path.match(/^orcamentos\/(\d+)\/lido$/);
+    if(read&&req.method==='POST'){await db.update(quoteEvents).set({readAt:new Date()}).where(and(eq(quoteEvents.quoteId,Number(read[1])),isNull(quoteEvents.readAt)));return Response.json({ok:true})}
     const match=path.match(/^orcamentos\/(\d+)$/);
     if(req.method==='DELETE'){
       if(!match)return fail(404,'Orçamento não encontrado.');
@@ -40,7 +49,14 @@ export async function handleQuotes(req:Request,path:string){
     if(b.validity!==undefined&&(!Number.isInteger(b.validity)||b.validity<1||b.validity>365))return fail(400,'Indique uma validade entre 1 e 365 dias.');
     if(b.obra!==undefined&&(typeof b.obra!=='string'||b.obra.length>40))return fail(400,'Obra inválida.');
     const extra=['status','validity','obra'].filter(k=>b[k]!==undefined&&b[k]!=='');
-    const document=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[]),...extra].map(k=>[k,b[k]]));
+    const document:any=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[]),...extra].map(k=>[k,b[k]]));
+    if(match){
+      // The client may have answered while this copy was open: their status and the job created from it are kept.
+      const [cur]=await db.select().from(quotes).where(eq(quotes.id,Number(match[1])));
+      const old:any=cur?.document||{};
+      if(old.clientAt){document.clientAt=old.clientAt;if(b.clientAt!==old.clientAt){for(const k of ['status','obra'])if(old[k]!==undefined)document[k]=old[k];else delete document[k]}}
+      if(!document.obra&&old.obra)document.obra=old.obra;
+    }
     const rows=match?await db.update(quotes).set({document,updatedAt:new Date()}).where(eq(quotes.id,Number(match[1]))).returning():await db.insert(quotes).values({document}).returning();
     return rows.length?Response.json(rows[0],{status:match?200:201}):fail(404,'Orçamento não encontrado.');
   }catch(error){return fail(error instanceof SyntaxError?400:503,error instanceof SyntaxError?'Dados inválidos.':'Não foi possível aceder aos orçamentos. Tente novamente.');}

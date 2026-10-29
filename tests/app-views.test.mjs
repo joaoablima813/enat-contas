@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','contabilista.js','price-tables.js','quotes.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -58,4 +58,18 @@ test('a save that meets a newer server version merges both and sends the result'
  assert.ok(server.obras.some(o=>o.id==='o9'),'keeps the job created on the other device');
  assert.ok(server.tx.some(x=>x.id==='tn'),'keeps the expense added here');
  assert.equal(run('BASE'),server.ts);assert.equal(run('SYNC'),'ok');
+});
+
+test('quotes show when the client opened them, their answer and the history, and new answers reach the home page',()=>{
+ const {run}=app(state);
+ const doc={client:'Família Araújo',address:'Rua 1',contact:'912345678',date:'2026-10-20',topics:['Ar condicionado'],brand:'LG',margin:20,vat:23,status:'aceite',validity:30,obra:'o1',lines:[{kind:'Equipamento',description:'Split',value:1000,quantity:1,unit:'un.'}]};
+ const ev=[{id:1,kind:'enviado',note:'WhatsApp',at:'2026-10-20T10:00:00Z',read:true},{id:2,kind:'visto',note:'',at:'2026-10-20T18:40:00Z',read:true},{id:3,kind:'pdf',note:'',at:'2026-10-20T18:41:00Z',read:true},{id:4,kind:'adjudicar',note:'',at:'2026-10-21T09:00:00Z',read:true},{id:5,kind:'pensar',note:'Falar com a família',at:'2026-10-22T09:00:00Z',read:false}];
+ run(`quoteRows=[{id:3,document:${JSON.stringify(doc)},events:${JSON.stringify(ev)}},{id:4,document:${JSON.stringify({...doc,status:'enviado',obra:undefined})},events:[{id:6,kind:'visto',at:'2026-10-22T09:00:00Z',read:true}]}]`);
+ const home=run('vHome()');assert.match(home,/Respostas de clientes \(1\)/);assert.match(home,/q-pensar">A pensar/);assert.match(home,/q-new">Novo/);
+ const list=run("V.tab='orc';quoteDraft=null;quoteClient=null;vQuotes()");assert.match(list,/Respostas novas de clientes/);assert.match(list,/Resposta nova/);
+ run("quoteClient=quoteClients()[0].key");assert.match(run('vQuotes()'),/q-visto">Visto/);
+ run('quoteOpen(3)');const ed=run('quoteEditor()');
+ assert.match(ed,/Acompanhamento do cliente/);assert.match(ed,/A pensar/);assert.match(ed,/«Falar com a família»/);assert.match(ed,/O cliente tinha adjudicado e mudou para «A pensar»/);
+ assert.match(ed,/O cliente abriu o PDF/);assert.match(ed,/Enviado por WhatsApp/);assert.match(ed,/Respondeu: Adjudicado/);
+ assert.equal(run('quoteUnread().length'),0,'opening the quote marks the answer as seen');
 });

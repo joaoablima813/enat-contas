@@ -1,11 +1,14 @@
-// Free WhatsApp delivery: the quote PDF is stored behind an unguessable link,
-// and the app opens the client's chat in the user's own WhatsApp Business with the message ready.
+// Free WhatsApp delivery: the quote PDF is stored behind an unguessable link to the quote page (/proposta/…),
+// where the client opens it and answers; the app opens the client's chat in the user's own WhatsApp Business with the message ready.
 import { db } from '../../db/index.js';
-import { quotes } from '../../db/schema.js';
+import { quotes, quoteEvents } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
+// The PDF link in messages sent before the quote page existed, and the quote page link.
+const linkToken = (link: unknown) => String(link).match(/\/(?:api\/pdf|proposta)\/([A-Za-z0-9_-]{24})\/?$/)?.[1] || '';
+const sent = (quoteId: number, note: string) => db.insert(quoteEvents).values({ quoteId, kind: 'enviado', note }).catch((e: any) => console.error('quote sent', e?.message));
 const quoteNumber = (id: number, date: string) => 'ORC ' + (String(date || '').slice(0, 4) || new Date().getFullYear()) + '/' + String(id).padStart(4, '0');
 
 export async function handleWhatsapp(req: Request, path: string, store: any) {
@@ -19,9 +22,17 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
   if (!row) return fail(404, 'Orçamento não encontrado.');
   const q: any = row.document, number = quoteNumber(row.id, q.date);
   const filename = ('ORC Nº ' + number.replace(/^ORC\s*/, '') + ' ' + q.client).replace(/[\\/:*?"<>|\x00-\x1f]+/g, '-').replace(/\s+/g, ' ').trim() + '.pdf';
+  // Quotes sent together share a group, so each page lists the other options.
+  const group = typeof b.group === 'string' && /^[a-z0-9]{6,32}$/.test(b.group) ? b.group : '';
   const token = randomBytes(18).toString('base64url');
-  await store.set('pdf-' + token, Buffer.from(b.pdf, 'base64'), { metadata: { filename, quote: row.id } });
-  return Response.json({ url: new URL(req.url).origin + '/api/pdf/' + token, number });
+  await store.set('pdf-' + token, Buffer.from(b.pdf, 'base64'), { metadata: { filename, quote: row.id, ...(group ? { group } : {}) } });
+  if (group) {
+    const list = (await store.get('grupo-' + group, { type: 'json' })) || [];
+    await store.setJSON('grupo-' + group, [...list.filter((s: any) => s.quote !== row.id), { token, quote: row.id }].slice(-20));
+  }
+  // Automatic emails are recorded once the mail server accepts them.
+  if (b.channel === 'whatsapp' || b.channel === 'mailto') await sent(row.id, b.channel === 'whatsapp' ? 'WhatsApp' : 'Email');
+  return Response.json({ url: new URL(req.url).origin + '/proposta/' + token, number });
 }
 
 // Public link opened by the client; only someone with the link can read the PDF.
@@ -67,10 +78,11 @@ async function saveSent(c: ReturnType<typeof mail>, raw: Buffer) {
     await client.logout().catch(() => client.close());
   }
 }
-const htmlEsc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-// Turns the WhatsApp-style text (*bold*, bare links) into a simple branded email.
-export const emailHtml = (text: string) => '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#122c3b;max-width:600px">'
-  + htmlEsc(text).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#1d5d8c">Ver orçamento em PDF</a>').replace(/\n/g, '<br>')
+const htmlEsc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// Turns the WhatsApp-style text (*bold*, bare links) into a branded email with the logo and a button per quote.
+export const emailHtml = (text: string, origin = '') => '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#122c3b;max-width:600px">'
+  + (origin ? '<div style="padding:4px 0 14px;border-bottom:3px solid #f3a51c;margin-bottom:18px"><img src="' + htmlEsc(origin) + '/enat-logo.png" alt="Enat - Energias" width="131" height="47" style="display:block"></div>' : '')
+  + htmlEsc(text).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="display:inline-block;margin:6px 0;padding:11px 18px;background:#2f8f3a;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:bold">Ver e responder ao orçamento</a>').replace(/\n/g, '<br>')
   + '</div>';
 
 export async function handleEmail(req: Request, path: string, store: any) {
@@ -84,12 +96,13 @@ export async function handleEmail(req: Request, path: string, store: any) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 320) return fail(400, 'Indique um email válido do cliente.');
   if (typeof b.subject !== 'string' || !b.subject.trim() || b.subject.length > 300 || typeof b.text !== 'string' || !b.text.trim() || b.text.length > 20000) return fail(400, 'Dados inválidos.');
   if (!Array.isArray(b.links) || !b.links.length || b.links.length > 20) return fail(400, 'Dados inválidos.');
-  const attachments = [];
+  const attachments = [], ids: number[] = [];
   for (const link of b.links) {
-    const token = String(link).split('/api/pdf/')[1] || '';
+    const token = linkToken(link);
     if (!/^[A-Za-z0-9_-]{24}$/.test(token)) return fail(400, 'Dados inválidos.');
     const r = await store.getWithMetadata('pdf-' + token, { type: 'arrayBuffer' });
     if (!r) return fail(404, 'O PDF do orçamento já não existe. Prepare o envio novamente.');
+    if (Number.isInteger(r.metadata?.quote)) ids.push(r.metadata.quote);
     attachments.push({ filename: String(r.metadata?.filename || 'Orcamento ENAT.pdf'), content: Buffer.from(r.data), contentType: 'application/pdf' });
   }
   const text = b.text.replace(/\*([^*\n]+)\*/g, '$1');
@@ -98,7 +111,7 @@ export async function handleEmail(req: Request, path: string, store: any) {
     const t = createTransport({ host: c.host, port: c.port, secure: c.port === 465, auth: { user: c.user, pass: c.pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
     const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
     // Composed once, so the client and the Sent folder get the very same message (same Message-ID).
-    const raw: Buffer = await new MailComposer({ from: { name: 'Enat - Energias', address: c.from }, to, replyTo: c.from, subject: b.subject.trim(), text, html: emailHtml(b.text), attachments }).compile().build();
+    const raw: Buffer = await new MailComposer({ from: { name: 'Enat - Energias', address: c.from }, to, replyTo: c.from, subject: b.subject.trim(), text, html: emailHtml(b.text, req.url ? new URL(req.url).origin : ''), attachments }).compile().build();
     const info = await t.sendMail({ envelope: { from: c.from, to: [to] }, raw });
     const accepted = (info.accepted || []).map((a: any) => String(a?.address || a).toLowerCase());
     if (!accepted.includes(to.toLowerCase())) {
@@ -106,6 +119,7 @@ export async function handleEmail(req: Request, path: string, store: any) {
       return fail(502, 'O servidor de email não aceitou o endereço ' + to + '. Confirme o email do cliente.');
     }
     // Like Outlook would, the message is saved in the mailbox's Sent folder instead of mailing a copy to it.
+    await Promise.all([...new Set(ids)].map(id => sent(id, 'Email')));
     if (process.env.EMAIL_SAVE_SENT !== 'false') await saveSent(c, raw).catch((e: any) => console.error('email sent folder', e?.code || e?.message));
     return Response.json({ ok: true, to });
   } catch (e: any) {

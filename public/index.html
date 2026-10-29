@@ -83,7 +83,7 @@ nav button.on{color:var(--blue)}
 .sbar{display:flex;align-items:center;gap:8px;background:var(--chip);border-radius:12px;padding:0 12px;margin-bottom:12px}.sbar svg{width:18px;height:18px;color:var(--mute)}.sbar input{flex:1;border:0;background:none;outline:0;padding:11px 0;font-size:17px}a{color:var(--blue)}.btn svg{vertical-align:-5px;margin-right:6px}.chips{flex-wrap:nowrap}
 .obra-seg{overflow-x:auto}.obra-seg button{flex:1 0 auto}.invoice-row{width:100%;border:0;background:var(--card);text-align:left}.invoice-row:focus-visible{outline-offset:-3px}.invoice-items .rt b,.invoice-items .rt span{white-space:normal;overflow-wrap:anywhere}.labor-entry{margin-top:14px}.labor-entry h2{margin-top:12px}.was{font-size:12px!important;color:var(--mute)}.was s{opacity:.8}.cat-pick{width:100%;border:0;background:var(--chip);border-radius:9px;padding:9px;font-size:15px}
 </style>
-<link rel="stylesheet" href="/quotes.css?v=20261028b"><link rel="stylesheet" href="/app.css?v=20261029">
+<link rel="stylesheet" href="/quotes.css?v=20261029"><link rel="stylesheet" href="/app.css?v=20261029">
 <script src="/vendor/jspdf.umd.min.js"></script>
 <script src="/vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="/quote-math.js?v=20261029"></script>
@@ -91,7 +91,8 @@ nav button.on{color:var(--blue)}
 <script src="/gestao.js?v=20261029"></script>
 <script src="/contabilista.js?v=20261029"></script>
 <script src="/price-tables.js?v=20261028"></script>
-<script src="/quotes.js?v=20261029"></script>
+<script src="/quote-obra.js?v=20261029"></script>
+<script src="/quotes.js?v=20261029b"></script>
 <script src="/pv-sizing.js?v=20261028"></script>
 <script src="/pv.js?v=20261028"></script>
 <script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
@@ -227,9 +228,9 @@ const planOf=c=>EnatGestao.planStatus(c.o,c.rec,today());
 const remindHref=(o,m)=>{const tel=waTel(o.phone);return tel&&m?'https://wa.me/'+tel+'?text='+encodeURIComponent(EnatGestao.reminder(o,{...m,missingText:eur(m.missing)})):''};
 const lateList=()=>all().filter(c=>c.o.status!=='orcamento').map(c=>({c,p:planOf(c)})).filter(x=>x.p.overdue>.005).sort((a,b)=>b.p.overdue-a.p.overdue);
 const lateRow=({c,p})=>{const m=p.items.find(x=>x.state==='atraso'),h=remindHref(c.o,m);return`<div class="row kv late"><div class="rt" data-a="open" data-id="${esc(c.o.id)}" data-s="recebimentos"><b>${esc(c.o.name)}</b><span>${esc(c.o.client)} · ${esc(m.desc)} · venceu ${esc(fd(m.date))}</span></div><div class="rr"><b class="neg">${eur(p.overdue)}</b>${h?`<a class="mini" target="_blank" rel="noopener" href="${h}">Lembrar no WhatsApp</a>`:'<span>Sem telemóvel</span>'}</div></div>`};
-const quoteMiniRow=r=>`<button class="row invoice-row" data-a="openquote" data-id="${r.id}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${quoteNumber(r.id,r.document.date)} ${quoteBadge(r.document)}</b><span>${esc(r.document.client)} · ${esc(quoteTitle(r.document).replace('Orçamento para ',''))}</span></div><div class="rr"><b>${eur(quoteTotals(r.document).total)}</b><span>${esc(fd(r.document.date))}</span></div></button>`;
+const quoteMiniRow=r=>`<button class="row invoice-row" data-a="openquote" data-id="${r.id}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${quoteNumber(r.id,r.document.date)} ${quoteBadge(r.document,r.events)}</b><span>${esc(r.document.client)} · ${esc(quoteTitle(r.document).replace('Orçamento para ',''))}</span></div><div class="rr"><b>${eur(quoteTotals(r.document).total)}</b><span>${esc(fd(r.document.date))}</span></div></button>`;
 // Orçamentos para a pesquisa global e para os clientes; carregam uma vez, quando são precisos.
-function ensureQuotes(){if(quoteRows===null&&!quoteLoading&&SESS())loadQuotes().then(()=>{if(['cli','home'].includes(V.tab)&&!V.obra){const g=$('#gres');if(g&&V.tab==='home')g.innerHTML=globalRes();else if(idle())render()}})}
+function ensureQuotes(){if(quoteRows===null&&!quoteLoading&&!quoteError&&SESS())loadQuotes().then(()=>{if(['cli','home'].includes(V.tab)&&!V.obra){const g=$('#gres');if(g&&V.tab==='home'&&V.gq)g.innerHTML=globalRes();else if(idle())render()}})}
 const clientRow=c=>`<button class="row invoice-row" data-a="cli" data-id="${esc(c.key)}"><div class="av">${esc((c.name[0]||'?').toUpperCase())}</div><div class="rt"><b>${esc(c.name)}</b><span>${esc([c.phone,c.obras.length+(c.obras.length===1?' obra':' obras'),c.quotes.length+(c.quotes.length===1?' orçamento':' orçamentos')].filter(Boolean).join(' · '))}</span></div><div class="rr"><b>${eur(c.obras.reduce((s,o)=>s+(+o.valor||0),0))}</b><span>em obras</span></div></button>`;
 function globalRes(){
  const q=V.gq||'',r=EnatGestao.search(S,quoteRows||[],q,r=>quoteNumber(r.id,r.document.date));if(!r)return'';
@@ -239,9 +240,10 @@ function globalRes(){
  return (out||'<div class="grp empty">Nada encontrado. Experimente outra palavra.</div>')+(quoteRows===null?'<p class="note">A carregar também os orçamentos…</p>':'');
 }
 function vHome(){
- const a=all(),c=sumC(a),late=lateList(),act=a.filter(x=>x.o.status==='em_curso');
+ ensureQuotes();const a=all(),c=sumC(a),late=lateList(),act=a.filter(x=>x.o.status==='em_curso'),ans=quoteUnread();
  return`<h1>Início</h1><div class="sbar">${ic('search')}<input id="gq" type="search" value="${esc(V.gq||'')}" aria-label="Pesquisar em toda a app" placeholder="Procurar obras, clientes, faturas, orçamentos" autocomplete="off"></div><div id="gres">${globalRes()}</div>
  <div id="homebody" ${V.gq?'hidden':''}>${hero(c,'Lucro previsto em todas as obras')}<button class="btn quick" data-a="quickscan">${ic('cam')}Fotografar fatura</button>${acts()}
+ ${ans.length?`<h2>Respostas de clientes (${ans.length})</h2><div class="grp">${ans.map(quoteMiniRow).join('')}</div>`:''}
  ${late.length?`<h2>Pagamentos em atraso · ${eur(late.reduce((s,x)=>s+x.p.overdue,0))}</h2><div class="grp">${late.map(lateRow).join('')}</div>`:''}
  <div class="tiles">${[['cli','Clientes','user'],['rel','Relatórios','chart'],['mov','Movimentos','list'],['def','Definições','gear']].map(([k,l,i])=>`<button class="tile" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('')}</div>
  <h2>Obras em curso</h2><div class="grp">${act.length?act.map(obraRow).join(''):'<div class="empty">Sem obras em curso. Veja todas no separador Obras.</div>'}</div>
@@ -311,7 +313,7 @@ function lineItem(i){
  net=net??0;
  return{name:String(i.name||'Artigo'),qty,unit:i.unit||'un',unit_price:net,...(list!==null?{list_price:Math.round(list*1e4)/1e4,discount:r2(disc)}:{}),vat:fin(i.vat)??23,total:tot??qty*net,cat:CATS.includes(i.cat)?i.cat:'Outros / consumíveis'};
 }
-const EQ=['Piso radiante','Ar condicionado','Bomba de calor climatização','Bomba de calor AQS','Ventiloconvectores','VMC','UPAC (fotovoltaico)','Solar térmico'];
+const EQ=EnatQuoteObra.EQ;
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const match=(n,q)=>{const h=norm(n);return norm(q).split(/\s+/).filter(Boolean).every(w=>h.includes(w))};
@@ -730,7 +732,7 @@ async function entrarOffline(){
 window.addEventListener('online',()=>{if(OFFLINE){OFFLINE=false;bloquear('A ligação voltou. Faça login para sincronizar as alterações feitas sem rede.')}else if(SESS())pull()});
 window.addEventListener('offline',()=>setSync('off'));
 
-function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render()}
+function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill();quoteRefresh()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render()}
 async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});const t=(await post('auth/registo',{cid:o.cid,response},code)).token;localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 // Face ID: vai direto à chave guardada neste dispositivo. Touch ID: deixa o sistema escolher qualquer chave (outro sensor ou dispositivo).
 async function entrar(local){const o=await post('auth/entrar-opcoes',local&&CRED()?{id:CRED()}:{});const response=await SWA.startAuthentication({optionsJSON:o.options});const t=(await post('auth/entrar',{cid:o.cid,response})).token;if(response.authenticatorAttachment!=='cross-platform')localStorage.setItem('enat-cred',response.id);desbloquear(t)}

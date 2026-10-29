@@ -1,7 +1,7 @@
 /* Funcionamento sem rede: a app abre a partir da cópia guardada quando não há ligação.
    Com rede, vai sempre buscar a versão mais recente (primeiro a rede, depois a cópia). Os dados (/api) nunca ficam em cache. */
-const CACHE = 'enat-app-v3';
-const SHELL = ['/', '/enat-logo.png', '/manifest.json', '/quotes.css', '/app.css', '/sync.js', '/gestao.js', '/contabilista.js', '/quote-math.js', '/quote-obra.js', '/price-tables.js', '/quotes.js', '/pv-sizing.js', '/pv.js', '/excel-export.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js', '/vendor/exceljs.min.js', '/apple-touch-icon.png', '/favicon-32x32.png', '/pwa-192x192.png'];
+const CACHE = 'enat-app-v4';
+const SHELL = ['/', '/enat-logo.png', '/manifest.json', '/quotes.css', '/app.css', '/sync.js', '/gestao.js', '/contabilista.js', '/quote-math.js', '/quote-obra.js', '/price-tables.js', '/quotes.js', '/leads.js', '/pv-sizing.js', '/pv.js', '/excel-export.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js', '/vendor/exceljs.min.js', '/apple-touch-icon.png', '/favicon-32x32.png', '/pwa-192x192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));

@@ -83,16 +83,17 @@ nav button.on{color:var(--blue)}
 .sbar{display:flex;align-items:center;gap:8px;background:var(--chip);border-radius:12px;padding:0 12px;margin-bottom:12px}.sbar svg{width:18px;height:18px;color:var(--mute)}.sbar input{flex:1;border:0;background:none;outline:0;padding:11px 0;font-size:17px}a{color:var(--blue)}.btn svg{vertical-align:-5px;margin-right:6px}.chips{flex-wrap:nowrap}
 .obra-seg{overflow-x:auto}.obra-seg button{flex:1 0 auto}.invoice-row{width:100%;border:0;background:var(--card);text-align:left}.invoice-row:focus-visible{outline-offset:-3px}.invoice-items .rt b,.invoice-items .rt span{white-space:normal;overflow-wrap:anywhere}.labor-entry{margin-top:14px}.labor-entry h2{margin-top:12px}.was{font-size:12px!important;color:var(--mute)}.was s{opacity:.8}.cat-pick{width:100%;border:0;background:var(--chip);border-radius:9px;padding:9px;font-size:15px}
 </style>
-<link rel="stylesheet" href="/quotes.css?v=20261029"><link rel="stylesheet" href="/app.css?v=20261029">
+<link rel="stylesheet" href="/quotes.css?v=20261029b"><link rel="stylesheet" href="/app.css?v=20261029b">
 <script src="/vendor/jspdf.umd.min.js"></script>
 <script src="/vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="/quote-math.js?v=20261029"></script>
-<script src="/sync.js?v=20261029"></script>
+<script src="/sync.js?v=20261029b"></script>
 <script src="/gestao.js?v=20261029"></script>
 <script src="/contabilista.js?v=20261029"></script>
 <script src="/price-tables.js?v=20261028"></script>
 <script src="/quote-obra.js?v=20261029"></script>
-<script src="/quotes.js?v=20261029b"></script>
+<script src="/quotes.js?v=20261029c"></script>
+<script src="/leads.js?v=20261029"></script>
 <script src="/pv-sizing.js?v=20261028"></script>
 <script src="/pv.js?v=20261028"></script>
 <script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
@@ -112,11 +113,11 @@ const eur=n=>new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'}).fo
 const pc=n=>(isFinite(n)?n:0).toFixed(1).replace('.',',')+'%';
 const fd=d=>{try{return new Date(d+'T12:00').toLocaleDateString('pt-PT',{day:'numeric',month:'short'})}catch(e){return d}};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-const TOPICS=['VMC','Bomba de calor AQS','Bomba de calor climatização','Ar condicionado','Ventiloconvectores','UPAC (fotovoltaico)','Piso radiante','Geral / outros'];
+const TOPICS=['VMC','Bomba de calor AQS','Bomba de calor climatização','Ar condicionado','Ventiloconvectores','UPAC (fotovoltaico)','Painéis solares térmicos','Carregador automóvel','Piso radiante','Geral / outros'];
 const TY={recebimento:'Recebimento',fatura:'Fatura',despesa:'Despesa',mao_obra:'Mão de obra'};
 const STAT={em_curso:'Em curso',concluida:'Concluída',orcamento:'Orçamento',pausada:'Pausada'};
 const P={
- home:'<path d="M4 11l8-7 8 7v9H4zM10 20v-6h4v6"/>',obras:'<path d="M4 21V8l8-4 8 4v13M9 21v-6h6v6M9 11h6"/>',list:'<path d="M5 7h14M5 12h14M5 17h14"/>',
+ home:'<path d="M4 11l8-7 8 7v9H4zM10 20v-6h4v6"/>',lead:'<path d="M4 5h16l-6 7.5V18l-4 2v-7.5z"/>',obras:'<path d="M4 21V8l8-4 8 4v13M9 21v-6h6v6M9 11h6"/>',list:'<path d="M5 7h14M5 12h14M5 17h14"/>',
  iva:'<path d="M18 6L6 18"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
  recebimento:'<path d="M12 5v14M6 13l6 6 6-6"/>',fatura:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/>',
  despesa:'<path d="M5 8h14l-1 12H6zM9 8a3 3 0 016 0"/>',mao_obra:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
@@ -138,7 +139,7 @@ const demo=()=>({vat:23,obras:[
  {id:'t8',obra:'o2',type:'fatura',desc:'2 splits murais 18000 BTU',topic:'Ar condicionado',date:'2026-09-28',total:2214,rate:23},
  {id:'t9',obra:'o2',type:'mao_obra',desc:'Instalação · 2 dias',topic:'Ar condicionado',date:'2026-10-08',total:640,rate:0}]});
 let S;try{S=JSON.parse(localStorage.getItem('enat-contas-2'))}catch(e){}
-if(!S||!S.obras)S={vat:23,obras:[],tx:[]};S.inv=S.inv||[];
+if(!S||!S.obras)S={vat:23,obras:[],tx:[]};S.inv=S.inv||[];S.leads=S.leads||[];
 // Cada gravação marca as obras, movimentos e faturas alterados, para juntar com outros dispositivos sem perder nada.
 const save=()=>{LAST=EnatSync.stamp(S,LAST);S.ts=Date.now();try{localStorage.setItem('enat-contas-2',JSON.stringify(S))}catch(e){}push()};
 let V={tab:'home',obra:null,seg:'contas',f:'todos'},D=null;
@@ -236,12 +237,12 @@ function globalRes(){
  const q=V.gq||'',r=EnatGestao.search(S,quoteRows||[],q,r=>quoteNumber(r.id,r.document.date));if(!r)return'';
  const cl=EnatGestao.clients(S.obras,quoteRows||[]).filter(c=>match([c.name,c.phone,c.email,c.nif].join(' '),q));
  const sec=(t,l,f)=>l.length?`<h2>${t} (${l.length})</h2><div class="grp">${l.slice(0,15).map(f).join('')}</div>`:'';
- const out=sec('Clientes',cl,clientRow)+sec('Obras',r.obras,o=>obraRow(calc(o)))+sec('Orçamentos',r.quotes,quoteMiniRow)+sec('Faturas',r.inv,invRow)+sec('Movimentos',srt(r.tx),x=>txRow(x,1));
+ const out=sec('Leads',leadSearch(q),leadRow)+sec('Clientes',cl,clientRow)+sec('Obras',r.obras,o=>obraRow(calc(o)))+sec('Orçamentos',r.quotes,quoteMiniRow)+sec('Faturas',r.inv,invRow)+sec('Movimentos',srt(r.tx),x=>txRow(x,1));
  return (out||'<div class="grp empty">Nada encontrado. Experimente outra palavra.</div>')+(quoteRows===null?'<p class="note">A carregar também os orçamentos…</p>':'');
 }
 function vHome(){
  ensureQuotes();const a=all(),c=sumC(a),late=lateList(),act=a.filter(x=>x.o.status==='em_curso'),ans=quoteUnread();
- return`<h1>Início</h1><div class="sbar">${ic('search')}<input id="gq" type="search" value="${esc(V.gq||'')}" aria-label="Pesquisar em toda a app" placeholder="Procurar obras, clientes, faturas, orçamentos" autocomplete="off"></div><div id="gres">${globalRes()}</div>
+ return`<h1>Início</h1><div class="sbar">${ic('search')}<input id="gq" type="search" value="${esc(V.gq||'')}" aria-label="Pesquisar em toda a app" placeholder="Procurar leads, obras, clientes, faturas, orçamentos" autocomplete="off"></div><div id="gres">${globalRes()}</div>
  <div id="homebody" ${V.gq?'hidden':''}>${hero(c,'Lucro previsto em todas as obras')}<button class="btn quick" data-a="quickscan">${ic('cam')}Fotografar fatura</button>${acts()}
  ${ans.length?`<h2>Respostas de clientes (${ans.length})</h2><div class="grp">${ans.map(quoteMiniRow).join('')}</div>`:''}
  ${late.length?`<h2>Pagamentos em atraso · ${eur(late.reduce((s,x)=>s+x.p.overdue,0))}</h2><div class="grp">${late.map(lateRow).join('')}</div>`:''}
@@ -407,7 +408,7 @@ function matRes(){
  if(!q){
   if(V.mc)return inCat.length?productList(inCat,V.mc):`<div class="grp"><div class="empty">Ainda não há produtos em ${esc(V.mc)}.</div></div>`;
   const recent=S.inv.slice().reverse().slice(0,3);
-  return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>${all.length?productList(all.slice(0,30),'Produtos recentes'):''}${tableBrands()}`}
+  return`<h2>Últimas faturas anexadas</h2><div class="grp">${recent.length?recent.map(invRow).join(''):'<div class="empty">Ainda sem faturas. Dentro de uma obra, adicione uma foto ou PDF.</div>'}</div>${tableBrands()}`}
  // Cada palavra pode corresponder ao produto, ao fornecedor, ao NIF ou ao n.º da fatura; nas tabelas, à marca, referência ou grupo.
  const found=inCat.filter(p=>matchesProduct(p.name,q)||p.buys.some(b=>matchesProduct(p.name+' '+invText(b.v),q)));
  const invs=S.inv.slice().reverse().filter(v=>matchesProduct(invText(v),q));
@@ -485,7 +486,7 @@ async function copiaAgora(){clearTimeout(pt);if(!(await sendState().catch(()=>nu
 async function restaurar(id){
  if(!confirm(`Restaurar a cópia de ${copiaLabel(id)}? O estado atual fica guardado numa cópia nova antes do restauro.`))return;
  try{await copiaAgora();const r=await API('estado/copias/'+id);if(!r.ok)throw new Error('Cópia não encontrada.');const {state}=await r.json();
-  S={...state,del:S.del||{}};S.obras=S.obras||[];S.tx=S.tx||[];S.inv=S.inv||[];S.tx.forEach(withBase);save();COPIAS=null;render();alert('Cópia restaurada.')}
+  S={...state,del:S.del||{}};S.obras=S.obras||[];S.tx=S.tx||[];S.inv=S.inv||[];S.leads=S.leads||[];S.tx.forEach(withBase);save();COPIAS=null;render();alert('Cópia restaurada.')}
  catch(e){alert(e.message||'Não foi possível restaurar a cópia.')}
 }
 const jpg=c=>new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('Não foi possível preparar a foto.')),'image/jpeg',.9));
@@ -577,8 +578,8 @@ const num=v=>{const n=parseFloat(String(v).replace(/\s/g,'').replace(',','.'));r
 /* ---------- render ---------- */
 function render(){
  trackNavigation();
- $('#app').innerHTML=V.obra?vObra():({home:vHome,obras:vObras,mov:vMov,iva:vIva,mat:vMat,man:vMan,orc:vQuotes,cli:vClientes,rel:vRel,def:vDef}[V.tab]||vHome)();syncPill();
- $('#nav').innerHTML=[['home','Início','home'],['obras','Obras','obras'],['mat','Pesquisa','search'],['orc','Orçamentos','fatura'],['man','Manutenção','manut'],['iva','IVA','iva']].map(([k,l,i])=>`<button class="${(V.obra?k==='obras':({cli:'home',rel:'home',def:'home',mov:'home'}[V.tab]||V.tab)===k)?'on':''}" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('');
+ $('#app').innerHTML=V.obra?vObra():({home:vHome,obras:vObras,mov:vMov,iva:vIva,mat:vMat,man:vMan,orc:vQuotes,leads:vLeads,cli:vClientes,rel:vRel,def:vDef}[V.tab]||vHome)();syncPill();
+ $('#nav').innerHTML=[['home','Início','home'],['leads','Leads','lead'],['obras','Obras','obras'],['mat','Pesquisa','search'],['orc','Orçamentos','fatura'],['man','Manutenção','manut'],['iva','IVA','iva']].map(([k,l,i])=>`<button class="${(V.obra?k==='obras':({cli:'home',rel:'home',def:'home',mov:'home'}[V.tab]||V.tab)===k)?'on':''}" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('');
 }
 document.addEventListener('click',async e=>{
  if(D?.saving)return;
@@ -668,7 +669,7 @@ document.addEventListener('click',async e=>{
   // Apagar tudo pede confirmação escrita e guarda antes uma cópia de segurança no servidor.
   if((prompt('Isto apaga todas as obras, movimentos e faturas em todos os dispositivos. Para confirmar, escreva APAGAR')||'').trim().toUpperCase()!=='APAGAR')return;
   try{await copiaAgora()}catch(e){alert(e.message+' Nada foi apagado.');return}
-  S={vat:S.vat,obras:[],tx:[],inv:[],del:S.del||{}};save();COPIAS=null;alert('Dados apagados. Pode recuperá-los em Definições › Cópias de segurança.')}
+  S={vat:S.vat,obras:[],tx:[],inv:[],leads:[],del:S.del||{}};save();COPIAS=null;alert('Dados apagados. Pode recuperá-los em Definições › Cópias de segurança.')}
  render();
 });
 document.addEventListener('input',e=>{const t=e.target,k=t.dataset&&t.dataset.k;
@@ -687,9 +688,9 @@ let SYNC='off',pt,SYNCAT=0,OFFLINE=false;
 let BASE=(()=>{const v=localStorage.getItem('enat-base');return v===null?null:+v})();
 const setBase=t=>{BASE=t;try{localStorage.setItem('enat-base',String(t))}catch(e){}};
 const keep=()=>{try{localStorage.setItem('enat-contas-2',JSON.stringify(S))}catch(e){}};
-const idle=()=>!D&&!quoteDraft&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-const adopt=s=>{S=s;S.inv=S.inv||[];S.tx.forEach(withBase);LAST=EnatSync.snap(S);keep();if(idle())render()};
-function mergeRemote(r){S=EnatSync.merge(S,r);S.inv=S.inv||[];S.tx.forEach(withBase);LAST=EnatSync.snap(S);setBase(r.ts||0);S.ts=Date.now();keep();if(idle())render()}
+const idle=()=>!D&&!quoteDraft&&!leadDraft&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+const adopt=s=>{S=s;S.inv=S.inv||[];S.leads=S.leads||[];S.tx.forEach(withBase);LAST=EnatSync.snap(S);keep();if(idle())render()};
+function mergeRemote(r){S=EnatSync.merge(S,r);S.inv=S.inv||[];S.leads=S.leads||[];S.tx.forEach(withBase);LAST=EnatSync.snap(S);setBase(r.ts||0);S.ts=Date.now();keep();if(idle())render()}
 const ago=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?'agora':m<60?'há '+m+' min':'há '+Math.round(m/60)+' h'};
 const syncText=()=>SYNC==='saving'?'A sincronizar…':SYNC==='ok'?'Sincronizado '+ago(SYNCAT):OFFLINE||!navigator.onLine?'Sem ligação · guardado neste dispositivo':'Por sincronizar · guardado neste dispositivo';
 function syncPill(){const b=$('#sync');if(!b)return;b.className='sync '+SYNC;b.textContent=SYNC==='ok'?'Sincronizado':SYNC==='saving'?'A sincronizar…':OFFLINE||!navigator.onLine?'Sem ligação':'Por sincronizar';b.title=syncText()}

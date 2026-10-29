@@ -1,7 +1,7 @@
-/* Sincronização entre dispositivos: cada obra, movimento e fatura alterada fica com a hora da alteração (u)
+/* Sincronização entre dispositivos: cada obra, movimento, fatura e lead alterada fica com a hora da alteração (u)
    e cada item apagado fica registado em del. Assim, duas versões editadas ao mesmo tempo juntam-se sem perder nada. */
 (function(root){
- const KEYS=['obras','tx','inv'],KEEP=90*864e5;
+ const KEYS=['obras','tx','inv','leads'],KEEP=90*864e5;
  const body=x=>{const {u,...r}=x;return JSON.stringify(r)};
  // Fotografia do estado: chave "coleção:id" com o conteúdo de cada item.
  function snap(S){const m={};for(const k of KEYS)for(const x of S[k]||[])m[k+':'+x.id]=body(x);return m}

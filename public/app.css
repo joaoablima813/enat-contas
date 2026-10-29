@@ -29,3 +29,18 @@ a.mini,button.mini{display:inline-block;margin-top:4px;font-size:13px;font-weigh
 .trk i.neg{background:var(--red)}.trk i.pos{background:var(--green)}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--mute);margin:0 0 10px}.legend b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 @media (max-width:360px){.tiles{grid-template-columns:repeat(2,1fr)}}
+
+/* Leads: cada fase tem a sua cor (nova a roxo, proposta enviada e adjudicado a verde, perdido a vermelho). */
+.lead-nova{--lc:#8b5cf6}.lead-contacto{--lc:var(--blue)}.lead-triagem{--lc:var(--amber)}.lead-orcamento{--lc:#f97316}.lead-enviada{--lc:#34c77b}.lead-ganho{--lc:#0e8a45}.lead-visita{--lc:#0ea5e9}.lead-perdido{--lc:var(--red)}
+.lead-badge{display:inline-block;padding:3px 9px;border-radius:10px;font-size:12px;font-weight:700;color:var(--lc);background:color-mix(in srgb,var(--lc) 15%,transparent)}
+.lead-row{box-shadow:inset 4px 0 0 var(--lc)}.lead-row .av{background:color-mix(in srgb,var(--lc) 18%,transparent);color:var(--lc)}
+.lead-row.lead-perdido{background:color-mix(in srgb,var(--red) 8%,var(--card))}
+.lead-call{display:inline-block;margin-left:6px;font-weight:600}.lead-call::before{content:"· "}.lead-call:first-child{margin-left:0}.lead-call:first-child::before{content:""}
+.lead-ed{margin-top:14px;padding:4px 14px 14px;border-radius:18px;border:2px solid var(--lc);background:color-mix(in srgb,var(--lc) 9%,var(--card))}.lead-ed h2{margin-top:12px}
+.lead-opts{display:flex;flex-wrap:wrap;gap:8px}
+.lead-opt{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px 13px;border-radius:12px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.lead-opt.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.lead-stages .lead-opt{border-color:color-mix(in srgb,var(--lc) 45%,var(--line));color:var(--lc)}.lead-stages .lead-opt.on{background:var(--lc);border-color:var(--lc);color:#fff}
+.lead-opt.lead-yes.on{background:var(--green);border-color:var(--green)}.lead-opt.lead-no.on{background:var(--red);border-color:var(--red)}
+.lead-add{display:flex;gap:8px;margin-top:10px;align-items:center}.lead-add input{flex:1;min-width:0;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px}.lead-add .btn{width:auto;margin:0;padding:11px 16px;font-size:15px}
+.lead-q+.lead-q{border-top:1px solid var(--line)}.lead-q .link{display:block;padding:0 14px 12px 66px;font-size:14px}

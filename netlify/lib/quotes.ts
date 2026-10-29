@@ -48,7 +48,9 @@ export async function handleQuotes(req:Request,path:string){
     if(b.status!==undefined&&!['rascunho','enviado','aceite','recusado'].includes(b.status))return fail(400,'Estado do orçamento inválido.');
     if(b.validity!==undefined&&(!Number.isInteger(b.validity)||b.validity<1||b.validity>365))return fail(400,'Indique uma validade entre 1 e 365 dias.');
     if(b.obra!==undefined&&(typeof b.obra!=='string'||b.obra.length>40))return fail(400,'Obra inválida.');
-    const extra=['status','validity','obra'].filter(k=>b[k]!==undefined&&b[k]!=='');
+    // The lead the quote was created from, so the lead shows its quotes.
+    if(b.lead!==undefined&&(typeof b.lead!=='string'||b.lead.length>40))return fail(400,'Lead inválida.');
+    const extra=['status','validity','obra','lead'].filter(k=>b[k]!==undefined&&b[k]!=='');
     const document:any=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[]),...extra].map(k=>[k,b[k]]));
     if(match){
       // The client may have answered while this copy was open: their status and the job created from it are kept.
@@ -56,6 +58,7 @@ export async function handleQuotes(req:Request,path:string){
       const old:any=cur?.document||{};
       if(old.clientAt){document.clientAt=old.clientAt;if(b.clientAt!==old.clientAt){for(const k of ['status','obra'])if(old[k]!==undefined)document[k]=old[k];else delete document[k]}}
       if(!document.obra&&old.obra)document.obra=old.obra;
+      if(!document.lead&&old.lead)document.lead=old.lead;
     }
     const rows=match?await db.update(quotes).set({document,updatedAt:new Date()}).where(eq(quotes.id,Number(match[1]))).returning():await db.insert(quotes).values({document}).returning();
     return rows.length?Response.json(rows[0],{status:match?200:201}):fail(404,'Orçamento não encontrado.');

@@ -102,10 +102,10 @@ test('invoice lines keep the discounted price and the price before discount',()=
  i=run("lineItem({name:'Tubo',qty:2,unit_price:5,list_price:null,discount:null,total_no_vat:10,cat:'Cobre'})");
  assert.equal(i.list_price,undefined);assert.equal(i.discount,undefined);assert.equal(i.cat,'Cobre');
 });
-test('clearing search restores recent invoices and recent products',()=>{
+test('clearing search shows only the latest invoices, without the long product list',()=>{
  run("V.q=''");
  assert.match(run('matRes()'),/Últimas faturas anexadas/);
- assert.match(run('matRes()'),/Produtos recentes \(4\)/);
+ assert.doesNotMatch(run('matRes()'),/Produtos recentes/);
 });
 test('the brand price tables are searchable by brand, reference and name',()=>{
  run(`globalThis.PRICE_TABLES=[{brand:'LG',table:'Tabela LG',discount:50,products:[{group:['Ar condicionado','Multisplit','Unidade exterior'],ref:'MU2R15.U18A0',name:'Unidade exterior multisplit 2 saídas',price:1295}]},

@@ -35,7 +35,7 @@ test('server stores the PDF behind a private link that serves it back',async()=>
  const c=server([{id:42,document:sample}]);
  c.req={method:'POST',url:'https://enat.example/api/whatsapp/pdf',json:async()=>({id:42,pdf:Buffer.from('%PDF-1.4').toString('base64')})};
  const r=await vm.runInContext("handleWhatsapp(req,'whatsapp/pdf',store)",c);
- assert.equal(r.status,200);const {url}=await r.json();assert.match(url,/^https:\/\/enat\.example\/api\/pdf\/[A-Za-z0-9_-]{24}$/);
+ assert.equal(r.status,200);const {url}=await r.json();assert.match(url,/^https:\/\/enat\.example\/proposta\/[A-Za-z0-9_-]{24}$/);
  const pdf=await vm.runInContext(`servePdf('pdf/${url.split('/').pop()}',store)`,c);
  assert.equal(pdf.headers.get('content-type'),'application/pdf');assert.match(pdf.headers.get('content-disposition'),/ORC%20N%C2%BA%202026-0042%20Cliente%20de%20teste\.pdf/);
  assert.equal(Buffer.from(await pdf.arrayBuffer()).toString(),'%PDF-1.4');

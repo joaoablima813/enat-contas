@@ -64,3 +64,17 @@
 .pv-legend{display:flex;gap:16px;font-size:12px;color:var(--mute);margin:0 0 12px}
 .pv-legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;background:#f2a900;margin-right:6px;vertical-align:-1px}.pv-legend span+span::before{background:var(--blue)}
 .pv .q-break span{min-width:0;overflow-wrap:anywhere}.pv .q-break b{text-align:right}
+/* Acompanhamento do cliente: visto, respostas e histórico. */
+.q-visto{background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green)}
+.q-new{background:var(--amber);color:#fff}
+.q-revisao,.q-pensar{background:color-mix(in srgb,var(--amber) 18%,transparent);color:color-mix(in srgb,var(--amber) 70%,var(--ink))}
+.q-answer{background:var(--card);border-radius:16px;padding:12px 14px;margin-bottom:10px;border-left:4px solid var(--mute)}
+.q-answer b{display:block;font-size:17px}.q-answer span{display:block;font-size:13px;color:var(--mute)}.q-answer p{margin:6px 0 0;font-size:14.5px}
+.q-a-aceite{border-color:var(--green)}.q-a-recusado,.q-a-expirado{border-color:var(--red)}.q-a-revisao,.q-a-pensar{border-color:var(--amber)}
+.q-warn{background:color-mix(in srgb,var(--amber) 16%,transparent);border-radius:12px;padding:10px 12px;font-size:14px;margin:0 0 10px}
+.q-hist-h{margin:14px 6px 6px;font-size:14px;color:var(--mute)}
+.q-hist{list-style:none;margin:0;padding:4px 14px;background:var(--card);border-radius:16px}
+.q-hist li{position:relative;padding:9px 0 9px 18px;border-bottom:1px solid var(--line)}.q-hist li:last-child{border-bottom:0}
+.q-hist li::before{content:"";position:absolute;left:0;top:15px;width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.q-hist li b{display:block;font-size:14.5px;font-weight:600}.q-hist li span{font-size:12.5px;color:var(--mute)}
+.q-h-visto::before,.q-h-pdf::before{background:var(--blue)!important}.q-h-adjudicar::before{background:var(--green)!important}.q-h-rejeitar::before,.q-h-trocou::before{background:var(--red)!important}.q-h-revisao::before,.q-h-pensar::before,.q-h-mais_tarde::before{background:var(--amber)!important}

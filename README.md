@@ -43,6 +43,15 @@ Dentro de um orçamento, ou na pasta de um cliente (escolhendo os orçamentos de
 
 Não precisa de configuração nem tem custos: a mensagem sai do seu próprio WhatsApp Business. Se tiver o WhatsApp normal e o Business no mesmo telemóvel, escolha o Business quando o telemóvel perguntar. No telemóvel também pode usar **Partilhar o PDF como anexo** para enviar o ficheiro em vez do link.
 
+## 4.1 Página da proposta e respostas do cliente
+Os links enviados por WhatsApp e por email abrem uma página da Enat (`/proposta/…`) com o logótipo, o resumo da proposta, o valor, a validade, o botão **Ver orçamento completo (PDF)** e cinco respostas: **Adjudicar**, **Pedir revisão**, **Vou pensar**, **Fica para mais tarde** e **Rejeitar**. Quando são enviados vários orçamentos juntos, cada página mostra também as outras opções.
+
+- **Visto:** a app regista quando o cliente abre a página e o PDF. As pré-visualizações automáticas do WhatsApp e do email não contam, nem as aberturas num dispositivo onde a app Enat está instalada (para testar como cliente, use **Testar como cliente** na própria página).
+- **Na app:** cada orçamento mostra a etiqueta da resposta (Visto, Adjudicado, Pedido de revisão, A pensar, Mais tarde, Rejeitado), a secção **Acompanhamento do cliente** com o histórico, e as respostas novas aparecem em **Respostas de clientes** no Início e em Orçamentos.
+- **Adjudicar** marca o orçamento como Aceite e abre logo a obra, com o mesmo cliente, valor, custos previstos e plano 50/50. Se o cliente voltar a adjudicar, não é criada outra obra.
+- **Mudar de ideias:** o cliente pode mudar a resposta quando quiser; fica tudo no histórico. Se tinha adjudicado e muda, a obra não é apagada: a app avisa para a eliminar se já não avançar.
+- Os links enviados antes desta versão continuam a abrir só o PDF.
+
 ## 5. Enviar orçamentos por email (pontedelima@enat.pt)
 Os orçamentos têm um campo **Email do cliente (opcional)**. Em **Enviar ao cliente**, o botão **Enviar orçamento por email** envia a mesma mensagem do WhatsApp, com o PDF em anexo.
 

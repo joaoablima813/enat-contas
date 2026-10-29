@@ -183,6 +183,7 @@ ${list}
 function page(title: string, content: string) {
   return `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#122c3b"><title>${esc(title)}</title><link rel="icon" href="/favicon-32x32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
+#nl-badge-frame,[id^="nl-badge"]{display:none!important}
 :root{--navy:#122c3b;--navy2:#1d4a63;--green:#2f8f3a;--sun:#f3a51c;--ink:#14212b;--mute:#6b7780;--line:#e3e8ec;--bg:#f3f6f8;--red:#c8333b;--blue:#1d6fb8}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:0 14px 40px;max-width:640px;margin:0 auto}

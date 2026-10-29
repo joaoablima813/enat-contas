@@ -138,11 +138,38 @@ export default async (req) => {
     return handleWhatsapp(req, path, store);
   }
 
+  // Cópias de segurança: a primeira gravação de cada dia guarda o estado anterior; ficam os últimos 30 dias.
+  if (path === 'estado/copias') {
+    if (req.method === 'GET') {
+      const { blobs } = await store.list({ prefix: 'copia-' });
+      const list = await Promise.all(blobs.map(async ({ key }) => ({ id: key.slice(6), ...((await store.getMetadata(key))?.metadata || {}) })));
+      return json(200, list.sort((a, b) => b.id.localeCompare(a.id)));
+    }
+    if (req.method === 'POST') {
+      const cur = await store.get('estado', { type: 'json' });
+      if (cur) await guardarCopia(store, cur, new Date().toISOString().slice(0, 19).replace(/:/g, '-'));
+      return json(200, { ok: true });
+    }
+  }
+  if (path.startsWith('estado/copias/') && req.method === 'GET') {
+    const id = path.slice(14);
+    if (!COPIA.test(id)) return json(400);
+    const state = await store.get('copia-' + id, { type: 'json' });
+    return state ? json(200, { state }) : json(404);
+  }
+
   if (path === 'estado') {
     if (req.method === 'GET') return json(200, { state: (await store.get('estado', { type: 'json' })) || null });
     if (req.method === 'PUT') {
       let b; try { b = await req.json(); } catch { return json(400); }
       if (!b || !b.state) return json(400);
+      const cur = await store.get('estado', { type: 'json' });
+      // Outro dispositivo gravou entretanto: devolve a versão do servidor para a app juntar as duas.
+      if (cur && 'base' in b && (cur.ts || 0) !== b.base) return json(409, { state: cur });
+      if (cur) {
+        const dia = new Date().toISOString().slice(0, 10);
+        if (!(await store.getMetadata('copia-' + dia))) await guardarCopia(store, cur, dia);
+      }
       await store.setJSON('estado', b.state);
       if (process.env.SHEETS_WEBHOOK && b.sheets) {
         try { await fetch(process.env.SHEETS_WEBHOOK, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ code, sheets: b.sheets }) }); } catch {}
@@ -188,6 +215,15 @@ export default async (req) => {
 
   return json(404);
 };
+
+const COPIA = /^\d{4}-\d{2}-\d{2}(T\d{2}-\d{2}-\d{2})?$/;
+async function guardarCopia(store, state, id) {
+  const n = (k) => String((state[k] || []).length);
+  await store.setJSON('copia-' + id, state, { metadata: { ts: String(state.ts || 0), obras: n('obras'), tx: n('tx'), inv: n('inv') } });
+  const limite = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const { blobs } = await store.list({ prefix: 'copia-' });
+  await Promise.all(blobs.filter(({ key }) => key.slice(6, 16) < limite).map(({ key }) => store.delete(key)));
+}
 
 async function lerDocumento(mime, data) {
   try {

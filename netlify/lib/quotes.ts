@@ -35,7 +35,12 @@ export async function handleQuotes(req:Request,path:string){
     if(b.address.length>4000)return fail(400,'Morada demasiado longa.');
     // The optional PV sizing keeps its inputs and the figures shown in the PDF.
     if(b.pv!==undefined&&b.pv!==null&&(typeof b.pv!=='object'||Array.isArray(b.pv)||JSON.stringify(b.pv).length>30000))return fail(400,'Dimensionamento fotovoltaico inválido.');
-    const document=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[])].map(k=>[k,b[k]]));
+    // Follow-up: status, validity in days and the job created from an accepted quote.
+    if(b.status!==undefined&&!['rascunho','enviado','aceite','recusado'].includes(b.status))return fail(400,'Estado do orçamento inválido.');
+    if(b.validity!==undefined&&(!Number.isInteger(b.validity)||b.validity<1||b.validity>365))return fail(400,'Indique uma validade entre 1 e 365 dias.');
+    if(b.obra!==undefined&&(typeof b.obra!=='string'||b.obra.length>40))return fail(400,'Obra inválida.');
+    const extra=['status','validity','obra'].filter(k=>b[k]!==undefined&&b[k]!=='');
+    const document=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[]),...extra].map(k=>[k,b[k]]));
     const rows=match?await db.update(quotes).set({document,updatedAt:new Date()}).where(eq(quotes.id,Number(match[1]))).returning():await db.insert(quotes).values({document}).returning();
     return rows.length?Response.json(rows[0],{status:match?200:201}):fail(404,'Orçamento não encontrado.');
   }catch(error){return fail(error instanceof SyntaxError?400:503,error instanceof SyntaxError?'Dados inválidos.':'Não foi possível aceder aos orçamentos. Tente novamente.');}

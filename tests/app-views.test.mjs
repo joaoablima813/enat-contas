@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','leads.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -72,4 +72,41 @@ test('quotes show when the client opened them, their answer and the history, and
  assert.match(ed,/Acompanhamento do cliente/);assert.match(ed,/A pensar/);assert.match(ed,/«Falar com a família»/);assert.match(ed,/O cliente tinha adjudicado e mudou para «A pensar»/);
  assert.match(ed,/O cliente abriu o PDF/);assert.match(ed,/Enviado por WhatsApp/);assert.match(ed,/Respondeu: Adjudicado/);
  assert.equal(run('quoteUnread().length'),0,'opening the quote marks the answer as seen');
+});
+test('leads: colored stages, optional fields, a quote prefilled from the lead and its quotes listed',()=>{
+ const leads=[{id:'l1',name:'Ana Costa',contact:'913000000',email:'ana@exemplo.pt',address:'Rua A, Ponte de Lima',brand:'LG',stage:'perdido',solutions:['Ar condicionado','Painéis fotovoltaicos','Carregador automóvel'],call:'nao',house:'Moradia',date:'2026-10-20'},
+  {id:'l2',name:'Rui',stage:'nova',solutions:[],date:'2026-10-21'}];
+ const {run}=app({...state,leads});
+ const list=run("V.tab='leads';vLeads()");
+ assert.match(list,/lead-row lead-perdido/);assert.match(list,/lead-row lead-nova/);assert.match(list,/Não atendeu/);
+ run("V.ls='perdido'");assert.ok(!run('leadsList()').includes('Rui'));run("V.ls='';V.lq='costa'");assert.ok(!run('leadsList()').includes('Rui'));run("V.lq=''");
+ // Nothing is required: an empty new lead saves with today's date.
+ run("leadDraft=leadNew();leadDraft.name='  Teste ';leadDraft.date='';leadSave()");
+ assert.equal(run("S.leads.at(-1).name"),'Teste');assert.equal(run("S.leads.at(-1).date"),run('leadToday()'));
+ run("leadOpen('l1')");const ed=run('vLeads()');
+ assert.match(ed,/Fatura elétrica/);assert.match(ed,/lead-ed lead-perdido/);assert.match(ed,/Orçamentos desta lead/);
+ run("leadDraft.solutions=['VMC']");assert.ok(!run('vLeads()').includes('Fatura elétrica'),'the electricity bill only shows for PV');
+ run("leadOpen('l1');quoteRows=[{id:7,document:{client:'Ana Costa',date:'2026-10-22',topics:['VMC'],lines:[{kind:'Equipamento',description:'VMC',quantity:1,value:100}],margin:20,vat:23,lead:'l1'},events:[]},{id:8,document:{client:'Outro',date:'2026-10-22',topics:['VMC'],lines:[],margin:20,vat:23},events:[]}]");
+ const qs=run('leadQuotesHtml(leadDraft)');assert.match(qs,/data-a="openquote" data-id="7"/);assert.match(qs,/data-la="pdf" data-id="7"/);assert.ok(!qs.includes('data-id="8"'));
+ run('leadQuote()');
+ assert.equal(run('V.tab'),'orc');assert.equal(run('quoteDraft.client'),'Ana Costa');assert.equal(run('quoteDraft.contact'),'913000000');assert.equal(run('quoteDraft.lead'),'l1');assert.equal(run('quoteDraft.brand'),'LG');
+ assert.deepEqual([...run('quoteDraft.topics')],['Ar condicionado','UPAC (fotovoltaico)','Carregador automóvel']);
+ assert.match(run('quoteEditor()'),/Lead Ana Costa/);
+ // Global search also finds leads.
+ run("quoteDraft=null;V.gq='ana costa'");assert.match(run('globalRes()'),/Leads \(1\)/);
+});
+test('leads advance with their quotes, never go back and a lost lead stays lost',()=>{
+ const {run}=app({...state,leads:[{id:'a',stage:'triagem',solutions:[]},{id:'b',stage:'perdido',solutions:[]},{id:'c',stage:'ganho',solutions:[]}]});
+ run("leadFromQuote({lead:'a'},'orcamento')");assert.equal(run("S.leads[0].stage"),'orcamento');
+ run("leadFromQuote({lead:'a'},'enviada')");assert.equal(run("S.leads[0].stage"),'enviada');
+ run("leadFromQuote({lead:'a'},'orcamento')");assert.equal(run("S.leads[0].stage"),'enviada');
+ run("leadFromQuote({lead:'b'},'ganho')");assert.equal(run("S.leads[1].stage"),'perdido');
+ run("leadFromQuote({lead:'c'},'enviada')");assert.equal(run("S.leads[2].stage"),'ganho');
+ assert.equal(run("leadQuoteStage({status:'rascunho'},[{kind:'adjudicar'}])"),'ganho');
+ assert.equal(run("leadQuoteStage({status:'enviado'},[])"),'enviada');
+});
+test('leads merge between devices like jobs',()=>{
+ const {run}=app(state);
+ const out=run(`EnatSync.merge({ts:2,obras:[],tx:[],inv:[],leads:[{id:'x',name:'Telemóvel',u:5}]},{ts:1,obras:[],tx:[],inv:[],leads:[{id:'y',name:'PC',u:4}],del:{}})`);
+ assert.deepEqual([...out.leads.map(l=>l.id)].sort(),['x','y']);
 });

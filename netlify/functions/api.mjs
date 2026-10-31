@@ -159,7 +159,11 @@ export default async (req) => {
   }
 
   if (path === 'estado') {
-    if (req.method === 'GET') return json(200, { state: (await store.get('estado', { type: 'json' })) || null });
+    if (req.method === 'GET') {
+      // Leads recebidas por email (Meta): a app junta-as às suas, sem o servidor mexer no estado.
+      const meta = await store.get('leads-meta', { type: 'json' }).catch(() => null);
+      return json(200, { state: (await store.get('estado', { type: 'json' })) || null, inbox: meta?.leads || [] });
+    }
     if (req.method === 'PUT') {
       let b; try { b = await req.json(); } catch { return json(400); }
       if (!b || !b.state) return json(400);

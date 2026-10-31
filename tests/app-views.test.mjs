@@ -110,3 +110,13 @@ test('leads merge between devices like jobs',()=>{
  const out=run(`EnatSync.merge({ts:2,obras:[],tx:[],inv:[],leads:[{id:'x',name:'Telemóvel',u:5}]},{ts:1,obras:[],tx:[],inv:[],leads:[{id:'y',name:'PC',u:4}],del:{}})`);
  assert.deepEqual([...out.leads.map(l=>l.id)].sort(),['x','y']);
 });
+
+test('leads received by email appear in Novas leads until called or moved to another stage',()=>{
+ const {run}=app(state);
+ const inbox=JSON.stringify([{id:'meta-x',src:'meta',received:'2026-10-31T10:00:00Z',name:'Nando Costa',contact:'+351927386939',email:'n@x.pt',house:'Moradia',timing:'Já',stage:'nova',solutions:[],call:'',date:'2026-10-31'}]);
+ assert.equal(run(`leadInbox(${inbox})`),true);assert.equal(run(`leadInbox(${inbox})`),false,'not added twice');
+ assert.match(run('vLeads()'),/Novas leads \(1\)/);assert.match(run('vHome()'),/Novas leads \(1\)/);
+ run("S.leads[0].call='nao'");assert.ok(!run('vLeads()').includes('Novas leads'));assert.match(run('vLeads()'),/Nando Costa/);
+ run("S.leads[0].call='';S.leads[0].stage='contacto'");assert.ok(!run('leadsNewHtml()'));
+ run("S.leads=[];S.del={'leads:meta-x':Date.now()}");assert.equal(run(`leadInbox(${inbox})`),false,'deleted leads stay deleted');
+});

@@ -23,9 +23,25 @@ function leadRow(l){
  const info=[(l.solutions||[]).join(', '),l.contact].filter(v=>String(v||'').trim()).map(esc).join(' · ');
  return`<button class="row invoice-row lead-row lead-${esc(l.stage||'nova')}" data-la="open" data-id="${esc(l.id)}"><div class="av">${esc(leadName(l)[0])}</div><div class="rt"><b>${esc(leadName(l))}</b><span>${info||'Sem soluções indicadas'}</span><span>${l.date?esc(fd(l.date)):''}${leadCall(l.call)}</span></div><div class="rr">${leadBadge(l.stage)}</div></button>`;
 }
+// Novas leads: chegaram por email da campanha da Meta e ainda não foram contactadas.
+// Saem desta pasta quando se marca Atendeu / Não atendeu ou se muda a fase.
+const leadIsNew=l=>l.src==='meta'&&(l.stage||'nova')==='nova'&&!l.call;
+const leadNews=()=>leadList().filter(leadIsNew);
+// Junta as leads recebidas por email que este dispositivo ainda não tem (nem foram eliminadas).
+function leadInbox(list){
+ if(!Array.isArray(list))return false;S.leads=S.leads||[];
+ const have=new Set(S.leads.map(l=>l.id)),del=S.del||{};let added=false;
+ for(const l of list)if(l&&typeof l.id==='string'&&!have.has(l.id)&&!del['leads:'+l.id]){const {received,...x}=l;S.leads.push({...leadNew(),...x,solutions:[...(x.solutions||[])]});have.add(l.id);added=true}
+ return added;
+}
+function leadsNewHtml(){
+ const q=V.lq||'',l=leadNews().filter(x=>!q||match(leadText(x),q));
+ return l.length?`<h2>Novas leads (${l.length})</h2><p class="note">Recebidas por email da campanha da Meta. Passam para as leads ao marcar a chamada ou mudar a fase.</p><div class="grp lead-new">${l.map(leadRow).join('')}</div><h2>Leads</h2>`:'';
+}
+const leadNewHome=()=>{const l=leadNews();return l.length?`<h2>Novas leads (${l.length})</h2><div class="grp lead-new">${l.slice(0,10).map(leadRow).join('')}</div>`:''};
 function leadsList(){
- const st=V.ls||'',q=V.lq||'',l=leadList().filter(x=>(!st||x.stage===st)&&(!q||match(leadText(x),q)));
- return l.length?l.map(leadRow).join(''):`<div class="empty">${(S.leads||[]).length?'Nenhuma lead com estes filtros.':'Ainda sem leads. Toque em «Nova lead» para registar o primeiro contacto.'}</div>`;
+ const st=V.ls||'',q=V.lq||'',l=leadList().filter(x=>!leadIsNew(x)&&(!st||x.stage===st)&&(!q||match(leadText(x),q)));
+ return leadsNewHtml()+(l.length?`<div class="grp">${l.map(leadRow).join('')}</div>`:`<div class="grp"><div class="empty">${(S.leads||[]).some(x=>!leadIsNew(x))?'Nenhuma lead com estes filtros.':'Ainda sem leads. Toque em «Nova lead» para registar o primeiro contacto.'}</div></div>`);
 }
 // Pesquisa global da página inicial.
 const leadSearch=q=>q.trim()?leadList().filter(l=>match(leadText(l),q)):[];
@@ -33,8 +49,8 @@ const leadSearch=q=>q.trim()?leadList().filter(l=>match(leadText(l),q)):[];
 function vLeads(){
  leadEnsureQuotes();
  if(leadDraft)return leadEditor();
- const all=S.leads||[],count=s=>all.filter(l=>l.stage===s).length;
- return`<h1>Leads</h1><p class="sub">Contactos de clientes, da primeira chamada à adjudicação.</p><button class="btn" data-la="new">Nova lead</button><div class="sbar" style="margin-top:14px">${ic('search')}<input id="lq" type="search" value="${esc(V.lq||'')}" aria-label="Procurar leads" placeholder="Nome, contacto, morada ou solução" autocomplete="off"></div><div class="chips">${[['','Todas'],...Object.entries(LEAD_STAGES)].map(([k,l])=>`<button class="${(V.ls||'')===k?'on':''}" data-la="filter" data-id="${k}">${l}${k&&count(k)?' · '+count(k):''}</button>`).join('')}</div><div class="grp" id="llist">${leadsList()}</div>`;
+ const all=S.leads||[],count=s=>all.filter(l=>l.stage===s&&!leadIsNew(l)).length;
+ return`<h1>Leads</h1><p class="sub">Contactos de clientes, da primeira chamada à adjudicação.</p><button class="btn" data-la="new">Nova lead</button><div class="sbar" style="margin-top:14px">${ic('search')}<input id="lq" type="search" value="${esc(V.lq||'')}" aria-label="Procurar leads" placeholder="Nome, contacto, morada ou solução" autocomplete="off"></div><div class="chips">${[['','Todas'],...Object.entries(LEAD_STAGES)].map(([k,l])=>`<button class="${(V.ls||'')===k?'on':''}" data-la="filter" data-id="${k}">${l}${k&&count(k)?' · '+count(k):''}</button>`).join('')}</div><div id="llist">${leadsList()}</div>`;
 }
 
 const leadField=(label,k,type='text',extra='')=>`<label class="q-field"><span>${label}</span><input type="${type}" data-lf="${k}" value="${esc(leadDraft[k])}" ${extra}></label>`;

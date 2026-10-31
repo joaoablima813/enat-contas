@@ -244,7 +244,7 @@ function vHome(){
  ensureQuotes();const a=all(),c=sumC(a),late=lateList(),act=a.filter(x=>x.o.status==='em_curso'),ans=quoteUnread();
  return`<h1>Início</h1><div class="sbar">${ic('search')}<input id="gq" type="search" value="${esc(V.gq||'')}" aria-label="Pesquisar em toda a app" placeholder="Procurar leads, obras, clientes, faturas, orçamentos" autocomplete="off"></div><div id="gres">${globalRes()}</div>
  <div id="homebody" ${V.gq?'hidden':''}>${hero(c,'Lucro previsto em todas as obras')}<button class="btn quick" data-a="quickscan">${ic('cam')}Fotografar fatura</button>${acts()}
- ${ans.length?`<h2>Respostas de clientes (${ans.length})</h2><div class="grp">${ans.map(quoteMiniRow).join('')}</div>`:''}
+ ${leadNewHome()}${ans.length?`<h2>Respostas de clientes (${ans.length})</h2><div class="grp">${ans.map(quoteMiniRow).join('')}</div>`:''}
  ${late.length?`<h2>Pagamentos em atraso · ${eur(late.reduce((s,x)=>s+x.p.overdue,0))}</h2><div class="grp">${late.map(lateRow).join('')}</div>`:''}
  <div class="tiles">${[['cli','Clientes','user'],['rel','Relatórios','chart'],['mov','Movimentos','list'],['def','Definições','gear']].map(([k,l,i])=>`<button class="tile" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('')}</div>
  <h2>Obras em curso</h2><div class="grp">${act.length?act.map(obraRow).join(''):'<div class="empty">Sem obras em curso. Veja todas no separador Obras.</div>'}</div>
@@ -705,11 +705,14 @@ async function sendState(tries=3){
 }
 const push=()=>{clearTimeout(pt);setSync('saving');pt=setTimeout(()=>sendState().catch(()=>setSync('off')),900)};
 async function pull(){if(OFFLINE)return;try{const r=await API('estado');if(r.status===401)return setSync('off');const d=await r.json();
+ try{pullState(d)}finally{if(leadInbox(d.inbox)){save();if(idle())render()}}
+}catch(e){setSync('off')}}
+function pullState(d){
  if(!d.state){if(S.obras.length||S.tx.length)push();else{SYNCAT=Date.now();setSync('ok')}return}
  const remote=d.state.ts||0,dirty=(S.ts||0)!==BASE;
  if(remote===BASE){if(dirty)push();else{SYNCAT=Date.now();setSync('ok')}return}
  if(dirty){mergeRemote(d.state);push()}else{adopt(d.state);setBase(remote);SYNCAT=Date.now();setSync('ok')}
-}catch(e){setSync('off')}}
+}
 /* ---------- entrada com Face ID / Touch ID (passkeys) ---------- */
 const post=async(p,b,code)=>{const r=await fetch('/api/'+p,{method:'POST',headers:{'content-type':'application/json','x-session':SESS(),...(code?{'x-code':code}:{})},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'falha ('+r.status+')');return j};
 let LIGADO=false;

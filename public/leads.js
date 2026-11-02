@@ -6,14 +6,17 @@ const LEAD_HOUSES=['Moradia','Apartamento','Moradia antiga','Moradia geminada'];
 // Soluções da lead que correspondem a tipologias dos orçamentos com outro nome; as escritas à mão ficam em Geral / outros.
 const LEAD_TOPIC={'Painéis fotovoltaicos':'UPAC (fotovoltaico)'};
 const LEAD_PV='Painéis fotovoltaicos';
-const LEAD_FIELDS=['name','address','contact','email','coords','rooms','bill','area','notes','value','brand','timing','callDay','callAt'];
+const LEAD_FIELDS=['name','address','contact','email','coords','rooms','bill','area','notes','value','brand','timing','heating','visitAt','callDay','callAt'];
+// Sugestões para os campos do formulário da campanha (pode escrever-se outra resposta).
+const LEAD_HEATING=['Botija de gás','Gás natural','Esquentador','Caldeira a gás','Caldeira a gasóleo','Termoacumulador elétrico','Bomba de calor','Painel solar térmico','Lenha / salamandra'];
+const LEAD_TIMINGS=['O mais rápido possível','Dentro de 1 mês','Dentro de 3 meses','Dentro de 6 meses','Ainda só a pedir valores'];
 let leadDraft=null,leadOrig='',leadMsg='';
 
 const leadToday=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 const leadNew=()=>({...Object.fromEntries(LEAD_FIELDS.map(k=>[k,''])),stage:'nova',solutions:[],call:'',house:'',date:leadToday()});
 const leadName=l=>String(l.name||'').trim()||'Lead sem nome';
 const leadList=()=>(S.leads||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.u||0)-(a.u||0));
-const leadText=l=>[l.name,l.contact,l.email,l.address,l.brand,...(l.solutions||[])].join(' ');
+const leadText=l=>[l.name,l.contact,l.email,l.address,l.brand,l.heating,...(l.solutions||[])].join(' ');
 const leadQuotes=id=>(quoteRows||[]).filter(r=>r.document.lead===id);
 const leadTopics=l=>[...new Set((l.solutions||[]).map(s=>LEAD_TOPIC[s]||(TOPICS.includes(s)?s:'Geral / outros')))];
 const leadBadge=s=>`<span class="lead-badge lead-${s in LEAD_STAGES?s:'nova'}">${LEAD_STAGES[s]||LEAD_STAGES.nova}</span>`;
@@ -32,7 +35,7 @@ function leadRow(l){
 function leadInbox(list){
  if(!Array.isArray(list))return false;S.leads=S.leads||[];
  const have=new Set(S.leads.map(l=>l.id)),del=S.del||{};let added=false;
- for(const l of list)if(l&&typeof l.id==='string'&&!have.has(l.id)&&!del['leads:'+l.id]){const {received,...x}=l;S.leads.push({...leadNew(),...x,solutions:[...(x.solutions||[])]});have.add(l.id);added=true}
+ for(const l of list)if(l&&typeof l.id==='string'&&!have.has(l.id)&&!del['leads:'+l.id]){const {received,...x}=l;S.leads.push({...leadNew(),...x,solutions:[...(x.solutions||[])]});have.add(l.id);added=true;if(typeof notifAdd==='function')notifAdd({id:'lead|'+l.id,kind:'lead',lead:l.id,title:'Nova lead: '+leadName(x),text:[x.contact,x.heating,x.timing].filter(Boolean).join(' · ')||'Sincronizada do Outlook',at:new Date(received||Date.now()).getTime()||Date.now()})}
  return added;
 }
 const leadMore=(n,kind)=>n>LEAD_PAGE?`<button class="btn alt lead-more" data-la="all" data-id="${kind}">Mostrar mais (${n-LEAD_PAGE})</button>`:'';
@@ -96,12 +99,13 @@ function leadEditor(){
  const l=leadDraft,maps=String(l.coords||'').trim()||String(l.address||'').trim(),saved=(S.leads||[]).find(x=>x.id===l.id),nova=!!saved&&leadIsNew(saved);
  return`<button class="back" data-la="close">${ic('back')} Leads</button><h1>${l.id?esc(leadName(l)):'Nova lead'}</h1><p class="sub">Nenhum campo é obrigatório. Pode guardar e completar mais tarde.</p>
  ${nova?`<div class="lead-ed lead-email lead-inbox"><h2>Lead nova · sincronizada do Outlook</h2><p class="note">Chegou por email da campanha. Ao marcar como recebida, passa para as Leads com a cor normal.</p><button class="btn" data-la="seen">Marcar como recebida</button></div>`:''}
- <div class="lead-ed lead-${esc(l.stage)}"><h2>Fase da lead</h2><div class="lead-opts lead-stages">${Object.entries(LEAD_STAGES).map(([k,t])=>leadChoice('stage',k,t,'lead-'+k)).join('')}</div></div>
+ <div class="lead-ed lead-${esc(l.stage)}"><h2>Fase da lead</h2><div class="lead-opts lead-stages">${Object.entries(LEAD_STAGES).map(([k,t])=>leadChoice('stage',k,t,'lead-'+k)).join('')}</div>${l.stage==='visita'||l.visitAt?`<div class="q-card lead-visit">${leadField('Data e hora da visita','visitAt','datetime-local')}<p class="note">A visita aparece no Calendário.</p></div>`:''}</div>
  <h2>Cliente</h2><div class="q-card">${leadField('Nome do cliente','name','text','maxlength="2000" autocomplete="off"')}${leadField('Morada','address','text','maxlength="4000" autocomplete="off"')}${leadField('Contacto','contact','tel','maxlength="2000" inputmode="tel" autocomplete="off"')}${leadField('Email','email','email','maxlength="320" autocomplete="off" placeholder="cliente@exemplo.pt"')}${leadField('Coordenadas (opcional)','coords','text','maxlength="200" autocomplete="off" placeholder="Ex.: 41.7672, -8.5836"')}${maps?`<a class="link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(maps)}" target="_blank" rel="noopener">Abrir no mapa</a>`:''}${leadField('Data','date','date')}</div>
+ <h2>Pedido do cliente</h2><div class="q-card">${leadField('Que sistema usa hoje para aquecer a água?','heating','text','maxlength="2000" list="lead-heating" autocomplete="off" placeholder="Ex.: Botija de gás"')}<datalist id="lead-heating">${LEAD_HEATING.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>${leadField('Quando pretende fazer a instalação?','timing','text','maxlength="2000" list="lead-timing" autocomplete="off" placeholder="Ex.: O mais rápido possível"')}<datalist id="lead-timing">${LEAD_TIMINGS.map(v=>`<option value="${esc(v)}">`).join('')}</datalist></div>
  <h2>Solução pretendida</h2><p class="note">Selecione todas as que o cliente pretende.</p><div class="lead-opts">${[...LEAD_SOLUTIONS,...l.solutions.filter(s=>!LEAD_SOLUTIONS.includes(s))].map(s=>`<button type="button" class="lead-opt ${l.solutions.includes(s)?'on':''}" data-la="sol" data-v="${esc(s)}" aria-pressed="${l.solutions.includes(s)}">${esc(s)}</button>`).join('')}</div><div class="lead-add"><input id="lead-sol" maxlength="100" placeholder="Outra solução" aria-label="Outra solução" autocomplete="off"><button type="button" class="btn alt" data-la="sol-add">Adicionar</button></div>
  <h2>Chamada</h2><div class="lead-opts">${leadChoice('call','atendeu','Atendeu','lead-yes')}${leadChoice('call','nao','Não atendeu','lead-no')}</div>${l.call==='nao'?`<div class="q-card lead-no-ed">${leadField('Dia em que liguei','callDay','date')}${leadField('Horário em que o cliente quer ser contactado','callAt','datetime-local')}<p class="note">Chegada esta hora, a app avisa para ligar ao cliente.</p></div>`:''}
  <h2>Tipo de casa</h2><div class="lead-opts">${LEAD_HOUSES.map(h=>leadChoice('house',h,h)).join('')}</div>
- <h2>Detalhes técnicos</h2><div class="q-card">${leadArea('Divisões a climatizar','rooms','Ex.: sala, 3 quartos, escritório')}${l.solutions.includes(LEAD_PV)?leadField('Fatura elétrica','bill','text','maxlength="2000" placeholder="Ex.: 120 € por mês"'):''}${leadArea('Área das divisões','area','Ex.: sala 30 m², quartos 12 m²')}${leadArea('Observações técnicas','notes')}${leadField('Valor orçamentado','value','text','maxlength="200"')}${leadField('Marca','brand','text','maxlength="200" list="quote-brands" autocomplete="off"')}<datalist id="quote-brands">${quoteTables().map(t=>`<option value="${esc(t.brand)}">`).join('')}</datalist>${leadField('Timing','timing','text','maxlength="2000" placeholder="Ex.: obra em março"')}</div>
+ <h2>Detalhes técnicos</h2><div class="q-card">${leadArea('Divisões a climatizar','rooms','Ex.: sala, 3 quartos, escritório')}${l.solutions.includes(LEAD_PV)?leadField('Fatura elétrica','bill','text','maxlength="2000" placeholder="Ex.: 120 € por mês"'):''}${leadArea('Área das divisões','area','Ex.: sala 30 m², quartos 12 m²')}${leadArea('Observações técnicas','notes')}${leadField('Valor orçamentado','value','text','maxlength="200"')}${leadField('Marca','brand','text','maxlength="200" list="quote-brands" autocomplete="off"')}<datalist id="quote-brands">${quoteTables().map(t=>`<option value="${esc(t.brand)}">`).join('')}</datalist></div>
  <p id="lead-msg" role="status" class="note">${esc(leadMsg)}</p><button class="btn" data-la="save">Guardar lead</button><button class="btn alt" data-la="quote">Criar orçamento para esta lead</button>
  ${leadQuotesHtml(l)}${l.id?'<button class="btn del" data-la="delete">Eliminar lead</button>':''}`;
 }
@@ -190,14 +194,27 @@ function leadNotify(l){
  const fallback=()=>{try{new Notification(title,opts)}catch(e){}};
  if(typeof navigator!=='undefined'&&navigator.serviceWorker?.getRegistration)navigator.serviceWorker.getRegistration().then(r=>r?r.showNotification(title,opts):fallback()).catch(fallback);else fallback();
 }
+// Cada chamada em hora fica no histórico de notificações (sininho). O aviso no topo mostra só as que ainda não foram fechadas:
+// qualquer botão do aviso (Ligar, Abrir lead, Adiar, Já liguei ou ×) fecha-o logo.
+const leadCallNotif=l=>'call|'+l.id+'|'+l.callAt;
 function leadRemind(){
  const box=document.querySelector('#lead-alert');if(!box)return;
  const due=typeof SESS==='function'&&SESS()?leadDue():[];
+ let added=false;
+ for(const l of due)if(typeof notifAdd==='function'&&notifAdd({id:leadCallNotif(l),kind:'call',lead:l.id,title:'Ligar a '+leadName(l),text:'Pediu contacto '+leadAtTxt(l.callAt)+(l.contact?' · '+l.contact:''),at:new Date(l.callAt).getTime()||Date.now()}))added=true;
+ if(added)save();
  due.forEach(leadNotify);
- box.classList[due.length?'add':'remove']('on');
- box.innerHTML=due.slice(0,3).map(l=>{const tel=String(l.contact||'').replace(/\s/g,'');return`<div class="lead-alert-i" role="alert"><div class="lead-alert-t"><b>${ic('bell')} Ligar a ${esc(leadName(l))}</b><span>Pediu contacto ${esc(leadAtTxt(l.callAt))}${l.contact?' · '+esc(l.contact):''}</span></div><div class="lead-alert-b">${tel?`<a class="btn" href="tel:${esc(tel)}">Ligar</a>`:''}<button class="btn alt" data-lr="open" data-id="${esc(l.id)}">Abrir lead</button><button class="btn alt" data-lr="snooze" data-id="${esc(l.id)}">Adiar ${LEAD_SNOOZE} min</button><button class="btn alt" data-lr="done" data-id="${esc(l.id)}">Já liguei</button></div></div>`}).join('')+(due.length>3?`<p class="lead-alert-more">E mais ${due.length-3} lead${due.length-3>1?'s':''} por ligar na coluna «Não atendeu».</p>`:'');
+ const open=due.filter(l=>{const n=typeof notifGet==='function'?notifGet(leadCallNotif(l)):null;return n?!n.closed:typeof notifGet!=='function'});
+ box.classList[open.length?'add':'remove']('on');
+ box.innerHTML=open.slice(0,3).map(l=>{const tel=String(l.contact||'').replace(/\s/g,'');return`<div class="lead-alert-i" role="alert"><button class="lead-alert-x" data-lr="dismiss" data-id="${esc(l.id)}" aria-label="Fechar aviso">×</button><div class="lead-alert-t"><b>${ic('bell')} Ligar a ${esc(leadName(l))}</b><span>Pediu contacto ${esc(leadAtTxt(l.callAt))}${l.contact?' · '+esc(l.contact):''}</span></div><div class="lead-alert-b">${tel?`<a class="btn" href="tel:${esc(tel)}" data-lr="call" data-id="${esc(l.id)}">Ligar</a>`:''}<button class="btn alt" data-lr="open" data-id="${esc(l.id)}">Abrir lead</button><button class="btn alt" data-lr="snooze" data-id="${esc(l.id)}">Adiar ${LEAD_SNOOZE} min</button><button class="btn alt" data-lr="done" data-id="${esc(l.id)}">Já liguei</button></div></div>`}).join('')+(open.length>3?`<p class="lead-alert-more">E mais ${open.length-3} lead${open.length-3>1?'s':''} por ligar. Veja no sininho ou na coluna «Não atendeu».</p>`:'');
+ if(typeof notifBell==='function')notifBell();
 }
 const leadLocalAt=ms=>{const d=new Date(ms);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16)};
+// Copia para a lead aberta no editor as alterações feitas fora dele, sem a marcar como alterada.
+function leadPatchDraft(l,keys){
+ if(leadDraft?.id!==l.id)return;
+ const o=JSON.parse(leadOrig);for(const k of keys){leadDraft[k]=structuredClone(l[k]);o[k]=structuredClone(l[k])}leadOrig=JSON.stringify(o);
+}
 function leadOpenFromAlert(id){
  if(leadDraft&&leadDraft.id!==id&&leadDirty()&&!confirm('Sair sem guardar as alterações desta lead?'))return;
  if(!leadOpen(id))return;V.tab='leads';V.obra=null;V.lall='';window.scrollTo?.(0,0);render();
@@ -206,12 +223,13 @@ document.addEventListener('click',e=>{
  const b=e.target.closest('[data-lr]');if(!b)return;
  const l=(S.leads||[]).find(x=>x.id===b.dataset.id);if(!l)return;
  const a=b.dataset.lr;
- if(a==='open'){leadOpenFromAlert(l.id);return}
+ if(typeof notifClose==='function')notifClose(leadCallNotif(l));
  if(a==='snooze')l.callAt=leadLocalAt(Date.now()+LEAD_SNOOZE*6e4);
- else if(a==='done'){l.callDone=l.callAt;l.callDay=leadToday()}
- save();if(leadDraft?.id===l.id){leadDraft.callAt=l.callAt;leadDraft.callDay=l.callDay;leadDraft.callDone=l.callDone;leadOrig=JSON.stringify({...JSON.parse(leadOrig),callAt:l.callAt,callDay:l.callDay,callDone:l.callDone})}
- leadRemind();if(V.tab==='leads'&&!document.activeElement?.matches?.('input,textarea,select'))render();
+ else if(a==='done'){l.callDone=l.callAt;l.callDay=leadToday();l.ct={...(l.ct||{}),['call|'+l.callAt]:'sim'}}
+ save();leadPatchDraft(l,['callAt','callDay','callDone','ct']);
+ if(a==='open'){leadRemind();leadOpenFromAlert(l.id);return}
+ leadRemind();if(['leads','cal'].includes(V.tab)&&!document.activeElement?.matches?.('input,textarea,select'))render();
 });
 // Tocar na notificação do sistema abre a lead na app.
-if(typeof navigator!=='undefined')navigator.serviceWorker?.addEventListener?.('message',e=>{if(e.data?.lead)leadOpenFromAlert(e.data.lead)});
+if(typeof navigator!=='undefined')navigator.serviceWorker?.addEventListener?.('message',e=>{const l=e.data?.lead&&(S.leads||[]).find(x=>x.id===e.data.lead);if(!l)return;if(typeof notifClose==='function'){notifClose(leadCallNotif(l));save()}leadRemind();leadOpenFromAlert(l.id)});
 if(typeof setInterval==='function'&&typeof document!=='undefined'&&document.querySelector)setInterval(leadRemind,20000);

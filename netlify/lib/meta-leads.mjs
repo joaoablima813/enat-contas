@@ -25,7 +25,8 @@ const LABELS = [
   ['email', /^e-?mail$/],
   ['contact', /^(telefone|telemovel|numero de telefone|contacto)$/],
   ['house', /^a instalacao e para\b/],
-  ['timing', /^quando pretende avancar/],
+  ['heating', /^que sistema usa( hoje)? para aquecer/],
+  ['timing', /^quando pretende (avancar|fazer)/],
   ['origin', /^origem$/],
 ];
 // Marcas do texto dos emails de leads, nos dois formatos.
@@ -56,7 +57,7 @@ export function toLead(f, { messageId, date }) {
   return {
     id: 'meta-' + hash(messageId), src: 'meta', received: date.toISOString(),
     name: nameCase(f.name), address: '', contact: f.contact || '', email: f.email || '', coords: '', rooms: '', bill: '', area: '',
-    notes, value: '', brand: '', timing: f.timing || '', stage: 'nova', solutions: [], call: '', house: house || '', date: lisbonDay(date),
+    notes, value: '', brand: '', timing: f.timing || '', heating: f.heating || '', stage: 'nova', solutions: [], call: '', house: house || '', date: lisbonDay(date),
   };
 }
 

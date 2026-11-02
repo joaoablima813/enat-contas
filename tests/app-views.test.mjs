@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','leads.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','leads.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -151,4 +151,41 @@ test('leads that did not answer move to their own column, with call day, contact
  // Marking «Não atendeu» in the editor fills today's date and shows the two fields.
  run("leadOpen('a1');leadDraft.call='';leadDraft.callDay=''");run("leadDraft.call='nao';if(!leadDraft.callDay)leadDraft.callDay=leadToday()");
  assert.match(run('vLeads()'),/Horário em que o cliente quer ser contactado/);
+});
+
+test('lead editor has the campaign fields and a visit date for scheduled visits',()=>{
+ const {run}=app({...state,leads:[{id:'v1',name:'Ana Lima',stage:'visita',solutions:[],heating:'Botija de gás',timing:'O mais rápido possível',date:'2026-11-01'}]});
+ run("V.tab='leads';leadOpen('v1')");const ed=run('vLeads()');
+ assert.match(ed,/Que sistema usa hoje para aquecer a água\?/);assert.match(ed,/value="Botija de gás"/);
+ assert.match(ed,/Quando pretende fazer a instalação\?/);assert.match(ed,/Data e hora da visita/);
+});
+
+test('call alerts close on any action and stay in the notification history',()=>{
+ const past=new Date(Date.now()-6e4),loc=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16);
+ const {run,els}=app({...state,leads:[{id:'n1',name:'Rita Nunes',contact:'915 000 000',stage:'contacto',solutions:[],call:'nao',callAt:loc(past),date:'2026-10-30'}]},{session:'s'});
+ run('leadRemind()');assert.match(els['lead-alert'].innerHTML,/Ligar a Rita Nunes/);assert.match(els['lead-alert'].innerHTML,/data-lr="dismiss"/);
+ assert.equal(run('notifUnread()'),1);run('notifBell()');assert.match(els.bell.innerHTML,/bell-n">1</);
+ // «Abrir lead» (ou qualquer outro botão do aviso) fecha o aviso, mas a notificação fica no histórico.
+ run("notifClose(leadCallNotif(S.leads[0]));leadRemind()");assert.equal(els['lead-alert'].innerHTML,'');
+ assert.equal(run('S.notifs.length'),1);assert.equal(run('notifUnread()'),0);
+ run("notifOpen=true");const p=run('notifPanel()');assert.match(p,/Ligar a Rita Nunes/);assert.match(p,/Marcar como não lida/);assert.match(p,/Apagar todas/);
+ // Apagada do histórico, não volta a aparecer.
+ run("S.notifs=[];save();leadRemind()");assert.equal(run('S.notifs.length'),0);assert.equal(els['lead-alert'].innerHTML,'');
+ // Leads novas recebidas por email também ficam no histórico.
+ run(`leadInbox([{id:'meta-z',src:'meta',received:'2026-11-02T18:40:00Z',name:'Antonio Cacais',contact:'+351968185974',heating:'Botija de gás',stage:'nova',solutions:[],call:'',date:'2026-11-02'}])`);
+ assert.match(run('notifPanel()'),/Nova lead: Antonio Cacais/);
+});
+
+test('calendar lists calls, visits and maintenance and marks each as contacted or not',()=>{
+ const loc=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16),fut=loc(new Date(Date.now()+864e5)),fut2=loc(new Date(Date.now()+2*864e5));
+ const {run}=app({...state,leads:[{id:'n1',name:'Rita Nunes',contact:'915000000',stage:'contacto',solutions:[],call:'nao',callAt:fut,date:'2026-10-30'},
+  {id:'v1',name:'Ana Lima',stage:'visita',solutions:[],visitAt:fut2,address:'Rua A',date:'2026-10-30'},{id:'v2',name:'Sem Data',stage:'visita',solutions:[],date:'2026-10-30'}]},{session:'s'});
+ assert.equal(run("calEvents().map(e=>e.kind).sort().join()"),'call,man,visit');
+ run("V.tab='cal'");const cal=run('vCal()');
+ assert.match(cal,/Calendário/);assert.match(cal,/Rita Nunes/);assert.match(cal,/Ana Lima/);assert.match(cal,/Visitas sem data \(1\)/);assert.match(cal,/Contactado/);assert.match(cal,/Não contactado/);
+ assert.match(cal,/Por contactar/,'the past maintenance without status is overdue');
+ run(`calSet('lead','n1','call|${fut}','sim')`);assert.equal(run("S.leads[0].callDone===S.leads[0].callAt"),true);assert.equal(run(`calEvents().find(e=>e.kind==='call').st`),'sim');
+ run(`calSet('lead','n1','call|${fut}','nao')`);assert.equal(run(`calEvents().find(e=>e.kind==='call').st`),'nao');assert.equal(run("S.leads[0].callDone"),'');
+ run(`calSet('obra','o2','man|2026-10-01','sim')`);assert.equal(run("S.obras[1].ct['man|2026-10-01']"),'sim');assert.ok(!run('vCal()').includes('Por contactar'));
+ run(`V.cd='${fut2.slice(0,10)}'`);assert.match(run('vCal()'),/Ana Lima/);
 });

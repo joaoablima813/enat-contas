@@ -38,3 +38,14 @@ test('reads the new MA Media lead email format', () => {
   assert.equal(l.name, 'Armenio Barbosa Marques'); assert.equal(l.house, 'Moradia'); assert.equal(l.src, 'meta'); assert.match(l.notes, /Origem: Facebook Lead Ads/);
   assert.match(toLead({ ...f, house: 'Espaço comercial' }, { messageId: '<x>', date: new Date() }).notes, /A instalação é para: Espaço comercial/);
 });
+
+// Formulário com «Que sistema usa hoje para aquecer a água?» e «Quando pretende fazer a instalação?».
+test('reads the water heating system and installation timing fields', () => {
+  const h = `<p>NOVA LEAD</p><h1>Contacto recebido de Antonio Cacais</h1><table><tr><td>NOME</td><td>Antonio Cacais</td></tr><tr><td>EMAIL</td><td>tony@exemplo.pt</td></tr>
+  <tr><td>TELEFONE</td><td>+351968185974</td></tr><tr><td>QUE SISTEMA USA HOJE PARA AQUECER A ÁGUA?</td><td>Botija de gás</td></tr>
+  <tr><td>QUANDO PRETENDE FAZER A INSTALAÇÃO?</td><td>O mais rápido possível</td></tr><tr><td>ORIGEM</td><td>Facebook Lead Ads</td></tr></table>`;
+  const f = parseLead(htmlLines(h));
+  assert.equal(f.heating, 'Botija de gás'); assert.equal(f.timing, 'O mais rápido possível'); assert.equal(f.contact, '+351968185974');
+  const l = toLead(f, { messageId: '<t@c>', date: new Date('2026-11-02T18:40:00Z') });
+  assert.equal(l.heating, 'Botija de gás'); assert.equal(l.timing, 'O mais rápido possível');
+});

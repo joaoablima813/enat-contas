@@ -1,6 +1,6 @@
 /* Funcionamento sem rede: a app abre a partir da cópia guardada quando não há ligação.
    Com rede, vai sempre buscar a versão mais recente (primeiro a rede, depois a cópia). Os dados (/api) nunca ficam em cache. */
-const CACHE = 'enat-app-v6';
+const CACHE = 'enat-app-v7';
 const SHELL = ['/', '/enat-logo.png', '/manifest.json', '/quotes.css', '/app.css', '/sync.js', '/gestao.js', '/contabilista.js', '/quote-math.js', '/quote-obra.js', '/price-tables.js', '/quotes.js', '/leads.js', '/pv-sizing.js', '/pv.js', '/excel-export.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js', '/vendor/exceljs.min.js', '/apple-touch-icon.png', '/favicon-32x32.png', '/pwa-192x192.png'];
 
 self.addEventListener('install', (e) => {
@@ -19,4 +19,14 @@ self.addEventListener('fetch', (e) => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
     return res;
   }).catch(async () => (await caches.match(req)) || (await caches.match(req, { ignoreSearch: true })) || (req.mode === 'navigate' ? caches.match('/') : Response.error())));
+});
+// Tocar numa notificação de chamada abre a app na lead (ou foca a janela já aberta).
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const lead = e.notification.data?.lead;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const c = list[0];
+    if (c) { c.postMessage({ lead }); return c.focus(); }
+    return self.clients.openWindow('/');
+  }));
 });

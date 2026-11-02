@@ -132,3 +132,23 @@ test('the leads list shows 10 and «Mostrar mais» opens all of them in columns 
  assert.equal((all.match(/data-la="open"/g)||[]).length,45);assert.equal((all.match(/class="lead-col"/g)||[]).length,3);assert.match(all,/41–45/);
  run("V.lq='Cliente 44'");const found=run('leadsList()');assert.match(found,/Cliente 44/);assert.ok((found.match(/data-la="open"/g)||[]).length<45);
 });
+
+test('leads that did not answer move to their own column, with call day, contact time and a due reminder',()=>{
+ const past=new Date(Date.now()-6e4),fut=new Date(Date.now()+36e5),loc=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,16);
+ const leads=[{id:'n1',name:'Rita Nunes',contact:'915 000 000',stage:'contacto',solutions:[],call:'nao',callDay:'2026-11-01',callAt:loc(past),date:'2026-10-30'},
+  {id:'n2',name:'Paulo Sá',stage:'contacto',solutions:[],call:'nao',callAt:loc(fut),date:'2026-10-30'},
+  {id:'a1',name:'Luís Mota',stage:'contacto',solutions:[],call:'atendeu',date:'2026-10-29'}];
+ const {run,els}=app({...state,leads},{session:'s'});
+ run("V.tab='leads'");
+ const main=run('leadsList()'),side=run('leadsNoHtml()');
+ assert.ok(!main.includes('Rita Nunes')&&!main.includes('Paulo Sá'),'not answered leads leave the main table');assert.match(main,/Luís Mota/);
+ assert.match(side,/Não atendeu \(2\)/);assert.match(side,/data-ln="callDay" data-id="n1" value="2026-11-01"/);assert.match(side,/data-ln="callAt"/);
+ assert.ok(side.indexOf('Rita Nunes')<side.indexOf('Paulo Sá'),'nearest contact time first');
+ assert.match(run('vLeads()'),/lead-split/);
+ assert.equal(run("leadDue().map(l=>l.id).join()"),'n1');
+ run('leadRemind()');assert.match(els['lead-alert'].innerHTML,/Ligar a Rita Nunes/);assert.match(els['lead-alert'].innerHTML,/tel:915000000/);
+ run("S.leads[0].callDone=S.leads[0].callAt;leadRemind()");assert.equal(els['lead-alert'].innerHTML,'');
+ // Marking «Não atendeu» in the editor fills today's date and shows the two fields.
+ run("leadOpen('a1');leadDraft.call='';leadDraft.callDay=''");run("leadDraft.call='nao';if(!leadDraft.callDay)leadDraft.callDay=leadToday()");
+ assert.match(run('vLeads()'),/Horário em que o cliente quer ser contactado/);
+});

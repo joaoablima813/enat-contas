@@ -44,4 +44,12 @@ a.mini,button.mini{display:inline-block;margin-top:4px;font-size:13px;font-weigh
 .lead-opt.lead-yes.on{background:var(--green);border-color:var(--green)}.lead-opt.lead-no.on{background:var(--red);border-color:var(--red)}
 .lead-add{display:flex;gap:8px;margin-top:10px;align-items:center}.lead-add input{flex:1;min-width:0;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px}.lead-add .btn{width:auto;margin:0;padding:11px 16px;font-size:15px}
 .lead-q+.lead-q{border-top:1px solid var(--line)}.lead-q .link{display:block;padding:0 14px 12px 66px;font-size:14px}
-.lead-new .lead-row{background:color-mix(in srgb,#8b5cf6 7%,var(--card))}
+.lead-email{--lc:#db2777}
+.lead-new .lead-row.lead-email,.lead-row.lead-email{background:color-mix(in srgb,#db2777 8%,var(--card))}
+.lead-new-h{color:#db2777}.lead-inbox{margin-bottom:6px}.lead-inbox .btn{margin-top:4px}
+.lead-more{margin-top:10px}
+/* Página «Mostrar mais»: colunas de 20 leads lado a lado; no telemóvel desliza-se para o lado. */
+.lead-wide{width:min(1500px,calc(100vw - 32px));position:relative;left:50%;transform:translateX(-50%)}
+.lead-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;align-items:start}
+.lead-col h3{margin:4px 2px 8px;font-size:13px;color:var(--mute);font-weight:700}.lead-col .grp{margin:0}
+@media (max-width:700px){.lead-cols{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:86%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.lead-col{scroll-snap-align:start}}

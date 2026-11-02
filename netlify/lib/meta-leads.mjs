@@ -1,6 +1,10 @@
 // Leads da campanha da Meta: lê os emails de leads@tmam.pt na caixa pontedelima@enat.pt e guarda-os em "leads-meta".
 // A app junta essas leads às suas (pasta Novas leads). Só entram emails recebidos depois da primeira verificação.
+// Há dois formatos: o antigo («O/A visitante … enviou um pedido de contacto») e o novo («NOVA LEAD · Contacto recebido de …»).
 export const SENDER = process.env.META_LEADS_FROM || 'leads@tmam.pt';
+const SENDER_DOMAIN = SENDER.split('@').pop().toLowerCase();
+// Versão dos formatos lidos: ao subir, a data de início volta a ser «agora», para não importar emails antigos do formato novo.
+const FORMAT = 2;
 export const INBOX_KEY = 'leads-meta';
 const KEEP = 60 * 864e5;
 const HOUSES = ['Moradia', 'Apartamento', 'Moradia antiga', 'Moradia geminada'];
@@ -20,9 +24,16 @@ const LABELS = [
   ['name', /^nome( completo)?$/],
   ['email', /^e-?mail$/],
   ['contact', /^(telefone|telemovel|numero de telefone|contacto)$/],
-  ['house', /^a instalacao e para$/],
+  ['house', /^a instalacao e para\b/],
   ['timing', /^quando pretende avancar/],
+  ['origin', /^origem$/],
 ];
+// Marcas do texto dos emails de leads, nos dois formatos.
+const MARKS = [/contacto recebido de/, /pedido de contacto/, /nova lead/];
+export const isLeadEmail = (from, lines) => {
+  const a = String(from || '').toLowerCase();
+  return a === SENDER.toLowerCase() || a.endsWith('@' + SENDER_DOMAIN) || lines.some(l => MARKS.some(re => re.test(norm(l))));
+};
 // Lê os pares título / valor do formulário (o valor é a linha a seguir ao título).
 export function parseLead(lines) {
   const out = {};
@@ -35,12 +46,16 @@ export function parseLead(lines) {
 const lisbonDay = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon' }).format(d);
 const hash = s => { let h = 5381; for (const c of s) h = (h * 33 ^ c.codePointAt(0)) >>> 0; return h.toString(36); };
 
+// «armenio Barbosa marques» → «Armenio Barbosa Marques» (de, da, do… ficam em minúsculas).
+const SMALL = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+export const nameCase = s => String(s || '').trim().split(/\s+/).map((w, i) => i && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
 export function toLead(f, { messageId, date }) {
   const house = HOUSES.find(h => norm(h) === norm(f.house));
-  const notes = f.house && !house ? 'A instalação é para: ' + f.house : '';
+  const notes = [f.house && !house ? 'A instalação é para: ' + f.house : '', f.origin ? 'Origem: ' + f.origin : ''].filter(Boolean).join('\n');
   return {
     id: 'meta-' + hash(messageId), src: 'meta', received: date.toISOString(),
-    name: f.name || '', address: '', contact: f.contact || '', email: f.email || '', coords: '', rooms: '', bill: '', area: '',
+    name: nameCase(f.name), address: '', contact: f.contact || '', email: f.email || '', coords: '', rooms: '', bill: '', area: '',
     notes, value: '', brand: '', timing: f.timing || '', stage: 'nova', solutions: [], call: '', house: house || '', date: lisbonDay(date),
   };
 }
@@ -50,7 +65,9 @@ export async function checkMetaLeads(store, now = new Date()) {
   if (!pass) return { skipped: 'no password' };
   const box = (await store.get(INBOX_KEY, { type: 'json' })) || null;
   // Primeira verificação: marca a data de início e não importa nada do que já estava na caixa.
-  if (!box) { await store.setJSON(INBOX_KEY, { desde: now.toISOString(), leads: [] }); return { started: true }; }
+  if (!box) { await store.setJSON(INBOX_KEY, { desde: now.toISOString(), formato: FORMAT, leads: [] }); return { started: true }; }
+  // Formato novo acrescentado: só conta o que chegar a partir de agora (as leads já recebidas ficam).
+  if ((box.formato || 1) < FORMAT) { await store.setJSON(INBOX_KEY, { ...box, desde: now.toISOString(), formato: FORMAT }); return { started: true }; }
   const desde = new Date(box.desde), known = new Set(box.leads.map(l => l.id)), novas = [];
   const { ImapFlow } = await import('imapflow');
   const { simpleParser } = await import('mailparser');
@@ -61,15 +78,17 @@ export async function checkMetaLeads(store, now = new Date()) {
     const lock = await client.getMailboxLock('INBOX');
     try {
       const since = new Date(Math.max(desde.getTime(), now.getTime() - 7 * 864e5) - 864e5);
-      const uids = (await client.search({ from: SENDER, since }, { uid: true })) || [];
+      // Do remetente da campanha ou com o texto de um dos formatos (caso o formato novo venha de outro endereço).
+      const uids = (await client.search({ since, or: [{ from: SENDER_DOMAIN }, { body: 'Contacto recebido de' }, { body: 'pedido de contacto' }] }, { uid: true })) || [];
       if (uids.length) for await (const m of client.fetch(uids.slice(-50), { envelope: true, internalDate: true, source: true }, { uid: true })) {
         const date = m.internalDate || m.envelope?.date || now;
         if (date <= desde) continue;
         const messageId = m.envelope?.messageId || 'uid-' + m.uid + '-' + date.getTime();
         const parsed = await simpleParser(m.source);
         const from = parsed.from?.value?.[0]?.address || '';
-        if (from.toLowerCase() !== SENDER.toLowerCase()) continue;
-        const f = parseLead(parsed.html ? htmlLines(parsed.html) : String(parsed.text || '').split('\n').map(l => l.trim()).filter(Boolean));
+        const lines = parsed.html ? htmlLines(parsed.html) : String(parsed.text || '').split('\n').map(l => l.trim()).filter(Boolean);
+        if (!isLeadEmail(from, lines)) continue;
+        const f = parseLead(lines);
         if (!f.name && !f.email && !f.contact) continue;
         const lead = toLead(f, { messageId, date });
         if (!known.has(lead.id)) { known.add(lead.id); novas.push(lead); }

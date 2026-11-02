@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { htmlLines, parseLead, toLead } from '../netlify/lib/meta-leads.mjs';
+import { htmlLines, isLeadEmail, parseLead, toLead } from '../netlify/lib/meta-leads.mjs';
 
 // Formato do email de MA Media Leads (leads@tmam.pt).
 const html = `<p>Olá, Equipa ENAT Ponte de Lima</p><p>O/A visitante <b>Nando Costa</b> enviou um pedido de contacto através de um <b>formulário automático da campanha</b></p>
@@ -18,4 +18,23 @@ test('reads the Meta lead email fields into a new lead', () => {
   assert.equal(l.stage, 'nova'); assert.equal(l.src, 'meta'); assert.equal(l.house, 'Moradia'); assert.equal(l.date, '2026-10-29');
   assert.equal(toLead(f, { messageId: '<a@b>', date: new Date() }).id, l.id, 'same email gives the same lead');
   assert.match(toLead({ ...f, house: 'Empresa' }, { messageId: '<c>', date: new Date() }).notes, /Empresa/);
+});
+
+// Formato novo («NOVA LEAD · Contacto recebido de …»), com o título e o valor na mesma linha da tabela.
+const html2 = `<div>MA MEDIA LEADS</div><div>ENAT Ponte de Lima</div><p>NOVA LEAD</p><h1>Contacto recebido de <span>armenio Barbosa Marques</span></h1>
+<table><tr><td>Data 02/11/2026</td><td>Hora 12:28</td></tr></table><p>Olá,</p><p>Acabou de chegar um novo contacto através do formulário. Seguem os dados submetidos, para que possa responder o quanto antes.</p>
+<table><tr><td>NOME</td><td>armenio Barbosa Marques</td></tr><tr><td>EMAIL</td><td><a href="mailto:armeniomarques55@gmail.com">armeniomarques55@gmail.com</a></td></tr>
+<tr><td>TELEFONE</td><td>+351934054923</td></tr><tr><td>A INSTALAÇÃO É PARA: MORADIA, APARTAMENTO OU ESPAÇO COMERCIAL?</td><td>Moradia</td></tr>
+<tr><td>QUANDO PRETENDE AVANÇAR COM A INSTALAÇÃO?</td><td>Primeiro valores</td></tr><tr><td>ORIGEM</td><td>Facebook Lead Ads</td></tr></table>`;
+
+test('reads the new MA Media lead email format', () => {
+  const lines = htmlLines(html2);
+  assert.ok(isLeadEmail('outro@exemplo.pt', lines), 'recognised by its text');
+  assert.ok(isLeadEmail('leads@tmam.pt', []));
+  assert.ok(!isLeadEmail('cliente@gmail.com', ['Olá, queria um orçamento']));
+  const f = parseLead(lines);
+  assert.deepEqual(f, { name: 'armenio Barbosa Marques', email: 'armeniomarques55@gmail.com', contact: '+351934054923', house: 'Moradia', timing: 'Primeiro valores', origin: 'Facebook Lead Ads' });
+  const l = toLead(f, { messageId: '<n@m>', date: new Date('2026-11-02T12:28:00Z') });
+  assert.equal(l.name, 'Armenio Barbosa Marques'); assert.equal(l.house, 'Moradia'); assert.equal(l.src, 'meta'); assert.match(l.notes, /Origem: Facebook Lead Ads/);
+  assert.match(toLead({ ...f, house: 'Espaço comercial' }, { messageId: '<x>', date: new Date() }).notes, /A instalação é para: Espaço comercial/);
 });

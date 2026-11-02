@@ -53,3 +53,24 @@ a.mini,button.mini{display:inline-block;margin-top:4px;font-size:13px;font-weigh
 .lead-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;align-items:start}
 .lead-col h3{margin:4px 2px 8px;font-size:13px;color:var(--mute);font-weight:700}.lead-col .grp{margin:0}
 @media (max-width:700px){.lead-cols{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:86%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.lead-col{scroll-snap-align:start}}
+/* Leads: tabela principal à esquerda e coluna «Não atendeu» à direita (no telemóvel fica por baixo). */
+.lead-main{width:min(1180px,calc(100vw - 32px))}.lead-head{max-width:760px}
+.lead-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,400px);gap:22px;align-items:start}
+.lead-no{--lc:var(--red);position:sticky;top:10px;padding:2px 14px 14px;border-radius:18px;border:2px solid color-mix(in srgb,var(--red) 40%,var(--line));background:color-mix(in srgb,var(--red) 5%,var(--bg))}
+.lead-no-h{color:var(--red)}.lead-no .grp{margin:0}.lead-perm{margin:0 0 10px}
+.lead-no-card{background:var(--card);border-radius:14px;overflow:hidden;margin-bottom:10px;border:1px solid var(--line)}
+.lead-no-card .lead-row{width:100%;box-shadow:inset 4px 0 0 var(--red)}
+.lead-no-card.due{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
+.lead-no-f{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px 10px}
+.lead-no-f label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--mute);min-width:0}
+.lead-no-f input{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px;min-width:0;width:100%;box-sizing:border-box}
+.lead-no-at{margin:0;padding:0 12px 10px}.lead-no-due{margin:0;padding:0 12px 12px;font-weight:700;color:var(--amber);display:flex;gap:6px;align-items:center}
+.lead-no-due svg,.lead-alert-t svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;vertical-align:-3px}
+@media (max-width:900px){.lead-split{grid-template-columns:minmax(0,1fr)}.lead-no{position:static}.lead-main{width:auto;left:auto;transform:none}}
+/* Aviso de chamada no topo do ecrã, em qualquer separador. */
+#lead-alert{display:none;position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:55;width:min(560px,calc(100vw - 20px))}
+#lead-alert.on{display:block}
+.lead-alert-i{background:var(--card);color:var(--ink);border:2px solid var(--amber);border-radius:18px;padding:12px 14px;margin-bottom:8px;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:up .28s cubic-bezier(.2,.9,.3,1)}
+.lead-alert-t{display:flex;flex-direction:column;gap:2px}.lead-alert-t b{color:var(--amber)}.lead-alert-t span{font-size:13.5px;color:var(--mute)}
+.lead-alert-b{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.lead-alert-b .btn{width:auto;margin:0;padding:9px 13px;font-size:14px;text-decoration:none;display:inline-block}
+.lead-alert-more{margin:0;padding:8px 12px;background:var(--card);border-radius:12px;font-size:13px;text-align:center}

@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','leads.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -148,9 +148,10 @@ test('leads that did not answer move to their own column, with call day, contact
  assert.equal(run("leadDue().map(l=>l.id).join()"),'n1');
  run('leadRemind()');assert.match(els['lead-alert'].innerHTML,/Ligar a Rita Nunes/);assert.match(els['lead-alert'].innerHTML,/tel:915000000/);
  run("S.leads[0].callDone=S.leads[0].callAt;leadRemind()");assert.equal(els['lead-alert'].innerHTML,'');
- // Marking «Não atendeu» in the editor fills today's date and shows the two fields.
- run("leadOpen('a1');leadDraft.call='';leadDraft.callDay=''");run("leadDraft.call='nao';if(!leadDraft.callDay)leadDraft.callDay=leadToday()");
- assert.match(run('vLeads()'),/Horário em que o cliente quer ser contactado/);
+ // Registering a «Não atendeu» call fills today's date and shows the call-back time.
+ run("leadOpen('a1');leadDraft.calls.push(leadCallNew('nao'));leadCallsDerive(leadDraft)");
+ assert.equal(run('leadDraft.call'),'nao');assert.equal(run('leadDraft.callDay'),run('leadToday()'));
+ assert.match(run('vLeads()'),/horário em que o cliente quer ser contactado/);
 });
 
 test('lead editor has the campaign fields and a visit date for scheduled visits',()=>{
@@ -188,4 +189,20 @@ test('calendar lists calls, visits and maintenance and marks each as contacted o
  run(`calSet('lead','n1','call|${fut}','nao')`);assert.equal(run(`calEvents().find(e=>e.kind==='call').st`),'nao');assert.equal(run("S.leads[0].callDone"),'');
  run(`calSet('obra','o2','man|2026-10-01','sim')`);assert.equal(run("S.obras[1].ct['man|2026-10-01']"),'sim');assert.ok(!run('vCal()').includes('Por contactar'));
  run(`V.cd='${fut2.slice(0,10)}'`);assert.match(run('vCal()'),/Ana Lima/);
+});
+
+test('a lead keeps every call with its day, result and notes, newest first, and old single calls become the first call',()=>{
+ const {run}=app({...state,leads:[{id:'h1',name:'Hugo Reis',stage:'contacto',solutions:[],call:'nao',callDay:'2026-11-02',date:'2026-11-01'}]});
+ run("V.tab='leads';leadOpen('h1')");
+ assert.equal(run('leadDraft.calls.length'),1,'the old call becomes the first in the history');
+ assert.match(run('vLeads()'),/Chamada 1 · /);
+ run("leadDraft.calls.push({id:'c2',day:'2026-11-05',time:'10:15',result:'atendeu',notes:'Quer orçamento para AC\\nLigar depois'})");
+ run("leadDraft.calls.push({id:'c3',day:'2026-11-04',time:'18:00',result:'nao',notes:''})");
+ run('leadSave()');
+ const l=run("S.leads.find(x=>x.id==='h1')");
+ assert.equal(l.calls.length,3);assert.equal(l.call,'atendeu','the latest call sets the result');assert.equal(l.callDay,'2026-11-05');
+ run("leadOpen('h1');leadCallOpen.add('c2')");const ed=run('vLeads()');
+ assert.match(ed,/Chamadas \(3\)/);assert.match(ed,/Quer orçamento para AC/);assert.match(ed,/data-ci="c2" open/);
+ assert.ok(ed.indexOf('data-ci="c2"')<ed.indexOf('data-ci="c3"')&&ed.indexOf('data-ci="c3"')<ed.indexOf('data-ci="c0"'),'newest call first');
+ assert.match(run("leadRow(S.leads.find(x=>x.id==='h1'))"),/3 chamadas/);
 });

@@ -11,9 +11,25 @@ const LEAD_FIELDS=['name','address','contact','email','coords','rooms','bill','a
 const LEAD_HEATING=['Botija de gás','Gás natural','Esquentador','Caldeira a gás','Caldeira a gasóleo','Termoacumulador elétrico','Bomba de calor','Painel solar térmico','Lenha / salamandra'];
 const LEAD_TIMINGS=['O mais rápido possível','Dentro de 1 mês','Dentro de 3 meses','Dentro de 6 meses','Ainda só a pedir valores'];
 let leadDraft=null,leadOrig='',leadMsg='';
+const leadCallOpen=new Set();
 
 const leadToday=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
-const leadNew=()=>({...Object.fromEntries(LEAD_FIELDS.map(k=>[k,''])),stage:'nova',solutions:[],call:'',house:'',date:leadToday()});
+const leadNew=()=>({...Object.fromEntries(LEAD_FIELDS.map(k=>[k,''])),stage:'nova',solutions:[],call:'',house:'',date:leadToday(),calls:[]});
+/* Chamadas: cada lead guarda todas as chamadas feitas ao cliente (dia, hora, resultado e observações), em l.calls.
+   O resultado da última chamada com resultado define l.call (Atendeu / Não atendeu) e o dia da última chamada fica em l.callDay. */
+const leadNowTime=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(11,16)};
+const leadCallNew=(result='')=>({id:uid(),day:leadToday(),time:leadNowTime(),result,notes:''});
+const leadCallsSorted=l=>leadCallsOf(l).slice().sort((a,b)=>((a.day||'')+(a.time||'')).localeCompare((b.day||'')+(b.time||'')));
+function leadCallsDerive(l){
+ const c=leadCallsSorted(l);if(!c.length)return;
+ const withRes=c.filter(x=>x.result==='atendeu'||x.result==='nao');
+ if(withRes.length)l.call=withRes.at(-1).result;
+ if(c.at(-1).day)l.callDay=c.at(-1).day;
+}
+const leadCallDay=c=>{const d=new Date((c.day||'')+'T12:00');return isNaN(d)?'Sem data':d.toLocaleDateString('pt-PT',{weekday:'short',day:'numeric',month:'short',year:'numeric'})};
+// Leads antigas só tinham uma chamada (Atendeu / Não atendeu e o dia): passa a ser a primeira chamada do histórico.
+const leadCallsOf=l=>Array.isArray(l.calls)&&l.calls.length?l.calls:l.call==='atendeu'||l.call==='nao'?[{id:'c0',day:l.callDay||l.date||'',time:'',result:l.call,notes:''}]:[];
+const leadCallsCount=l=>leadCallsOf(l).length;
 const leadName=l=>String(l.name||'').trim()||'Lead sem nome';
 const leadList=()=>(S.leads||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.u||0)-(a.u||0));
 const leadText=l=>[l.name,l.contact,l.email,l.address,l.brand,l.heating,...(l.solutions||[])].join(' ');
@@ -24,12 +40,12 @@ const leadCall=c=>c==='atendeu'?'<span class="lead-call pos">Atendeu</span>':c==
 
 // Leads novas: chegaram por email (sincronizadas do Outlook) e ainda não foram marcadas como recebidas.
 // Têm cor própria e ficam separadas das leads criadas na app. Saem ao marcar como recebida, ao marcar a chamada ou ao mudar a fase.
-const leadIsNew=l=>l.src==='meta'&&!l.seen&&(l.stage||'nova')==='nova'&&!l.call;
+const leadIsNew=l=>l.src==='meta'&&!l.seen&&(l.stage||'nova')==='nova'&&!l.call&&!leadCallsCount(l);
 const leadNews=()=>leadList().filter(leadIsNew);
 const LEAD_PAGE=10,LEAD_COL=20;
 function leadRow(l){
  const nova=leadIsNew(l),info=[(l.solutions||[]).join(', '),l.contact].filter(v=>String(v||'').trim()).map(esc).join(' · ');
- return`<button class="row invoice-row lead-row ${nova?'lead-email':'lead-'+esc(l.stage||'nova')}" data-la="open" data-id="${esc(l.id)}"><div class="av">${esc(leadName(l)[0])}</div><div class="rt"><b>${esc(leadName(l))}</b><span>${info||'Sem soluções indicadas'}</span><span>${nova?'Sincronizada do Outlook · ':''}${l.date?esc(fd(l.date)):''}${leadCall(l.call)}</span></div><div class="rr">${nova?'<span class="lead-badge lead-email">Lead nova</span>':leadBadge(l.stage)}</div></button>`;
+ return`<button class="row invoice-row lead-row ${nova?'lead-email':'lead-'+esc(l.stage||'nova')}" data-la="open" data-id="${esc(l.id)}"><div class="av">${esc(leadName(l)[0])}</div><div class="rt"><b>${esc(leadName(l))}</b><span>${info||'Sem soluções indicadas'}</span><span>${nova?'Sincronizada do Outlook · ':''}${l.date?esc(fd(l.date)):''}${leadCallsCount(l)?` · ${leadCallsCount(l)} chamada${leadCallsCount(l)>1?'s':''}`:''}${leadCall(l.call)}</span></div><div class="rr">${nova?'<span class="lead-badge lead-email">Lead nova</span>':leadBadge(l.stage)}</div></button>`;
 }
 // Junta as leads recebidas por email que este dispositivo ainda não tem (nem foram eliminadas).
 function leadInbox(list){
@@ -52,8 +68,8 @@ function leadNoCard(l){
  return`<div class="lead-no-card${due?' due':''}">${leadRow(l)}<div class="lead-no-f"><label><span>Dia em que liguei</span><input type="date" data-ln="callDay" data-id="${esc(l.id)}" value="${esc(l.callDay||'')}"></label><label><span>Contactar em</span><input type="datetime-local" data-ln="callAt" data-id="${esc(l.id)}" value="${esc(l.callAt||'')}"></label></div>${due?`<p class="lead-no-due">${ic('bell')} Está na hora de ligar${l.contact?` · <a href="tel:${esc(String(l.contact).replace(/\s/g,''))}">${esc(l.contact)}</a>`:''}</p>`:l.callAt&&l.callDone!==l.callAt?`<p class="note lead-no-at">Aviso: ${esc(leadAtTxt(l.callAt))}</p>`:''}</div>`;
 }
 function leadsNoHtml(){
- const l=leadNoFiltered(),perm=typeof Notification!=='undefined'&&Notification.permission==='default';
- return`<h2 class="lead-no-h">Não atendeu${l.length?' ('+l.length+')':''}</h2>${perm&&l.length?'<button class="btn alt lead-perm" data-la="perm">Ativar notificações no dispositivo</button>':''}${l.length?l.map(leadNoCard).join(''):'<div class="grp"><div class="empty">Sem leads por voltar a ligar. As leads marcadas como «Não atendeu» aparecem aqui.</div></div>'}`;
+ const l=leadNoFiltered(),perm=typeof Notification!=='undefined'&&(typeof pushOn==='function'?!pushOn()&&Notification.permission!=='denied':Notification.permission==='default');
+ return`<h2 class="lead-no-h">Não atendeu${l.length?' ('+l.length+')':''}</h2>${perm&&l.length?'<button class="btn alt lead-perm" data-la="perm">Ativar notificações no telemóvel</button>':''}${l.length?l.map(leadNoCard).join(''):'<div class="grp"><div class="empty">Sem leads por voltar a ligar. As leads marcadas como «Não atendeu» aparecem aqui.</div></div>'}`;
 }
 function leadsNewHtml(){
  const l=leadNewFiltered();
@@ -95,6 +111,20 @@ function leadQuotesHtml(l){
  const list=quoteRows===null?'<div class="empty">A carregar orçamentos…</div>':rows.length?rows.map(r=>`<div class="lead-q"><button class="row invoice-row" data-a="openquote" data-id="${r.id}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${quoteNumber(r.id,r.document.date)} ${quoteBadge(r.document,r.events)}</b><span>${esc(quoteTitle(r.document).replace('Orçamento para ',''))}</span></div><div class="rr"><b>${eur(quoteTotals(r.document).total)}</b><span>com IVA</span></div></button><button type="button" class="link" data-la="pdf" data-id="${r.id}">Descarregar PDF do orçamento</button></div>`).join(''):'<div class="empty">Ainda sem orçamentos para esta lead.</div>';
  return`<h2>Orçamentos desta lead</h2><div class="grp">${list}</div><p class="note">Toque num orçamento para o abrir em Orçamentos.</p>`;
 }
+// Histórico de chamadas da lead: tocar numa chamada abre-a com as observações dessa chamada.
+function leadCallsHtml(l){
+ const c=leadCallsSorted(l),n=c.length;
+ const item=(x,i)=>{const open=leadCallOpen.has(x.id),prev=String(x.notes||'').trim().split('\n')[0].slice(0,80),res=(v,t,cls)=>`<button type="button" class="lead-opt ${cls} ${x.result===v?'on':''}" data-la="call-res" data-i="${esc(x.id)}" data-v="${v}" aria-pressed="${x.result===v}">${t}</button>`;
+  return`<details class="lead-callx" data-ci="${esc(x.id)}"${open?' open':''}><summary><span class="lead-callx-n">${i+1}</span><span class="lead-callx-t"><b>Chamada ${i+1} · ${esc(leadCallDay(x))}${x.time?' · '+esc(x.time):''}</b><span>${leadCall(x.result)||'<span class="lead-call">Sem resultado</span>'}<span class="lead-callx-p">${prev?esc(prev):'Sem observações'}</span></span></span></summary>
+  <div class="lead-callx-b"><div class="lead-callx-f"><label class="q-field"><span>Dia</span><input type="date" data-lc="day" data-i="${esc(x.id)}" value="${esc(x.day||'')}"></label><label class="q-field"><span>Hora</span><input type="time" data-lc="time" data-i="${esc(x.id)}" value="${esc(x.time||'')}"></label></div>
+  <div class="lead-opts">${res('atendeu','Atendeu','lead-yes')}${res('nao','Não atendeu','lead-no')}</div>
+  <label class="q-field"><span>Observações desta chamada</span><textarea data-lc="notes" data-i="${esc(x.id)}" rows="4" maxlength="4000" placeholder="O que foi falado, o que ficou combinado…">${esc(x.notes||'')}</textarea></label>
+  <button type="button" class="link del" data-la="call-del" data-i="${esc(x.id)}">Eliminar esta chamada</button></div></details>`};
+ return`<h2>Chamadas${n?' ('+n+')':''}</h2><p class="note">Registe cada chamada a este cliente, com o resultado e as observações. Toque numa chamada para ver o que deixou escrito.</p>
+ <div class="grp lead-calls">${n?c.map((x,i)=>({x,i})).reverse().map(({x,i})=>item(x,i)).join(''):'<div class="empty">Ainda sem chamadas registadas.</div>'}</div>
+ <div class="lead-call-add"><button type="button" class="btn alt" data-la="call-add" data-v="atendeu">Registar chamada · Atendeu</button><button type="button" class="btn alt" data-la="call-add" data-v="nao">Registar chamada · Não atendeu</button></div>
+ ${l.call==='nao'?`<div class="q-card lead-no-ed">${leadField('Voltar a ligar em (horário em que o cliente quer ser contactado)','callAt','datetime-local')}<p class="note">Chegada esta hora, a app avisa para ligar ao cliente, também no telemóvel com a app fechada (ative em Definições › Notificações no telemóvel).</p></div>`:''}`;
+}
 function leadEditor(){
  const l=leadDraft,maps=String(l.coords||'').trim()||String(l.address||'').trim(),saved=(S.leads||[]).find(x=>x.id===l.id),nova=!!saved&&leadIsNew(saved);
  return`<button class="back" data-la="close">${ic('back')} Leads</button><h1>${l.id?esc(leadName(l)):'Nova lead'}</h1><p class="sub">Nenhum campo é obrigatório. Pode guardar e completar mais tarde.</p>
@@ -103,19 +133,23 @@ function leadEditor(){
  <h2>Cliente</h2><div class="q-card">${leadField('Nome do cliente','name','text','maxlength="2000" autocomplete="off"')}${leadField('Morada','address','text','maxlength="4000" autocomplete="off"')}${leadField('Contacto','contact','tel','maxlength="2000" inputmode="tel" autocomplete="off"')}${leadField('Email','email','email','maxlength="320" autocomplete="off" placeholder="cliente@exemplo.pt"')}${leadField('Coordenadas (opcional)','coords','text','maxlength="200" autocomplete="off" placeholder="Ex.: 41.7672, -8.5836"')}${maps?`<a class="link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(maps)}" target="_blank" rel="noopener">Abrir no mapa</a>`:''}${leadField('Data','date','date')}</div>
  <h2>Pedido do cliente</h2><div class="q-card">${leadField('Que sistema usa hoje para aquecer a água?','heating','text','maxlength="2000" list="lead-heating" autocomplete="off" placeholder="Ex.: Botija de gás"')}<datalist id="lead-heating">${LEAD_HEATING.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>${leadField('Quando pretende fazer a instalação?','timing','text','maxlength="2000" list="lead-timing" autocomplete="off" placeholder="Ex.: O mais rápido possível"')}<datalist id="lead-timing">${LEAD_TIMINGS.map(v=>`<option value="${esc(v)}">`).join('')}</datalist></div>
  <h2>Solução pretendida</h2><p class="note">Selecione todas as que o cliente pretende.</p><div class="lead-opts">${[...LEAD_SOLUTIONS,...l.solutions.filter(s=>!LEAD_SOLUTIONS.includes(s))].map(s=>`<button type="button" class="lead-opt ${l.solutions.includes(s)?'on':''}" data-la="sol" data-v="${esc(s)}" aria-pressed="${l.solutions.includes(s)}">${esc(s)}</button>`).join('')}</div><div class="lead-add"><input id="lead-sol" maxlength="100" placeholder="Outra solução" aria-label="Outra solução" autocomplete="off"><button type="button" class="btn alt" data-la="sol-add">Adicionar</button></div>
- <h2>Chamada</h2><div class="lead-opts">${leadChoice('call','atendeu','Atendeu','lead-yes')}${leadChoice('call','nao','Não atendeu','lead-no')}</div>${l.call==='nao'?`<div class="q-card lead-no-ed">${leadField('Dia em que liguei','callDay','date')}${leadField('Horário em que o cliente quer ser contactado','callAt','datetime-local')}<p class="note">Chegada esta hora, a app avisa para ligar ao cliente.</p></div>`:''}
+ ${leadCallsHtml(l)}
  <h2>Tipo de casa</h2><div class="lead-opts">${LEAD_HOUSES.map(h=>leadChoice('house',h,h)).join('')}</div>
  <h2>Detalhes técnicos</h2><div class="q-card">${leadArea('Divisões a climatizar','rooms','Ex.: sala, 3 quartos, escritório')}${l.solutions.includes(LEAD_PV)?leadField('Fatura elétrica','bill','text','maxlength="2000" placeholder="Ex.: 120 € por mês"'):''}${leadArea('Área das divisões','area','Ex.: sala 30 m², quartos 12 m²')}${leadArea('Observações técnicas','notes')}${leadField('Valor orçamentado','value','text','maxlength="200"')}${leadField('Marca','brand','text','maxlength="200" list="quote-brands" autocomplete="off"')}<datalist id="quote-brands">${quoteTables().map(t=>`<option value="${esc(t.brand)}">`).join('')}</datalist></div>
  <p id="lead-msg" role="status" class="note">${esc(leadMsg)}</p><button class="btn" data-la="save">Guardar lead</button><button class="btn alt" data-la="quote">Criar orçamento para esta lead</button>
  ${leadQuotesHtml(l)}${l.id?'<button class="btn del" data-la="delete">Eliminar lead</button>':''}`;
 }
 
-function leadOpen(id){const l=(S.leads||[]).find(x=>x.id===id);if(!l)return false;leadDraft={...leadNew(),...structuredClone(l)};delete leadDraft.u;leadOrig=JSON.stringify(leadDraft);leadMsg='';return true}
+function leadOpen(id){const l=(S.leads||[]).find(x=>x.id===id);if(!l)return false;leadDraft={...leadNew(),...structuredClone(l)};delete leadDraft.u;
+ leadDraft.calls=structuredClone(leadCallsOf(leadDraft));
+ leadOrig=JSON.stringify(leadDraft);leadMsg='';leadCallOpen.clear();return true}
 const leadDirty=()=>leadDraft&&JSON.stringify(leadDraft)!==leadOrig;
 function leadSave(){
  const l={...leadDraft};LEAD_FIELDS.forEach(k=>l[k]=String(l[k]||'').trim());
  if(!l.solutions.includes(LEAD_PV))l.bill='';
  l.date=/^\d{4}-\d{2}-\d{2}$/.test(l.date)?l.date:leadToday();
+ l.calls=(Array.isArray(l.calls)?l.calls:[]).map(c=>({id:String(c.id||uid()),day:/^\d{4}-\d{2}-\d{2}$/.test(c.day)?c.day:'',time:/^\d{2}:\d{2}$/.test(c.time)?c.time:'',result:['atendeu','nao'].includes(c.result)?c.result:'',notes:String(c.notes||'').trim().slice(0,4000)}));
+ leadCallsDerive(l);
  if(!l.id)l.id=uid();
  S.leads=S.leads||[];const i=S.leads.findIndex(x=>x.id===l.id);if(i<0)S.leads.push(l);else S.leads[i]={...S.leads[i],...l};
  save();leadDraft={...l};leadOrig=JSON.stringify(leadDraft);leadMsg='Lead guardada.';
@@ -147,6 +181,7 @@ document.addEventListener('input',e=>{
  const t=e.target;
  if(t.id==='lq'){V.lq=t.value;navEntries[navIndex].v=navView();const l=document.querySelector('#llist');if(l)l.innerHTML=leadsList();const n=document.querySelector('#lno');if(n)n.innerHTML=leadsNoHtml();return}
  if(t.dataset?.lf&&leadDraft)leadDraft[t.dataset.lf]=t.value;
+ if(t.dataset?.lc&&leadDraft){const c=(leadDraft.calls||[]).find(x=>x.id===t.dataset.i);if(c)c[t.dataset.lc]=t.value}
 });
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-la]');if(!b)return;e.stopImmediatePropagation();
@@ -160,6 +195,12 @@ document.addEventListener('click',async e=>{
  else if(a==='close'){if(leadDirty()&&!confirm('Sair sem guardar as alterações desta lead?'))return;leadDraft=null;leadMsg='';window.scrollTo?.(0,0)}
  else if(a==='set'){const f=b.dataset.f,v=b.dataset.v;leadDraft[f]=f!=='stage'&&leadDraft[f]===v?'':v;if(f==='call'&&leadDraft.call==='nao'&&!leadDraft.callDay)leadDraft.callDay=leadToday()}
  else if(a==='perm'){await leadAskPerm();}
+ else if(a==='call-add'){const c=leadCallNew(b.dataset.v||'');leadDraft.calls=[...(leadDraft.calls||[]),c];leadCallOpen.add(c.id);
+  // Uma chamada nova responde ao aviso que estava em hora.
+  if(leadDraft.callAt&&new Date(leadDraft.callAt).getTime()<=Date.now())leadDraft.callDone=leadDraft.callAt;
+  leadCallsDerive(leadDraft);if(leadDraft.call==='nao')leadAskPerm()}
+ else if(a==='call-res'){const c=(leadDraft.calls||[]).find(x=>x.id===b.dataset.i);if(!c)return;c.result=c.result===b.dataset.v?'':b.dataset.v;leadCallOpen.add(c.id);leadCallsDerive(leadDraft)}
+ else if(a==='call-del'){const c=(leadDraft.calls||[]).find(x=>x.id===b.dataset.i);if(!c||((c.notes||'').trim()&&!confirm('Eliminar esta chamada e as observações?')))return;leadDraft.calls=leadDraft.calls.filter(x=>x!==c);leadCallsDerive(leadDraft)}
  else if(a==='sol'){const v=b.dataset.v,s=leadDraft.solutions;leadDraft.solutions=s.includes(v)?s.filter(x=>x!==v):[...s,v]}
  else if(a==='sol-add'){const inp=document.querySelector('#lead-sol'),v=String(inp?.value||'').trim();if(!v)return;if(!leadDraft.solutions.includes(v))leadDraft.solutions=[...leadDraft.solutions,v]}
  else if(a==='save')leadSave();
@@ -168,6 +209,9 @@ document.addEventListener('click',async e=>{
  else if(a==='delete'){if(!confirm('Eliminar a lead '+leadName(leadDraft)+'? Os orçamentos criados continuam em Orçamentos.'))return;S.leads=(S.leads||[]).filter(x=>x.id!==leadDraft.id);save();leadDraft=null;leadMsg=''}
  render();
 },true);
+
+// Guarda que chamadas estão abertas, para continuarem abertas quando o ecrã se atualiza.
+if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('toggle',e=>{const d=e.target;if(!d?.dataset?.ci)return;d.open?leadCallOpen.add(d.dataset.ci):leadCallOpen.delete(d.dataset.ci)},true);
 
 // Campos da coluna «Não atendeu»: guardam logo na lead (e sincronizam com os outros dispositivos).
 document.addEventListener('change',e=>{
@@ -183,13 +227,16 @@ document.addEventListener('change',e=>{
 const LEAD_SNOOZE=15;
 const leadDueOne=l=>l.call==='nao'&&!!l.callAt&&l.callDone!==l.callAt&&!isNaN(new Date(l.callAt))&&new Date(l.callAt).getTime()<=Date.now();
 const leadDue=()=>(S?.leads||[]).filter(leadDueOne).sort((a,b)=>String(a.callAt).localeCompare(String(b.callAt)));
-async function leadAskPerm(){try{if(typeof Notification!=='undefined'&&Notification.permission==='default')await Notification.requestPermission()}catch(e){}}
+// Pede autorização e ativa as notificações push (chegam também com a app fechada).
+async function leadAskPerm(){try{if(typeof pushEnable==='function'&&typeof pushOn==='function'&&!pushOn()){await pushEnable(true);pushPaint?.()}else if(typeof Notification!=='undefined'&&Notification.permission==='default')await Notification.requestPermission()}catch(e){}}
 function leadNotify(l){
  const key='enat-lead-notif',seen=(()=>{try{return JSON.parse(localStorage.getItem(key)||'{}')}catch(e){return{}}})(),id=l.id+'|'+l.callAt;
  if(seen[id])return;seen[id]=Date.now();
  for(const k of Object.keys(seen))if(Date.now()-seen[k]>30*864e5)delete seen[k];
  try{localStorage.setItem(key,JSON.stringify(seen))}catch(e){}
  if(typeof Notification==='undefined'||Notification.permission!=='granted')return;
+ // Com as notificações push ativas, o aviso do sistema vem do servidor (evita aviso repetido).
+ if(typeof pushOn==='function'&&pushOn())return;
  const title='Ligar a '+leadName(l),opts={body:(l.contact?l.contact+' · ':'')+'O cliente pediu contacto a esta hora.',tag:'lead-'+l.id,data:{lead:l.id},icon:'/pwa-192x192.png',badge:'/favicon-32x32.png',requireInteraction:true};
  const fallback=()=>{try{new Notification(title,opts)}catch(e){}};
  if(typeof navigator!=='undefined'&&navigator.serviceWorker?.getRegistration)navigator.serviceWorker.getRegistration().then(r=>r?r.showNotification(title,opts):fallback()).catch(fallback);else fallback();
@@ -225,8 +272,8 @@ document.addEventListener('click',e=>{
  const a=b.dataset.lr;
  if(typeof notifClose==='function')notifClose(leadCallNotif(l));
  if(a==='snooze')l.callAt=leadLocalAt(Date.now()+LEAD_SNOOZE*6e4);
- else if(a==='done'){l.callDone=l.callAt;l.callDay=leadToday();l.ct={...(l.ct||{}),['call|'+l.callAt]:'sim'}}
- save();leadPatchDraft(l,['callAt','callDay','callDone','ct']);
+ else if(a==='done'){l.callDone=l.callAt;l.callDay=leadToday();l.ct={...(l.ct||{}),['call|'+l.callAt]:'sim'};l.calls=[...leadCallsOf(l),leadCallNew('')]}
+ save();leadPatchDraft(l,['callAt','callDay','callDone','ct','calls']);
  if(a==='open'){leadRemind();leadOpenFromAlert(l.id);return}
  leadRemind();if(['leads','cal'].includes(V.tab)&&!document.activeElement?.matches?.('input,textarea,select'))render();
 });

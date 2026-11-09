@@ -125,6 +125,10 @@ export default async (req) => {
     const { handleQuotes } = await import('../lib/quotes.ts');
     return handleQuotes(req, path);
   }
+  if (path.startsWith('push/')) {
+    const { handlePush } = await import('../lib/push.mjs');
+    return handlePush(req, path, store);
+  }
   if (path.startsWith('pv/')) {
     const { handlePv } = await import('../lib/pv.mjs');
     return handlePv(req, path);

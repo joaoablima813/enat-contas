@@ -118,3 +118,19 @@ a.mini,button.mini{display:inline-block;margin-top:4px;font-size:13px;font-weigh
 .cal-st.yes.on{background:var(--green);border-color:var(--green);color:#fff}.cal-st.no.on{background:var(--red);border-color:var(--red);color:#fff}
 .cal-a{border:0;background:none;color:var(--blue);font:inherit;font-size:14px;font-weight:600;padding:8px 6px;cursor:pointer;text-decoration:none}
 .lead-visit{margin-top:10px}
+/* Histórico de chamadas de uma lead: cada chamada abre com as suas observações. */
+.lead-calls{padding:0}
+.lead-callx{border-bottom:1px solid var(--line)}.lead-callx:last-child{border-bottom:0}
+.lead-callx summary{display:flex;gap:12px;align-items:center;padding:13px 14px;cursor:pointer;list-style:none}
+.lead-callx summary::-webkit-details-marker{display:none}
+.lead-callx summary::after{content:"›";margin-left:auto;font-size:20px;color:var(--mute);transition:transform .15s}
+.lead-callx[open] summary::after{transform:rotate(90deg)}
+.lead-callx-n{flex:none;width:30px;height:30px;border-radius:50%;background:var(--chip);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.lead-callx-t{display:flex;flex-direction:column;gap:3px;min-width:0}
+.lead-callx-t>span{font-size:13px;color:var(--mute)}
+.lead-callx-p{margin-left:6px;overflow-wrap:anywhere}.lead-callx-p::before{content:"· "}
+.lead-callx-b{padding:4px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.lead-callx-f{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lead-callx-b textarea{min-height:96px}
+.lead-call-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.lead-call-add .btn{flex:1 1 200px;margin:0}
+#pushbox .btn{margin-top:10px}

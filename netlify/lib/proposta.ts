@@ -79,6 +79,11 @@ async function record(req: Request, found: any, store: any) {
       await db.insert(quoteEvents).values({ quoteId: s.quote, kind: 'trocou', note: 'Escolheu o ' + quoteNumber(row.id, doc.date) + ' em vez deste orçamento.' });
     }
   }
+  // Aviso no telemóvel, mesmo com a app fechada.
+  try {
+    const { sendPush } = await import('./push.mjs');
+    await sendPush(store, { title: 'Resposta de cliente: ' + ANSWERS[kind], body: [String(doc.client || '').trim() || 'Cliente', quoteNumber(row.id, doc.date), note].filter(Boolean).join(' · ').slice(0, 300), tag: 'quote-' + row.id, data: { quote: row.id } });
+  } catch (e: any) { console.error('proposta push', e?.message); }
   return Response.json({ ok: true, kind, label: ANSWERS[kind], at: ev?.createdAt, obra: Boolean(doc.obra) });
 }
 

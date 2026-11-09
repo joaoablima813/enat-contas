@@ -56,6 +56,16 @@ Os links enviados por WhatsApp e por email abrem uma página da Enat (`/proposta
 - **Mudar de ideias:** o cliente pode mudar a resposta quando quiser; fica tudo no histórico. Se tinha adjudicado e muda, a obra não é apagada: a app avisa para a eliminar se já não avançar.
 - Os links enviados antes desta versão continuam a abrir só o PDF.
 
+## 4.2 Faturas no TOC Online
+Na obra (separador Contas), **Criar fatura no TOC Online** emite a fatura (FT) já **finalizada** no TOC Online, com as linhas do orçamento da obra: equipamentos, material, acessórios, mão de obra e outros. Cada linha leva a quantidade e o preço de venda sem IVA (o total sem IVA do orçamento repartido pelas linhas, como no PDF detalhado) e o **IVA é sempre 23%**. A mão de obra vai como serviço; o resto como produto.
+
+- Antes de emitir aparece o ecrã de confirmação: cliente (nome, NIF, morada, código postal, localidade, email), linhas e totais. Sem NIF, a fatura sai para consumidor final. Se o cliente ainda não existir no TOC Online, é criado com estes dados.
+- Depois de emitida, a fatura só pode ser corrigida no TOC Online com nota de crédito. A app avisa se o mesmo orçamento já foi faturado e não cria uma segunda fatura se o pedido for repetido.
+- O TOC Online envia a fatura para o email do cliente. Para seguir o PDF em anexo (e não só o link), ative essa opção nas definições do TOC Online.
+- A obra guarda o número, o total e o link do PDF, com os botões **Ver PDF**, **Enviar por email** e **WhatsApp**.
+
+Configuração (uma vez): no TOC Online, em Empresa › Configurações › Dados API, autorize a integração e receba as credenciais. Guarde-as em Netlify > Environment variables: `TOC_CLIENT_ID`, `TOC_CLIENT_SECRET`, `TOC_OAUTH_URL` e `TOC_API_URL`. A licença de Gestão Comercial tem de estar ativa. A app renova o acesso sozinha.
+
 ## 5. Enviar orçamentos por email (pontedelima@enat.pt)
 Os orçamentos têm um campo **Email do cliente (opcional)**. Em **Enviar ao cliente**, o botão **Enviar orçamento por email** envia a mesma mensagem do WhatsApp, com o PDF em anexo.
 

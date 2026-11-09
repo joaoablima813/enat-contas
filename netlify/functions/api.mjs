@@ -129,6 +129,10 @@ export default async (req) => {
     const { handlePush } = await import('../lib/push.mjs');
     return handlePush(req, path, store);
   }
+  if (path.startsWith('toc/')) {
+    const { handleToc } = await import('../lib/toconline.ts');
+    return handleToc(req, path, store);
+  }
   if (path.startsWith('pv/')) {
     const { handlePv } = await import('../lib/pv.mjs');
     return handlePv(req, path);

@@ -22,6 +22,14 @@ function cfg() {
     api: clean(e.TOC_API_URL).replace(/\/api(\/v1)?$/, ''),
     redirect: (e.TOC_REDIRECT_URI || REDIRECT).trim(),
   };
+  // O endereço de autenticação é https://appNN.toconline.pt/oauth, com o mesmo número do servidor da API (https://apiNN.toconline.pt).
+  // Se estiver em falta ou apontar para outro sítio (por exemplo o endereço de redirecionamento do Postman), usa-se o que corresponde à API.
+  const host = (u: string) => { try { return new URL(u).hostname; } catch { return ''; } };
+  const apiHost = host(c.api).match(/^api(\d*)\.toconline\.pt$/);
+  if (!/^app\d*\.toconline\.pt$/.test(host(c.oauth)) && apiHost) {
+    if (/pstmn\.io|callback/.test(c.oauth) && !e.TOC_REDIRECT_URI) c.redirect = c.oauth;
+    c.oauth = 'https://app' + apiHost[1] + '.toconline.pt/oauth';
+  }
   return c.id && c.secret && /^https:\/\//.test(c.oauth) && /^https:\/\//.test(c.api) ? c : null;
 }
 

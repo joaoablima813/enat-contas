@@ -134,3 +134,11 @@ a.mini,button.mini{display:inline-block;margin-top:4px;font-size:13px;font-weigh
 .lead-callx-b textarea{min-height:96px}
 .lead-call-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.lead-call-add .btn{flex:1 1 200px;margin:0}
 #pushbox .btn{margin-top:10px}
+/* Fatura no TOC Online: o formulário cabe sempre na largura do ecrã e os botões ficam visíveis em baixo. */
+.toc-form{border:0;padding:0;margin:0;min-width:0;max-width:100%}
+.toc-quote label{flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+.toc-quote select{flex:1 1 100%;direction:ltr;text-align:left;white-space:normal;background:var(--chip);border-radius:9px;padding:9px;font-size:15px}
+.toc-form .fld label>span{flex:0 1 auto}
+.toc-actions{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));margin:12px -16px 0;padding:2px 16px calc(20px + env(safe-area-inset-bottom,0px));background:var(--bg);box-shadow:0 -1px 0 var(--line);z-index:1}
+.toc-actions .note:empty{display:none}
+.toc-actions .btn+.btn{margin-top:10px}

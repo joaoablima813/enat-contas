@@ -11,8 +11,8 @@ const quote={client:'Família Araújo',address:'Rua do Souto, 12, 4990-062 Ponte
  {kind:'Mão de obra',description:'Montagem e ensaio',value:35,quantity:8,unit:'h'},
  {kind:'Outros',description:'',value:0}]};
 
-function load(fetchImpl,rows){
- const ctx=vm.createContext({console,URL,URLSearchParams,Response,Buffer,AbortSignal,Intl,Date,JSON,Math,Number,String,Array,Object,Error,Boolean,process:{env:{TOC_CLIENT_ID:'cid',TOC_CLIENT_SECRET:'sec',TOC_OAUTH_URL:'https://app9.toconline.pt/oauth/',TOC_API_URL:'https://app9.toconline.pt/api'}},fetch:fetchImpl,
+function load(fetchImpl,rows,env){
+ const ctx=vm.createContext({console,URL,URLSearchParams,Response,Buffer,AbortSignal,Intl,Date,JSON,Math,Number,String,Array,Object,Error,Boolean,process:{env:env||{TOC_CLIENT_ID:'cid',TOC_CLIENT_SECRET:'sec',TOC_OAUTH_URL:'https://app9.toconline.pt/oauth/',TOC_API_URL:'https://app9.toconline.pt/api'}},fetch:fetchImpl,
   db:{select:()=>({from:()=>({where:async()=>rows})})},quotes:{id:'id'},eq:()=>null});
  ctx.globalThis=ctx;
  vm.runInContext(read('public/quote-math.js')+'\n'+read('public/toc-invoice.js'),ctx);
@@ -70,4 +70,19 @@ test('a TOC Online error does not block a retry and invalid NIFs are refused',as
  assert.equal(r.status,502);assert.match((await r.json()).error,/Série inexistente/);assert.equal(store.m.has('toc-pedido-abcdef654321'),false);
  const bad=await c.handleToc(new Request('https://x',{method:'POST',body:JSON.stringify({...body,customer:{name:'C',nif:'123456780'}})}),'toc/fatura',store);
  assert.equal(bad.status,400);
+});
+
+test('uses the TOC Online OAuth server that matches the API when the OAuth URL points to the Postman callback',async()=>{
+ const urls=[];
+ const fetchImpl=async(url,o={})=>{const u=String(url);urls.push(u);
+  if(u.includes('/oauth/auth'))return new Response(null,{status:302,headers:{location:'https://oauth.pstmn.io/v1/callback?code=abc'}});
+  if(u.endsWith('/oauth/token'))return Response.json({access_token:'tok',expires_in:14400});
+  return Response.json({data:{id:'1',attributes:{url:'https://x/pdf'}}});};
+ const c=load(fetchImpl,[],{TOC_CLIENT_ID:'cid',TOC_CLIENT_SECRET:'sec',TOC_OAUTH_URL:'https://oauth.pstmn.io/v1/callback',TOC_API_URL:'https://api42.toconline.pt/'});
+ const r=await c.handleToc(new Request('https://x/api/toc/pdf/1'),'toc/pdf/1',memStore());
+ assert.equal(r.status,200);
+ assert.ok(urls[0].startsWith('https://app42.toconline.pt/oauth/auth?'));
+ assert.equal(new URL(urls[0]).searchParams.get('redirect_uri'),'https://oauth.pstmn.io/v1/callback');
+ assert.equal(urls[1],'https://app42.toconline.pt/oauth/token');
+ assert.ok(urls[2].startsWith('https://api42.toconline.pt/api/url_for_print/1'));
 });

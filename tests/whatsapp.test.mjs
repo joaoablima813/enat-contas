@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 const math=readFileSync(new URL('../public/quote-math.js',import.meta.url),'utf8');
-const ui=readFileSync(new URL('../public/quotes.js',import.meta.url),'utf8');
+const ui=readFileSync(new URL('../public/supplier-catalog.js',import.meta.url),'utf8')+'\n'+readFileSync(new URL('../public/quotes.js',import.meta.url),'utf8');
 const sample={client:'Cliente de teste',address:'Rua da Instalação, 12',contact:'912 345 678',date:'2026-10-26',topics:['Ar condicionado'],brand:'LG',margin:20,vat:23,warranty:'3 anos',lines:[{kind:'Equipamento',description:'Unidade',value:100,quantity:1,unit:'un.'}]};
 const browser=()=>{const c=vm.createContext({window:{},navigator:{},document:{addEventListener(){},querySelector:()=>null},S:{vat:23},TOPICS:sample.topics,esc:s=>String(s),eur:n=>Number(n).toFixed(2)+' €',ic:()=>'',fd:s=>s,render(){},V:{tab:'orc'}});vm.runInContext(math+'\n'+ui,c);c.sample=sample;return c};
 const server=rows=>{

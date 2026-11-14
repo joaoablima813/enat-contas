@@ -9,7 +9,7 @@ const read=f=>readFileSync(new URL('../public/'+f,import.meta.url),'utf8');
 const load=(extra={})=>{
  const c=vm.createContext({document:{addEventListener(){},querySelector(){return null}},esc:s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'),eur:n=>Number(n).toFixed(2)+' €',ic:()=>'',
   TOPICS:['Ar condicionado','UPAC (fotovoltaico)'],S:{vat:23},...extra});
- vm.runInContext(['quote-math.js','price-tables.js','quotes.js','pv-sizing.js','pv.js'].map(read).join('\n'),c);
+ vm.runInContext(['quote-math.js','price-tables.js','supplier-catalog.js','quotes.js','pv-sizing.js','pv.js'].map(read).join('\n'),c);
  return s=>vm.runInContext(s,c);
 };
 test('the S. Energias table supplies panels, inverters, batteries, backup, chargers and structures',()=>{

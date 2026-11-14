@@ -6,7 +6,7 @@ import {jsPDF} from 'jspdf';
 import {applyPlugin} from 'jspdf-autotable';
 applyPlugin(jsPDF);
 const math=readFileSync(new URL('../public/quote-math.js',import.meta.url),'utf8');
-const ui=readFileSync(new URL('../public/quotes.js',import.meta.url),'utf8');
+const ui=readFileSync(new URL('../public/supplier-catalog.js',import.meta.url),'utf8')+'\n'+readFileSync(new URL('../public/quotes.js',import.meta.url),'utf8');
 const ctx=vm.createContext({});vm.runInContext(math,ctx);
 const totals=q=>vm.runInContext('quoteTotals('+JSON.stringify(q)+')',ctx);
 const sample={client:'Cliente de teste',address:'Rua da Instalação, 12',locality:'Ponte de Lima',contact:'900000000',date:'2026-10-26',topics:['Ar condicionado','VMC'],margin:20,vat:23,warranty:'A confirmar junto do fornecedor',lines:[{kind:'Equipamento / material',description:'Unidade de climatização',value:100},{kind:'Mão de obra',description:'Montagem e ensaio',value:50}]};

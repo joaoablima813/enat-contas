@@ -16,6 +16,7 @@ const esc=s=>String(s??'');
 const eur=n=>Number(n).toFixed(2);
 const fd=d=>d;
 const ic=()=>'';
+${readFileSync(new URL('../public/supplier-catalog.js',import.meta.url),'utf8')}
 const opt=(l,sel)=>l.map(([v,t])=>'<option'+(v===sel?' selected':'')+'>'+t+'</option>').join('');
 const kv=(k,v)=>'<div>'+k+': '+v+'</div>';
 const invRow=v=>'<div data-invoice="'+v.id+'">Fatura '+v.store+'</div>';

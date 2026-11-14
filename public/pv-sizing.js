@@ -37,7 +37,7 @@
   // Groups every PV product of the price tables by role, with the figures parsed from its name.
   function pvCatalog(tables){
     const c={panels:[],inverters:[],batteries:[],backups:[],chargers:[],structures:[],fixings:[],boards:[]};
-    (tables||[]).forEach(t=>{if(t.invoices)return;t.products.forEach(p=>{
+    (tables||[]).forEach(t=>{if(t.invoices||t.live)return;t.products.forEach(p=>{
       const g=p.group.map(norm),name=String(p.name),n=norm(name),text=g.join(' ')+' '+n;
       const item={key:t.brand+'|'+name,brand:t.brand,name,group:p.group.slice(1).join(' › '),cost:netPrice(t,p),t,p};
       const pv=g[0].startsWith('upac'),ev=g[0].startsWith('carregadores');

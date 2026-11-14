@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const read=f=>readFileSync(new URL('../public/'+f,import.meta.url),'utf8');
-const load=()=>{const c=vm.createContext({document:{addEventListener(){},querySelector(){return null}},esc:s=>String(s??'').replace(/"/g,'&quot;').replace(/</g,'&lt;'),eur:n=>Number(n).toFixed(2)+' €',ic:()=>'',TOPICS:['Ar condicionado','VMC'],S:{vat:23}});vm.runInContext(read('quote-math.js')+'\n'+read('price-tables.js')+'\n'+read('quotes.js'),c);return s=>vm.runInContext(s,c)};
+const load=()=>{const c=vm.createContext({document:{addEventListener(){},querySelector(){return null}},esc:s=>String(s??'').replace(/"/g,'&quot;').replace(/</g,'&lt;'),eur:n=>Number(n).toFixed(2)+' €',ic:()=>'',TOPICS:['Ar condicionado','VMC'],S:{vat:23}});vm.runInContext(read('quote-math.js')+'\n'+read('price-tables.js')+'\n'+read('supplier-catalog.js')+'\n'+read('quotes.js'),c);return s=>vm.runInContext(s,c)};
 test('the supplied tables have the agreed discounts and well-formed products',()=>{
  const real=load();
  const tables=JSON.parse(real('JSON.stringify(PRICE_TABLES.map(t=>({brand:t.brand,discount:t.discount,n:t.products.length,bad:t.products.filter(p=>!(p.price>0)||!p.name||!p.group.length).length})))'));

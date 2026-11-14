@@ -78,3 +78,16 @@
 .q-hist li::before{content:"";position:absolute;left:0;top:15px;width:8px;height:8px;border-radius:50%;background:var(--mute)}
 .q-hist li b{display:block;font-size:14.5px;font-weight:600}.q-hist li span{font-size:12.5px;color:var(--mute)}
 .q-h-visto::before,.q-h-pdf::before{background:var(--blue)!important}.q-h-adjudicar::before{background:var(--green)!important}.q-h-rejeitar::before,.q-h-trocou::before{background:var(--red)!important}.q-h-revisao::before,.q-h-pensar::before,.q-h-mais_tarde::before{background:var(--amber)!important}
+/* Orçamento automático com IA. */
+.qai textarea{min-height:120px}
+.qai-labour{margin:4px 0 12px;font-size:14px}.qai-labour summary{cursor:pointer;font-weight:600;padding:6px 0;color:var(--blue)}
+.qai-rate{display:grid;grid-template-columns:1fr 78px 86px 28px;gap:6px;align-items:center;margin:6px 0}
+.qai-rate input,.qai-rate select{min-width:0;width:100%;font:inherit;font-size:14px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg,#fff);color:inherit}
+.qai-busy{display:flex;align-items:center;gap:10px;font-weight:600;color:var(--blue)}
+.qai-spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:qai-spin .8s linear infinite;flex:none}
+@keyframes qai-spin{to{transform:rotate(360deg)}}
+.qai-result{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:14.5px}
+.qai-result h3{font-size:14px;margin:12px 0 4px;color:var(--mute)}
+.qai-list{margin:0;padding-left:18px}.qai-list li{margin:3px 0}
+.qai-check{margin-top:10px}.qai-check summary{cursor:pointer;font-weight:600}.qai-check ul{list-style:none;padding-left:0}.qai-check li.na{color:var(--mute)}
+.qai-warn,.qai-alerts{background:color-mix(in srgb,var(--amber) 16%,transparent);border-radius:12px;padding:10px 12px 10px 28px}.qai-warn{padding-left:12px}

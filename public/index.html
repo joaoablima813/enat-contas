@@ -91,14 +91,15 @@ nav button.on{color:var(--blue)}
 <script src="/gestao.js?v=20261029"></script>
 <script src="/contabilista.js?v=20261029"></script>
 <script src="/price-tables.js?v=20261028"></script>
+<script src="/supplier-catalog.js?v=20261114"></script>
 <script src="/quote-obra.js?v=20261029"></script>
 <script src="/toc-invoice.js?v=20261109"></script>
 <script src="/toc.js?v=20261109b"></script>
-<script src="/quotes.js?v=20261029c"></script>
+<script src="/quotes.js?v=20261114"></script>
 <script src="/leads.js?v=20261109"></script>
 <script src="/push.js?v=20261109"></script>
 <script src="/agenda.js?v=20261109"></script>
-<script src="/pv-sizing.js?v=20261028"></script>
+<script src="/pv-sizing.js?v=20261114"></script>
 <script src="/pv.js?v=20261028"></script>
 <script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
 <script src="/vendor/exceljs.min.js"></script>
@@ -395,20 +396,21 @@ const productRow=p=>`<button class="row invoice-row" data-a="product" data-id="$
 const productList=(l,title)=>`<h2>${title} (${l.length})</h2><div class="grp invoice-items">${l.map(productRow).join('')}</div>`;
 // Tabelas de preços das marcas (S. Energias, LG, Ekallor, Daikin, Mitsubishi…): pesquisáveis pela marca, referência, nome ou grupo.
 const priceTables=()=>globalThis.PRICE_TABLES||[];
-const tableNet=(t,p)=>Math.round(Number(p.price)*(1-Number(t.discount||0)/100)*100)/100;
+const tableNet=(t,p)=>priceNet(t,p);
 const tableText=new WeakMap();
 function tableMatches(q){
  const out=[];
- priceTables().forEach((t,b)=>t.products.forEach((p,i)=>{let h=tableText.get(p);if(h===undefined){h=[t.brand,p.ref,p.name,...p.group].join(' ');tableText.set(p,h)}if(matchesProduct(h,q))out.push({t,b,p,i})}));
+ const terms=(norm(q).match(/[a-z0-9]+/g)||[]).filter(w=>!['de','do','da','dos','das','em','e'].includes(w));if(!terms.length)return out;
+ priceTables().forEach((t,b)=>t.products.forEach((p,i)=>{let h=tableText.get(p);if(h===undefined){h=norm([t.brand,p.ref,p.sref,p.name,...p.group].filter(Boolean).join(' ')).match(/[a-z0-9]+/g)||[];tableText.set(p,h)}if(terms.every(w=>h.some(x=>x.startsWith(w))))out.push({t,b,p,i})}));
  return out;
 }
-const tableRow=({t,b,p,i})=>`<button class="row invoice-row" data-a="tprod" data-b="${b}" data-index="${i}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(p.name)}</b><span>${esc([t.brand,p.ref,p.group[p.group.length-1]].filter(Boolean).join(' · '))}</span></div><div class="rr"><b>${eur(tableNet(t,p))}</b><span>Tabela ${eur(p.price)} · −${esc(Number(t.discount||0))}%</span></div></button>`;
+const tableRow=({t,b,p,i})=>`<button class="row invoice-row" data-a="tprod" data-b="${b}" data-index="${i}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(p.name)}</b><span>${esc([t.brand,p.ref,p.group[p.group.length-1]].filter(Boolean).join(' · '))}</span></div><div class="rr"><b>${eur(tableNet(t,p))}</b><span>${esc(priceNote(t,p))}</span></div></button>`;
 const tableList=l=>`<h2>Tabelas de preços (${l.length})</h2><div class="grp invoice-items">${l.slice(0,50).map(tableRow).join('')}</div>${l.length>50?`<p class="note">A mostrar 50 de ${l.length} produtos das tabelas. Escreva mais palavras ou a referência para afinar.</p>`:''}`;
-const tableBrands=()=>{const l=priceTables();return l.length?`<h2>Tabelas de preços</h2><div class="grp">${l.map(t=>`<button class="row invoice-row" data-a="sug" data-id="${esc(t.brand)}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(t.brand)}</b><span>${esc(t.table||'Tabela de preços')} · ${t.products.length} produtos</span></div><div class="rr"><b>−${esc(Number(t.discount||0))}%</b><span>desconto</span></div></button>`).join('')}</div>`:''};
+const tableBrands=()=>{const l=priceTables().filter(t=>!t.live);return (typeof supplierPanel==='function'?supplierPanel():'')+(l.length?`<h2>Tabelas de preços</h2><div class="grp">${l.map(t=>`<button class="row invoice-row" data-a="sug" data-id="${esc(t.brand)}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(t.brand)}</b><span>${esc(t.table||'Tabela de preços')} · ${t.products.length} produtos</span></div><div class="rr"><b>−${esc(Number(t.discount||0))}%</b><span>desconto</span></div></button>`).join('')}</div>`:'')};
 function tableProductDetails(b,index){
  const t=priceTables()[b],p=t?.products[index];if(!p)return '<div class="empty">Produto não encontrado.</div><button class="btn alt" data-a="close">Fechar</button>';
  const net=tableNet(t,p),vat=Number(S.vat??23);
- return`<div class="grab"></div><h3>${esc(p.name)}</h3><h2>${esc(t.brand)} · ${esc(t.table||'Tabela de preços')}</h2><div class="grp invoice-items">${p.ref?kv('Referência',esc(p.ref)):''}${kv('Grupo',esc(p.group.join(' › ')))}${kv('Preço de tabela, sem IVA',eur(p.price))}${kv('Desconto da marca',esc(Number(t.discount||0))+'%')}${kv('Preço com desconto, sem IVA',eur(net),'tot')}${kv('Preço com desconto e IVA ('+esc(vat)+'%)',eur(net*(1+vat/100)))}</div><p class="note">Nos orçamentos, escreva o nome ou a referência na descrição de um produto para o adicionar com este preço.</p><button class="btn alt" data-a="close">Fechar</button>`;
+ return`<div class="grab"></div><h3>${esc(p.name)}</h3><h2>${esc(t.brand)} · ${esc(t.table||'Tabela de preços')}</h2><div class="grp invoice-items">${p.ref?kv('Referência',esc(p.ref)):''}${kv('Grupo',esc(p.group.join(' › ')))}${t.live&&p.sref&&p.sref!==p.ref?kv('Ref. '+esc(t.brand),esc(p.sref)):''}${kv('Preço de tabela, sem IVA',eur(p.price))}${kv(t.live?'O seu desconto':'Desconto da marca',esc(String(priceDisc(t,p)).replace('.',','))+'%'+(p.est?' (estimado)':''))}${kv('Preço com desconto, sem IVA',eur(net),'tot')}${kv('Preço com desconto e IVA ('+esc(vat)+'%)',eur(net*(1+vat/100)))}${t.live&&p.stock!=null?kv('Stock no fornecedor',p.stock?'Disponível':'Sem stock'):''}${t.live&&p.changed?kv('Preço alterado',esc(supplierWhen(new Date(p.changed).toISOString()))+(p.was!=null?' · antes '+eur(p.was):'')):''}</div>${t.live?`<p class="note">${p.est?'O preço de cliente deste produto ainda não foi lido no site; o valor usa o desconto habitual da marca e é confirmado quando o adicionar a um orçamento. ':''}Catálogo ${esc(t.brand)} atualizado ${esc(supplierWhen(t.at))}. ${p.url?`<a href="${esc(p.url)}" target="_blank" rel="noopener">Ver no site</a>`:''}</p>`:''}<p class="note">Nos orçamentos, escreva o nome ou a referência na descrição de um produto para o adicionar com este preço.</p><button class="btn alt" data-a="close">Fechar</button>`;
 }
 function matRes(){
  const q=(V.q||'').trim(),all=products(),inCat=all.filter(p=>!V.mc||p.cat===V.mc);
@@ -650,6 +652,7 @@ document.addEventListener('click',async e=>{
  else if(a==='novodisp'){registar().then(()=>alert('Dispositivo registado.')).catch(e=>alert(e.name==='NotAllowedError'?'Operação cancelada.':(e.message||'Erro')));return}
  else if(a==='scan'){if(!b.dataset.o){alert('Escolha uma obra primeiro.');return}V.scanObra=b.dataset.o;$('#file').click();return}
  else if(a==='sug')V.q=id;
+ else if(a==='sup-sync'){b.disabled=true;supplierSync().then(render);return}
  else if(a==='mc')V.mc=id;
  else if(a==='reread'){reread();return}
  else if(a==='eq'){D.equip=D.equip||[];const i=D.equip.indexOf(id);i<0?D.equip.push(id):D.equip.splice(i,1);sheet();return}
@@ -744,7 +747,7 @@ async function entrarOffline(){
 window.addEventListener('online',()=>{if(OFFLINE){OFFLINE=false;bloquear('A ligação voltou. Faça login para sincronizar as alterações feitas sem rede.')}else if(SESS())pull()});
 window.addEventListener('offline',()=>setSync('off'));
 
-function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill();quoteRefresh()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render();if(typeof pushReady==='function')pushReady()}
+function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill();quoteRefresh()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render();if(typeof pushReady==='function')pushReady();if(typeof supplierStart==='function')supplierStart()}
 async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});const t=(await post('auth/registo',{cid:o.cid,response},code)).token;localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 // Face ID: vai direto à chave guardada neste dispositivo. Touch ID: deixa o sistema escolher qualquer chave (outro sensor ou dispositivo).
 async function entrar(local){const o=await post('auth/entrar-opcoes',local&&CRED()?{id:CRED()}:{});const response=await SWA.startAuthentication({optionsJSON:o.options});const t=(await post('auth/entrar',{cid:o.cid,response})).token;if(response.authenticatorAttachment!=='cross-platform')localStorage.setItem('enat-cred',response.id);desbloquear(t)}

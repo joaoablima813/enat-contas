@@ -44,6 +44,9 @@ export async function handleQuotes(req:Request,path:string){
     if(b.address.length>4000)return fail(400,'Morada demasiado longa.');
     // The optional PV sizing keeps its inputs and the figures shown in the PDF.
     if(b.pv!==undefined&&b.pv!==null&&(typeof b.pv!=='object'||Array.isArray(b.pv)||JSON.stringify(b.pv).length>30000))return fail(400,'Dimensionamento fotovoltaico inválido.');
+    // The request written for the automatic (AI) quote and what it assumed, kept for the next revision.
+    if(b.ai!==undefined&&b.ai!==null&&(typeof b.ai!=='object'||Array.isArray(b.ai)))return fail(400,'Dados da IA inválidos.');
+    if(b.ai&&JSON.stringify(b.ai).length>60000)b.ai={texto:String(b.ai.texto||'').slice(0,8000),at:b.ai.at,resumo:String(b.ai.resumo||'').slice(0,1200)};
     // Follow-up: status, validity in days and the job created from an accepted quote.
     if(b.status!==undefined&&!['rascunho','enviado','aceite','recusado'].includes(b.status))return fail(400,'Estado do orçamento inválido.');
     if(b.validity!==undefined&&(!Number.isInteger(b.validity)||b.validity<1||b.validity>365))return fail(400,'Indique uma validade entre 1 e 365 dias.');
@@ -51,7 +54,7 @@ export async function handleQuotes(req:Request,path:string){
     // The lead the quote was created from, so the lead shows its quotes.
     if(b.lead!==undefined&&(typeof b.lead!=='string'||b.lead.length>40))return fail(400,'Lead inválida.');
     const extra=['status','validity','obra','lead'].filter(k=>b[k]!==undefined&&b[k]!=='');
-    const document:any=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[]),...extra].map(k=>[k,b[k]]));
+    const document:any=Object.fromEntries([...fields,'email','topics','brand','lines','margin','vat',...(b.pv?['pv']:[]),...(b.ai?['ai']:[]),...extra].map(k=>[k,b[k]]));
     if(match){
       // The client may have answered while this copy was open: their status and the job created from it are kept.
       const [cur]=await db.select().from(quotes).where(eq(quotes.id,Number(match[1])));

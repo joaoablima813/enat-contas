@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[

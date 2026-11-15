@@ -4,12 +4,16 @@ import { gzipSync } from 'node:zlib';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, asc, eq, sql, lt, inArray } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { supplierProducts as T } from '../../db/schema.js';
+import { supplierProducts as T, quotes } from '../../db/schema.js';
 import * as site from './fornecedores-sites.mjs';
 
 export const SUPPLIERS: Record<string, { name: string }> = { sanipower: { name: 'Sanipower' }, sanitop: { name: 'Sanitop' } };
 const store = () => getStore({ name: 'fornecedores', consistency: 'strong' });
 const RUN_MS = 13 * 60e3, STALE_MS = 16 * 60e3, PARALLEL = 5;
+// Sanitop family listings: once a day, at most 6 minutes per run so the client prices always get time.
+const LIST_EVERY = 24 * 3600e3, LIST_MS = 6 * 60e3;
+// The schedule runs every 20 minutes: a full refresh every 3 hours, and Sanitop in between while client prices are missing.
+const EVERY_MS = 3 * 3600e3 - 15 * 60e3, RETRY_MS = 60 * 60e3;
 
 type Row = { key: string; ref?: string; model?: string; name: string; brand?: string; path: string[]; url?: string; pvp: number; net?: number | null; discount?: number | null; stock?: boolean | null; seenAt?: Date };
 
@@ -24,17 +28,30 @@ export async function syncToken() {
 }
 
 // Starts the background sync of the given suppliers, unless one is already running.
-export async function triggerSync(origin: string, suppliers = Object.keys(SUPPLIERS)) {
+// With `scheduled`, a supplier only starts when it is due (see `due`).
+export async function triggerSync(origin: string, suppliers = Object.keys(SUPPLIERS), scheduled = false) {
   const token = await syncToken(), started: string[] = [];
   for (const s of suppliers) {
     const st: any = await getStatus(s);
     if (st.running && Date.now() - Date.parse(st.startedAt || 0) < STALE_MS) continue;
+    if (scheduled && !(await due(s, st))) continue;
     await setStatus(s, { running: true, startedAt: new Date().toISOString(), phase: 'A iniciar' });
     const r = await fetch(origin + '/.netlify/functions/fornecedores-sync', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sync-token': token }, body: JSON.stringify({ supplier: s }) }).catch(e => ({ ok: false, status: String(e?.message || e) } as any));
     if (r.ok || r.status === 202) started.push(s);
     else await setStatus(s, { running: false, ok: false, error: 'Não foi possível iniciar a sincronização (' + r.status + ').' });
   }
   return started;
+}
+
+// A full refresh every 3 hours. Sanitop also runs on every tick of the schedule while there are client prices to read
+// or a family listing to finish, and waits an hour after a failed run so a wrong password does not lock the account.
+async function due(s: string, st: any) {
+  const since = Date.now() - Date.parse(st.finishedAt || st.startedAt || 0);
+  if (!(since >= 0) || since >= EVERY_MS) return true;
+  if (s !== 'sanitop' || (st.ok === false && since < RETRY_MS)) return false;
+  if (st.listing?.startedAt) return true;
+  const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(T).where(and(eq(T.supplier, s), eq(T.removed, false), sql`${T.netAt} is null`));
+  return (r?.n || 0) > 0;
 }
 
 // Insert or update products. When a price changes the previous one is kept, so the app can show what changed.
@@ -70,9 +87,10 @@ const textList = (l: string[]) => JSON.stringify(l);
 async function activeCount(s: string) { const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(T).where(and(eq(T.supplier, s), eq(T.removed, false))); return r?.n || 0; }
 
 // Products the supplier no longer lists are hidden, but only after a complete pass that found most of the catalogue.
-async function hideMissing(s: string, since: Date, found: number) {
+async function hideMissing(s: string, since: Date) {
   const before = await activeCount(s);
-  if (found < before * 0.6) return 0;
+  const [f] = await db.select({ n: sql<number>`count(*)::int` }).from(T).where(and(eq(T.supplier, s), eq(T.removed, false), sql`${T.seenAt} >= ${since}`));
+  if ((f?.n || 0) < before * 0.6) return 0;
   const r = await db.update(T).set({ removed: true }).where(and(eq(T.supplier, s), eq(T.removed, false), lt(T.seenAt, since))).returning({ id: T.id });
   return r.length;
 }
@@ -119,24 +137,42 @@ async function syncSanipower(deadline: number, progress: (p: string) => Promise<
   return { pages, found: list.length, hidden };
 }
 
+// Sanitop shows the client price only on each product page, so a run has two steps:
+// 1. The family listings (list price, stock, new and removed products) at most once a day, in parts of up to LIST_MS
+//    per run; a pass that does not finish continues on the next run where it stopped.
+// 2. The client prices for the rest of the time, the products used in quotes first (see readOrder).
 async function syncSanitop(deadline: number, progress: (p: string) => Promise<void>) {
   const started = new Date();
   let s = await site.sanitopLogin();
-  const cats = await site.sanitopCategories(s);
-  if (cats.length < 20) throw new Error('A Sanitop não mostrou as famílias do catálogo.');
-  const rows = new Map<string, Row>();
-  let done = 0, failed = 0;
-  await site.pool(cats, PARALLEL, async (c: any) => {
-    try { for (const p of await site.sanitopListing(s, c)) if (!rows.has(p.key)) rows.set(p.key, p); } catch { failed++; }
-    if (++done % 40 === 0) await progress(`Famílias ${done}/${cats.length}`);
-  }, () => Date.now() > deadline);
-  await upsert('sanitop', [...rows.values()], false);
-  const complete = done === cats.length && failed <= 3;
-  const hidden = complete ? await hideMissing('sanitop', started, rows.size) : 0;
-  // Client prices come from each product page: the ones never read or with a new list price first, then the oldest.
+  const st: any = await getStatus('sanitop');
+  let listing: { startedAt: string; done: string[]; failed: number } | null = st.listing?.startedAt ? st.listing : null;
+  let listed = 0, complete = false, hidden = 0;
+  if (listing || !st.listedAt || Date.now() - Date.parse(st.listedAt) > LIST_EVERY) {
+    const cats = await site.sanitopCategories(s);
+    if (cats.length < 20) throw new Error('A Sanitop não mostrou as famílias do catálogo.');
+    const pass = listing || { startedAt: started.toISOString(), done: [], failed: 0 };
+    const done = new Set(pass.done), todo = cats.filter((c: any) => !done.has(c.url)), stop = Math.min(deadline, Date.now() + LIST_MS);
+    const rows = new Map<string, Row>();
+    let n = 0;
+    await site.pool(todo, PARALLEL, async (c: any) => {
+      try { for (const p of await site.sanitopListing(s, c)) if (!rows.has(p.key)) rows.set(p.key, p); } catch { pass.failed++; }
+      done.add(c.url);
+      if (++n % 40 === 0) await progress(`Famílias ${done.size}/${cats.length}`);
+    }, () => Date.now() > stop);
+    await upsert('sanitop', [...rows.values()], false);
+    listed = rows.size;
+    complete = cats.every((c: any) => done.has(c.url));
+    if (complete) {
+      if (pass.failed <= 3) hidden = await hideMissing('sanitop', new Date(pass.startedAt));
+      await setStatus('sanitop', { listing: null, listedAt: pass.startedAt });
+    } else await setStatus('sanitop', { listing: { ...pass, done: [...done] } });
+    listing = complete ? null : pass;
+  }
+  const order = await readOrder();
   let checked = 0, relogged = false, lost = false;
   while (!lost && Date.now() < deadline - 20e3) {
-    const batch = await db.select().from(T).where(and(eq(T.supplier, 'sanitop'), eq(T.removed, false), sql`(${T.netAt} is null or ${T.netAt} < ${started})`)).orderBy(sql`${T.netAt} asc nulls first`, asc(T.id)).limit(200);
+    const batch = await db.select().from(T).where(and(eq(T.supplier, 'sanitop'), eq(T.removed, false), sql`(${T.netAt} is null or ${T.netAt} < ${started})`))
+      .orderBy(sql`(${T.netAt} is not null)`, order, sql`${T.netAt} asc nulls first`, asc(T.id)).limit(200);
     if (!batch.length) break;
     const upd: Row[] = [], gone: number[] = [];
     await site.pool(batch, PARALLEL, async (p: any) => {
@@ -154,7 +190,27 @@ async function syncSanitop(deadline: number, progress: (p: string) => Promise<vo
     if (upd.length + gone.length < batch.length && !lost) break;
   }
   if (lost) throw new Error('A sessão na Sanitop deixou de mostrar os preços de cliente. Confirme o utilizador e a senha.');
-  return { found: rows.size, complete, hidden, checked };
+  const [left] = await db.select({ n: sql<number>`count(*)::int` }).from(T).where(and(eq(T.supplier, 'sanitop'), eq(T.removed, false), sql`${T.netAt} is null`));
+  return { listed, complete: !listing, hidden, checked, pending: left?.n || 0 };
+}
+
+// Families of the Sanitop shop with the equipment ENAT quotes, and words of the materials the quotes use.
+const WORK_FAMILIES = ['Bombas de calor e Ar condicionado', 'Aquecimento e Águas Quentes Sanitárias (AQS)', 'Ventilação', 'Energia Solar', 'Mobilidade elétrica'];
+const WORK_WORDS = 'cobre|cabo|calha|coquilha|isolamento|isolad|suporte|antivibr|condensad|disjuntor|diferencial|vaso de expans|v[aá]lvula|multicamada|pe-?rt|colec?tor|termost|purgador|man[oó]metro|glicol|inibidor|conduta|grelha|passa.?muros|abra[cç]adeira|manguito|diel[eé]tric|filtro|circulador|ar condicionado|bomba de calor|split|wallbox|carregador';
+
+// Order in which client prices are read: products already used in quotes, then products of the brands and families
+// ENAT quotes, then the materials the quotes use, then the rest.
+async function readOrder() {
+  const keys = new Set<string>(), brands = new Set<string>();
+  const docs = await db.select({ d: quotes.document }).from(quotes).catch(() => [] as { d: any }[]);
+  for (const { d } of docs) for (const l of Array.isArray((d as any)?.lines) ? (d as any).lines : []) {
+    const c = l?.catalog; if (!c) continue;
+    if (c.ref) keys.add(String(c.ref));
+    if (c.brand && !/^(sanitop|sanipower|faturas)/i.test(c.brand)) brands.add(String(c.brand));
+  }
+  return sql`case when ${T.key} in (select jsonb_array_elements_text(${textList([...keys])}::jsonb)) then 0
+    when ${T.path}->>0 in (select jsonb_array_elements_text(${textList(WORK_FAMILIES)}::jsonb)) or lower(${T.brand}) in (select lower(jsonb_array_elements_text(${textList([...brands])}::jsonb))) then 1
+    when ${T.name} ~* ${WORK_WORDS} then 2 else 3 end`;
 }
 
 export async function runSync(s: string) {

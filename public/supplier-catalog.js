@@ -23,23 +23,30 @@
  // Substitui a tabela do fornecedor no mesmo lugar (os índices das outras tabelas não mudam).
  function put(t){const l=root.PRICE_TABLES=root.PRICE_TABLES||[],i=l.findIndex(x=>x.supplier===t.supplier);if(i<0)l.push(t);else l[i]=t}
  const redraw=()=>{try{if(typeof idle==='function'&&idle()&&typeof render==='function')render()}catch(e){}};
+ // Cada fornecedor é descarregado à parte: se um falhar, o outro continua a aparecer, e tenta-se de novo mais tarde.
  async function loadCatalogs(){
-  if(state.loading||typeof API!=='function')return;state.loading=true;let changed=false;
-  try{
-   for(const id of IDS){
+  if(state.loading||typeof API!=='function')return;state.loading=true;let changed=false;const failed=[];
+  for(const id of IDS){
+   try{
     const r=await API('fornecedores/catalogo/'+id);
-    if(r.status!==200)continue;
-    const d=await r.json(),cur=(root.PRICE_TABLES||[]).find(x=>x.supplier===id);
+    if(r.status===204)continue;
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(!d||!Array.isArray(d.rows)||!Array.isArray(d.cols))throw new Error('catálogo inválido');
+    // Um catálogo ainda vazio (primeira sincronização por concluir) não aparece como tabela sem produtos.
+    if(!d.rows.length)continue;
+    const cur=(root.PRICE_TABLES||[]).find(x=>x.supplier===id);
     if(cur&&cur.at===d.at)continue;
     put(table(d));changed=true;
-   }
-   state.error='';
-  }catch(e){state.error='Não foi possível descarregar os catálogos dos fornecedores.'}
-  state.loading=false;if(changed)redraw();
+   }catch(e){console.warn('catálogo',id,e);failed.push(id==='sanipower'?'Sanipower':'Sanitop')}
+  }
+  state.error=failed.length?'Não foi possível descarregar o catálogo da '+failed.join(' e da ')+'. A app tenta de novo dentro de um minuto.':'';
+  state.loading=false;if(changed||failed.length)redraw();
+  if(failed.length){clearTimeout(state.retry);state.retry=setTimeout(loadCatalogs,60000)}
  }
  async function loadStatus(){
   try{const r=await API('fornecedores/estado');if(!r.ok)return;state.status=await r.json();
-   const done=state.status.some(s=>{const t=(root.PRICE_TABLES||[]).find(x=>x.supplier===s.id);return s.catalog&&(!t||t.at!==s.catalog.at)});
+   const done=state.status.some(s=>{const t=(root.PRICE_TABLES||[]).find(x=>x.supplier===s.id);return s.catalog&&s.catalog.count>0&&(!t||t.at!==s.catalog.at)});
    if(done)await loadCatalogs();
    if(state.status.some(s=>s.running)){clearTimeout(state.poll);state.poll=setTimeout(loadStatus,15000)}
    if(V?.tab==='mat')redraw();
@@ -68,13 +75,15 @@
  };
  // Nota por baixo da linha do orçamento com o resultado da confirmação do preço.
  root.supplierLineNote=(l,i)=>{const v=LIVE.get(l);if(!v)return '';const txt=v==='checking'?'A confirmar o preço no site do fornecedor…':v==='ok'?'Preço confirmado agora no site do fornecedor.':v==='gone'?'Atenção: este produto já não aparece à venda no site do fornecedor.':v==='fail'?'Não foi possível confirmar agora no site; ficou o último preço lido.':'Preço atualizado no site do fornecedor (antes '+eur(Number(v.split(':')[1]))+').';return `<p class="note q-line-src" data-qlive="${i}">${txt}</p>`};
+ // Erros técnicos (ex.: da base de dados) não aparecem por extenso.
+ const friendly=e=>/failed query|syntax|params:|\$\d+/i.test(e)?'erro interno ao guardar os produtos.':String(e).slice(0,200);
  // Bloco "Fornecedores online" na página de materiais.
  root.supplierPanel=()=>{
   const st=state.status;if(!st.length)return '';
   const rows=st.map(s=>{const t=(root.PRICE_TABLES||[]).find(x=>x.supplier===s.id),n=t?.products.length||s.catalog?.count||0,est=t?t.products.filter(p=>p.est).length:0;
-   const line=s.running?`A atualizar… ${esc(s.phase||'')}`:s.error?`Última tentativa falhou: ${esc(s.error)}`:s.finishedAt?`Atualizado ${esc(when(s.finishedAt))}`:'Ainda não sincronizado';
+   const line=s.running?`A atualizar… ${esc(s.phase||'')}`:s.error?`Última tentativa falhou: ${esc(friendly(s.error))}`:s.finishedAt?`Atualizado ${esc(when(s.finishedAt))}`:'Ainda não sincronizado';
    return `<button class="row invoice-row" data-a="sug" data-id="${esc(s.name)}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(s.name)}</b><span>${n?n.toLocaleString('pt-PT')+' produtos'+(est?` · ${est.toLocaleString('pt-PT')} com preço estimado`:''):'Sem produtos ainda'}</span><span>${line}</span></div><div class="rr"><b>${s.running?'…':s.error?'!':'online'}</b><span>preços</span></div></button>`}).join('');
   const busy=st.some(s=>s.running);
-  return `<h2>Fornecedores online</h2><div class="grp">${rows}</div><button class="btn alt" data-a="sup-sync" ${busy?'disabled':''}>${busy?'A atualizar preços dos fornecedores…':'Atualizar preços dos fornecedores agora'}</button><p class="note">Os catálogos da Sanipower e da Sanitop são atualizados automaticamente a cada 3 horas, com o seu preço de cliente. Ao adicionar um produto a um orçamento, o preço é confirmado no site nesse momento.</p>`;
+  return `<h2>Fornecedores online</h2>${state.error?`<p class="note">${esc(state.error)}</p>`:''}<div class="grp">${rows}</div><button class="btn alt" data-a="sup-sync" ${busy?'disabled':''}>${busy?'A atualizar preços dos fornecedores…':'Atualizar preços dos fornecedores agora'}</button><p class="note">Os catálogos da Sanipower e da Sanitop são atualizados automaticamente a cada 3 horas, com o seu preço de cliente. Ao adicionar um produto a um orçamento, o preço é confirmado no site nesse momento.</p>`;
  };
 })(globalThis);

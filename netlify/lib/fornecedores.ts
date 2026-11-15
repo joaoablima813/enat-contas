@@ -63,6 +63,10 @@ export async function upsert(s: string, rows: Row[], withNet: boolean) {
   }
 }
 
+// A list of texts sent to Postgres as a single JSON parameter (drizzle would expand an array into one parameter per item,
+// which is not a valid array and goes over the parameter limit with large catalogues).
+const textList = (l: string[]) => JSON.stringify(l);
+
 async function activeCount(s: string) { const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(T).where(and(eq(T.supplier, s), eq(T.removed, false))); return r?.n || 0; }
 
 // Products the supplier no longer lists are hidden, but only after a complete pass that found most of the catalogue.
@@ -91,7 +95,7 @@ async function syncSanipower(deadline: number, progress: (p: string) => Promise<
   // Pages that disappeared from every category are hidden, but only after a full listing that found most of them.
   let hidden = 0;
   if (done === cats.length && !failedCats && urls.size >= known.length * 0.6 && urls.size) {
-    const r = await db.update(T).set({ removed: true }).where(and(eq(T.supplier, 'sanipower'), eq(T.removed, false), sql`not (${T.url} = any(${[...urls]}::text[]))`)).returning({ id: T.id });
+    const r = await db.update(T).set({ removed: true }).where(and(eq(T.supplier, 'sanipower'), eq(T.removed, false), sql`${T.url} not in (select jsonb_array_elements_text(${textList([...urls])}::jsonb))`)).returning({ id: T.id });
     hidden = r.length;
   }
   const rows = new Map<string, Row>(), visited: string[] = [];
@@ -99,7 +103,7 @@ async function syncSanipower(deadline: number, progress: (p: string) => Promise<
   const flush = async () => {
     await upsert('sanipower', [...rows.values()], true); rows.clear();
     // References no longer shown on a page that was just read are hidden.
-    if (visited.length) { const r = await db.update(T).set({ removed: true }).where(and(eq(T.supplier, 'sanipower'), eq(T.removed, false), sql`${T.url} = any(${visited.splice(0)}::text[])`, sql`(${T.netAt} is null or ${T.netAt} < ${started})`)).returning({ id: T.id }); hidden += r.length; }
+    if (visited.length) { const r = await db.update(T).set({ removed: true }).where(and(eq(T.supplier, 'sanipower'), eq(T.removed, false), sql`${T.url} in (select jsonb_array_elements_text(${textList(visited.splice(0))}::jsonb))`, sql`(${T.netAt} is null or ${T.netAt} < ${started})`)).returning({ id: T.id }); hidden += r.length; }
   };
   await site.pool(list, PARALLEL, async (u: string) => {
     let r: any = await site.sanipowerProduct(s, u).catch(() => null);

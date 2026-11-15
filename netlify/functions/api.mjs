@@ -127,7 +127,7 @@ export default async (req) => {
   }
   if (path.startsWith('orcamento-ia/')) {
     const { handleQuoteAi } = await import('../lib/quote-ai.mjs');
-    return handleQuoteAi(req, path, new URL(req.url).origin);
+    return handleQuoteAi(req, path);
   }
   if (path === 'orcamentos' || path.startsWith('orcamentos/')) {
     const { handleQuotes } = await import('../lib/quotes.ts');

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {cargaTermica,multisplit,linhaFrigorifica,caboEletrico,aqs,pisoRadiante,ventiloconvectores,vmc,carregador,bombaCalorHabitacao,runCalc,TOOLS} from '../netlify/lib/hvac-calc.mjs';
-import {cleanPlan,applyReview,readPlanInput,readPickInput,CHECKLISTS} from '../netlify/lib/quote-ai.mjs';
+import {readPlanInput,readPickInput} from '../netlify/lib/quote-ai.mjs';
+import {cleanSpec,buildPlan} from '../netlify/lib/quote-kit.mjs';
 
 test('thermal load picks standard split sizes per room',()=>{
  const r=cargaTermica({divisoes:[{nome:'Quarto',area_m2:12},{nome:'Sala',area_m2:30,uso:'sala',exposicao:'sul'},{nome:'Salão',area_m2:80,uso:'loja'}]});
@@ -39,14 +40,30 @@ test('DHW, heat pump, underfloor, fan coils and VMC sizing',()=>{
 test('calculator tools are exposed to the model and never throw',()=>{
  assert.equal(TOOLS.length,10);for(const t of TOOLS)assert.ok(runCalc(t.function.name,{})&&!runCalc(t.function.name,{}).erro,t.function.name);
  assert.ok(runCalc('nada',{}).erro);
- assert.ok(CHECKLISTS.Ventiloconvectores.length>5,'fan coils have their own checklist');
 });
-test('plan cleaning and the reviewer corrections',()=>{
- const plan=cleanPlan({resumo:'x',tipologias:['Ar condicionado','Inventada'],itens:[{id:'i1',categoria:'Equipamento',descricao:'Split 2,5 kW',quantidade:1,unidade:'un.'},{id:'i2',categoria:'Material',descricao:'Par de cobre',quantidade:4.2,unidade:'metros'},{descricao:''}]});
- assert.deepEqual(plan.tipologias,['Ar condicionado']);assert.equal(plan.itens.length,2);assert.equal(plan.itens[1].unidade,'un.');
- const r=applyReview(plan,{acrescentar:[{id:'i1',categoria:'Acessórios',descricao:'Suporte de parede',quantidade:1,unidade:'un.'}],corrigir:[{id:'i2',quantidade:6}],remover:[],avisos:['ok']});
- assert.equal(r.itens.length,3);assert.equal(r.itens[1].quantidade,6);assert.notEqual(r.itens[2].id,'i1','new ids never collide');
- assert.throws(()=>cleanPlan({itens:[]}));
+test('the server builds the full kit from the request data, with no AI round trips',()=>{
+ const spec=cleanSpec({resumo:'Multisplit',tipologias:['Ar condicionado','Inventada'],marca:'LG',distancia_quadro_m:12,
+  ac:{sistema:'multi',divisoes:[{nome:'Sala',area_m2:30,uso:'sala',exposicao:'sul',linha_m:4,esgoto:true},{nome:'Quarto 1',area_m2:12,uso:'quarto',linha_m:7,esgoto:false},{nome:'Quarto 2',area_m2:'x'}],wifi:false},
+  aqs:{volume_l:200},quantidades:{calha:30,inventada:5},excluir:['consumiveis','nada'],
+  extras:[{tipologia:'Geral / outros',categoria:'Material',descricao:'Depósito de inércia 100 L',quantidade:1,unidade:'un.',pesquisa:['deposito inercia 100']},{descricao:''}],
+  precos_mao_obra:[{id:'ac_ui',preco:120}]},['ac_ui']);
+ assert.deepEqual(spec.tipologias,['Bomba de calor AQS','Ar condicionado','Geral / outros']);assert.equal(spec.ac.divisoes[2].area_m2,null);assert.deepEqual(spec.excluir,['consumiveis']);
+ const p=buildPlan(spec),d=s=>p.itens.filter(i=>s.test(i.descricao));
+ assert.equal(d(/^Unidade exterior multisplit/).length,1);assert.equal(d(/^Unidade interior/).reduce((t,i)=>t+i.quantidade,0),3);
+ assert.ok(d(/^Par de cobre/).length>=1);assert.ok(d(/Cabo de interligação/).length);assert.equal(d(/^Bomba de condensados/)[0].quantidade,1,'only the room without drain gets a pump');
+ assert.equal(d(/^Calha técnica/)[0].quantidade,30,'metres stated by the user win');assert.equal(d(/Montagem de calha/)[0].quantidade,30);
+ assert.ok(d(/Suporte de parede/).length&&d(/antivibráticos/).length);assert.equal(d(/Consumíveis/).length,0,'excluded parts are left out');
+ assert.ok(d(/^Bomba de calor para AQS 200 L/).length&&d(/Grupo de segurança/).length&&d(/Vaso de expansão sanitário 12 L/).length&&d(/misturadora/).length);
+ assert.ok(d(/^Disjuntor/).length>=2&&d(/diferencial/i).length===1);assert.equal(d(/Deslocação/).length,1);assert.ok(d(/Depósito de inércia 100 L/).length);
+ assert.equal(d(/Instalação de unidade interior/)[0].preco_indicado,120);
+ assert.ok(p.pressupostos.some(x=>/Quarto 2: 5 m de linha/.test(x)));assert.ok(p.verificacao.some(c=>c.estado==='incluido'&&c.itens.length));
+ assert.ok(p.itens.every(i=>i.pesquisa.length||i.categoria==='Mão de obra'));
+ const eq=d(/^Unidade interior mural multisplit 4,2/)[0];assert.ok(eq.exige[0].some(r=>new RegExp(r).test('lg mural 4.2 kw')));
+ const ev=buildPlan(cleanSpec({tipologias:['Carregador automóvel'],carregador:{potencia_kw:7.4,distancia_m:20}}));
+ assert.ok(ev.itens.some(i=>/tipo A com deteção DC 6 mA/.test(i.descricao)));assert.equal(ev.itens.filter(i=>/diferencial/i.test(i.descricao)).length,1);
+ const fc=buildPlan(cleanSpec({tipologias:['Ventiloconvectores'],ventilo:{divisoes:[{nome:'Sala',area_m2:25}]}}));
+ assert.ok(fc.itens.some(i=>/^Ventiloconvector/.test(i.descricao))&&fc.itens.some(i=>/^Bomba de calor ar-água/.test(i.descricao)),'fan coils get a heat pump when there is no production');
+ assert.throws(()=>buildPlan(cleanSpec({tipologias:[]})));
  assert.equal(readPlanInput({texto:'curto'}),null);
  assert.equal(readPlanInput({texto:'Sala de 30 m² com split',maoObra:[{id:'a',nome:'X',preco:-3}]}).maoObra[0].preco,0);
  assert.equal(readPickInput({itens:[{id:'i1',candidatos:[]}]}),null);
@@ -72,6 +89,15 @@ test('the app finds products for the AI terms and keeps catalogue prices',()=>{
  const html=run(`quoteDraft.ai={texto:'Sala 30 m²',at:'2026-11-14T10:00:00Z',resumo:'Split',linhas:4,semPreco:1,verificacao:[{ponto:'Suportes',estado:'incluido'}],dimensionamento:[{titulo:'Sala',detalhe:'3,5 kW'}]};aiSection()`);
  assert.match(html,/Gerar de novo com a IA/);assert.match(html,/1 linha ficou sem preço/);assert.match(html,/Preços de mão de obra \(1 de 1 com valor\)/);
  assert.match(run('quoteEditor()'),/Orçamento automático com IA/);
+});
+test('the app prefers products that meet the required sizes and can pick on its own',()=>{
+ const run=app();
+ run(`PRICE_TABLES.push({brand:'Loja',table:'T',discount:0,products:[{group:['Geral / outros','Elétrico'],ref:'D10',name:'Disjuntor 1P+N 10A curva C',price:8},{group:['Geral / outros','Elétrico'],ref:'D16',name:'Disjuntor 1P+N 16A curva C',price:9},{group:['Geral / outros','Elétrico'],ref:'D160',name:'Disjuntor caixa moldada 160A',price:90}]})`);
+ const it=`{id:'i1',categoria:'Material',descricao:'Disjuntor 16 A curva C 1P+N',pesquisa:['disjuntor 1p+n 16a','disjuntor 16a curva c'],exige:[['(^|[^0-9.])16([.,]0+)?(?![0-9])\\\\s?a']]}`;
+ const ref=run(`(()=>{const f=quoteAiSearch(${it},'');const t=PRICE_TABLES[f[0].ti];return t.products[f[0].pi].ref+'|'+f[0].ok})()`);
+ assert.equal(ref,'D16|true');
+ assert.equal(run(`(()=>{const i=${it};const f=quoteAiSearch(i,'');return quoteAiAutoPick(i,f).candidato})()`),0);
+ assert.equal(run(`quoteAiAutoPick({id:'e',categoria:'Equipamento'},[{s:1,ok:null}])`),null,'equipment is never picked without matching sizes');
 });
 test('heat pumps and AC are wired by electrical, not thermal, power',()=>{
  const c=caboEletrico({potencia_termica_kw:9,distancia_m:15});

@@ -40,31 +40,43 @@
  }
  const text=q=>q.ai?.texto??leadText(q);
 
- // Marcas e famílias disponíveis, para a IA propor equipamentos que existem nas tabelas.
- function catalogSummary(){
-  const out=[];
-  for(const t of quoteTables()){
-   if(t.invoices)continue;
-   const fam=new Map();for(const p of t.products){const k=p.group.slice(0,t.live?2:3).join(' › ');fam.set(k,(fam.get(k)||0)+1)}
-   out.push(`${t.live?'Fornecedor online (material, acessórios, cobre, cabos, tubagem)':t.brand}: `+[...fam].sort((a,b)=>b[1]-a[1]).slice(0,t.live?25:40).map(([k])=>k).join('; '));
-  }
-  return out.join('\n').slice(0,12000);
- }
-
  // Procura local: todas as tabelas, catálogos e faturas, com os termos de pesquisa da IA.
  const words=s=>quoteNorm(String(s||'').replace(/(\d),(\d)/g,'$1.$2')).split(/[\s"']+/).filter(w=>w&&!['de','do','da','para','com','p/','e','c/'].includes(w));
  const HAY=new WeakMap();
+ // Condições do servidor (medidas, potência, secção): expressões que o nome do produto tem de cumprir.
+ const RX=new Map();
+ const rx=ex=>(Array.isArray(ex)?ex:[]).map(g=>(Array.isArray(g)?g:[g]).map(src=>{let r=RX.get(src);if(r===undefined){try{r=new RegExp(src,'i')}catch{r=null}RX.set(src,r)}return r}).filter(Boolean)).filter(g=>g.length);
  function hay(t,p){let h=HAY.get(p);if(h===undefined){h=quoteNorm([t.invoices?'fatura':t.brand,p.maker,p.ref,p.name,...p.group].join(' ')).replace(/(\d),(\d)/g,'$1.$2');HAY.set(p,h)}return h}
+ // Índice de texto por tabela: todos os nomes num só texto, para encontrar cada palavra de uma vez (rápido no telemóvel).
+ const IDX=new WeakMap();
+ function index(t){
+  let x=IDX.get(t);
+  if(!x||x.n!==t.products.length){const hs=t.products.map(p=>hay(t,p)),offs=new Int32Array(hs.length);let o=0;hs.forEach((h,i)=>{offs[i]=o;o+=h.length+1});x={big:hs.join('\n'),offs,n:hs.length,hits:new Map()};IDX.set(t,x)}
+  return x;
+ }
+ function hits(x,w){
+  let out=x.hits.get(w);if(out)return out;
+  out=new Set();const o=x.offs;
+  for(let i=x.big.indexOf(w);i>=0;){let lo=0,hi=o.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(o[m]<=i)lo=m;else hi=m-1}out.add(lo);const next=lo+1<o.length?o[lo+1]:x.big.length;i=x.big.indexOf(w,Math.max(i+1,next))}
+  if(x.hits.size>3000)x.hits.clear();x.hits.set(w,out);return out;
+ }
  function search(item,brand,tables=quoteTables()){
   const qs=[...(item.pesquisa||[]),item.descricao].map(words).filter(w=>w.length),b=quoteNorm(brand),found=[];
   if(!qs.length)return [];
-  tables.forEach((t,ti)=>t.products.forEach((p,pi)=>{
-   const h=hay(t,p);let best=0;
-   qs.forEach((ws,k)=>{const m=ws.filter(w=>h.includes(w)).length;if(m<Math.min(2,ws.length))return;const r=m/ws.length-(k?0.03*k:0);if(r>best)best=r});
-   if(best<0.6)return;
-   let s=best;if(b&&item.categoria==='Equipamento'&&h.includes(b))s+=0.2;if(item.tipologia&&p.group[0]===item.tipologia)s+=0.05;if(t.invoices)s+=0.03;if(p.est)s-=0.02;if(t.live&&p.stock===0)s-=0.05;
-   found.push({ti,pi,s});
-  }));
+  const ex=rx(item.exige);
+  tables.forEach((t,ti)=>{
+   const x=index(t),best=new Map();
+   qs.forEach((ws,k)=>{
+    const cnt=new Map();for(const w of new Set(ws))for(const pi of hits(x,w))cnt.set(pi,(cnt.get(pi)||0)+ws.filter(v=>v===w).length);
+    for(const [pi,m] of cnt){if(m<Math.min(2,ws.length))continue;const r=m/ws.length-(k?0.03*k:0);if(r>(best.get(pi)||0))best.set(pi,r)}
+   });
+   for(const [pi,v] of best){
+    if(v<0.6)continue;
+    const p=t.products[pi],h=hay(t,p),ok=ex.length?ex.every(g=>g.some(r=>r.test(h))):null;
+    let s=v;if(ok)s+=0.25;else if(ok===false)s-=0.1;if(b&&item.categoria==='Equipamento'&&h.includes(b))s+=0.2;if(item.tipologia&&p.group[0]===item.tipologia)s+=0.05;if(t.invoices)s+=0.03;if(p.est)s-=0.02;if(t.live&&p.stock===0)s-=0.05;
+    found.push({ti,pi,s,ok});
+   }
+  });
   found.sort((x,y)=>y.s-x.s);
   const seen=new Set(),out=[];
   for(const f of found){const t=tables[f.ti],p=t.products[f.pi],k=quoteNorm(p.name+'|'+(p.ref||''));if(seen.has(k))continue;seen.add(k);out.push(f);if(out.length>=8)break}
@@ -72,20 +84,19 @@
  }
  const candidate=(t,p)=>({nome:p.name+(p.model&&!String(p.name).includes(p.model)?' – '+p.model:''),ref:p.ref||'',marca:t.invoices?'(última fatura)':t.live?p.maker||'':t.brand,grupo:p.group.join(' › '),preco:priceNet(t,p)});
 
- // Pedido ao servidor e espera pelo resultado da função em segundo plano.
- async function job(path,body,q){
-  const r=await API('orcamento-ia/'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-  const d=await r.json().catch(()=>({}));if(!r.ok||!d.id)throw Error(d.error||'Não foi possível contactar a IA.');
-  for(let i=0;i<300;i++){
-   await new Promise(res=>setTimeout(res,i<5?1500:2500));
-   if(quoteDraft!==q)throw Error('cancelado');
-   const s=await API('orcamento-ia/pedido/'+d.id).then(r=>r.json()).catch(()=>null);
-   if(!s)continue;
-   if(s.status==='pronto')return s.resultado;
-   if(s.status==='erro')throw Error(s.erro||'A IA não conseguiu preparar o orçamento.');
-   if(s.progresso&&s.progresso!==st.phase){st.phase=s.progresso;paint()}
-  }
-  throw Error('A IA demorou demasiado. Tente novamente.');
+ // Pedido direto ao servidor (responde em poucos segundos), com limite de tempo.
+ async function post(path,body,ms){
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms);
+  try{
+   const r=await API('orcamento-ia/'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:ac.signal});
+   const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Não foi possível contactar a IA.');return d;
+  }catch(e){if(e.name==='AbortError')throw Error('A IA demorou a responder. Tente novamente.');throw e}
+  finally{clearTimeout(t)}
+ }
+ // Escolha local (sem IA): o melhor candidato que cumpre as medidas pedidas. Equipamento só com medidas confirmadas.
+ function autoPick(it,f){
+  const c=(f||[]).findIndex(x=>x.ok===true||(x.ok===null&&it.categoria!=='Equipamento'&&x.s>=0.85));
+  return c<0?null:{id:it.id,candidato:c,quantidade:null,unidade:null};
  }
  const paint=()=>{const el=document.querySelector('#qai-status');if(el)el.innerHTML=statusHtml();else if(typeof render==='function')render()};
  const statusHtml=()=>st.busy?`<p class="note qai-busy"><span class="qai-spin"></span>${esc(st.phase||'A trabalhar…')}</p>`:st.error?`<p class="note neg">${esc(st.error)}</p>`:'';
@@ -111,15 +122,20 @@
   if(texto.length<10){st.error='Descreva a obra: divisões e áreas, distâncias, onde fica a exterior, o que o cliente quer.';paint();return}
   const hasLines=q.lines.some(l=>!quoteLineBlank(l));
   let mode='replace';if(hasLines)mode=confirm('O orçamento já tem linhas. OK substitui-as pelo orçamento da IA; Cancelar acrescenta as linhas da IA no fim.')?'replace':'append';
-  q.ai={...(q.ai||{}),texto};st.busy=true;st.error='';st.phase='A enviar o pedido…';render();
+  q.ai={...(q.ai||{}),texto};st.busy=true;st.error='';st.phase='A ler o pedido e a montar o orçamento…';render();
   try{
    const rates=labour();
-   const plan=await job('planear',{texto,tipologias:q.topics,marca:q.brand,morada:q.address,maoObra:rates,regras:S.iaRegras||'',catalogo:catalogSummary()},q);
+   const plan=await post('rapido',{texto,tipologias:q.topics,marca:q.brand,morada:q.address,maoObra:rates,regras:S.iaRegras||''},45000);
+   if(quoteDraft!==q)return;
    st.phase='A procurar os produtos nas tabelas de preços…';paint();
-   const found={},items=[];
-   for(const it of plan.itens){if(it.categoria==='Mão de obra')continue;await new Promise(r=>setTimeout(r,0));const f=search(it,q.brand||plan.marca);found[it.id]=f;if(f.length)items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
-   const picks={};
-   if(items.length){const r=await job('escolher',{marca:q.brand||plan.marca,itens:items},q);for(const e of r.escolhas||[])picks[e.id]=e}
+   const found={},items=[],picks={};
+   for(const it of plan.itens){if(it.categoria==='Mão de obra')continue;await new Promise(r=>setTimeout(r,0));const f=search(it,q.brand||plan.marca);found[it.id]=f;const a=autoPick(it,f);if(a)picks[it.id]=a;if(f.length)items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
+   if(items.length){
+    st.phase='A escolher os produtos certos…';paint();
+    // Se a IA falhar ou demorar, ficam as escolhas locais.
+    try{const r=await post('escolher',{marca:q.brand||plan.marca,itens:items},30000);const got=new Map((r.escolhas||[]).map(e=>[e.id,e]));for(const it of items){const e=got.get(it.id);if(e)picks[it.id]=e}}
+    catch(e){console.warn('escolha local',e.message)}
+   }
    if(quoteDraft!==q)return;
    const {lines,live}=buildLines(plan,picks,found,rates);
    q.lines=mode==='replace'?lines:[...q.lines.filter(l=>!quoteLineBlank(l)),...lines];
@@ -144,7 +160,7 @@
   ${list('Dimensionamento',(ai.dimensionamento||[]).map(d=>`<b>${esc(d.titulo)}</b> — ${esc(d.detalhe)}`))}
   ${list('Pressupostos (confirme na visita)',(ai.pressupostos||[]).map(esc))}
   ${list('A confirmar com o cliente',(ai.perguntas||[]).map(esc))}
-  ${list('Avisos do revisor técnico',(ai.avisos||[]).map(esc),'qai-alerts')}
+  ${list('Avisos técnicos',(ai.avisos||[]).map(esc),'qai-alerts')}
   ${(ai.verificacao||[]).length?`<details class="qai-check"><summary>Lista de verificação: ${ok} pontos incluídos${na.length?', '+na.length+' não aplicáveis':''}</summary><ul class="qai-list">${ai.verificacao.map(c=>`<li class="${c.estado==='incluido'?'ok':'na'}">${c.estado==='incluido'?'✓':'—'} ${esc(c.ponto)}${c.nota?` <small>(${esc(c.nota)})</small>`:''}</li>`).join('')}</ul></details>`:''}
   ${(ai.calculos||[]).length?`<details class="qai-check"><summary>Cálculos técnicos usados (${ai.calculos.length})</summary><ul class="qai-list">${ai.calculos.map(c=>`<li>${esc(c.nota)}</li>`).join('')}</ul></details>`:''}
   <p class="note">Reveja as linhas abaixo: pode alterar quantidades, trocar produtos ou apagar linhas como num orçamento normal.</p></div>`;
@@ -178,5 +194,5 @@
   if(k==='rate-add'){st.labour=true;setRates(L=>L.push({id:'mo'+Date.now().toString(36),nome:'',unidade:'un.',preco:0}));render();return}
   if(k==='rate-del'){st.labour=true;setRates(L=>L.splice(Number(b.dataset.i),1));render()}
  });
- Object.assign(root,{quoteAiSearch:search,quoteAiBuildLines:buildLines,quoteAiLabour:labour,quoteAiLeadText:leadText});
+ Object.assign(root,{quoteAiSearch:search,quoteAiAutoPick:autoPick,quoteAiBuildLines:buildLines,quoteAiLabour:labour,quoteAiLeadText:leadText});
 })(globalThis);

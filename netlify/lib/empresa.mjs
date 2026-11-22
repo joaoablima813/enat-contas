@@ -20,6 +20,7 @@ export function cleanEmpresa(b) {
     anos: str(o.anos, 20),
     instalacoes: str(o.instalacoes, 20),
     equipaFoto: id(o.equipaFoto),
+    autoPedido: o.autoPedido !== false,
     nif: str(o.nif, 20), morada: str(o.morada, 200),
     email: /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(str(o.email, 120)) ? str(o.email, 120) : '',
     site: str(o.site, 120).replace(/^https?:\/\//, '').replace(/[\s<>"]/g, ''),

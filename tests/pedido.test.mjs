@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handlePedidoApi, handlePedidoPublic } from '../netlify/lib/pedido.mjs';
+import { handlePedidoApi, handlePedidoPublic, autoCandidates, runAutoPedidos } from '../netlify/lib/pedido.mjs';
 
 const P = globalThis.EnatPedido;
 function blobs() {
@@ -48,4 +48,35 @@ test('the app creates one link per lead; the client answers on the page with pho
   assert.equal(pedidos[0].resp.cp, '4990-062');
   assert.match(await (await pub(store, r1.token)).text(), /Já recebemos as suas respostas/);
   assert.equal((await pub(store, 'x'.repeat(24))).status, 404);
+});
+
+const now = Date.parse('2026-11-23T11:00:00Z'), today = '2026-11-23';
+const state = { leads: [
+  { id: 'A', name: 'Ana Costa', email: 'ana@x.pt', stage: 'nova', date: today, solutions: ['VMC'] },
+  { id: 'B', name: 'Bruno', email: 'b@x.pt', stage: 'contacto', date: today },
+  { id: 'C', name: 'Carla', email: '', stage: 'nova', date: today },
+  { id: 'D', name: 'Duarte', email: 'd@x.pt', stage: 'nova', date: '2026-10-01' },
+  { id: 'E', name: 'Eva', email: 'e@x.pt', stage: 'nova', date: today, pedido: { sent: 1 } },
+  { id: 'F', name: 'Filipe', email: 'f@x.pt', stage: 'nova', date: today },
+], del: { 'leads:F': 1 } };
+const inbox = [{ id: 'G', name: 'Gil', email: 'g@x.pt', received: '2026-11-22T20:00:00Z' }, { id: 'A', email: 'ana@x.pt' }];
+
+test('automatic email only to new leads with an email, recent, never asked before and not deleted', () => {
+  assert.deepEqual(autoCandidates(state, inbox, {}, now).map((l) => l.id), ['A', 'G']);
+  assert.deepEqual(autoCandidates(state, inbox, { A: { at: 1 } }, now).map((l) => l.id), ['G'], 'once per lead');
+});
+
+test('the scheduled run emails the link once, during the day, and the app learns it was sent', async () => {
+  const store = blobs(), mails = [];
+  await store.setJSON('estado', state);await store.setJSON('leads-meta', { leads: inbox });
+  const send = async (to, subject, text) => { mails.push({ to, subject, text }); };
+  assert.deepEqual(await runAutoPedidos(store, Date.parse('2026-11-23T23:30:00Z'), send), { skipped: 'night' });
+  assert.deepEqual(await runAutoPedidos(store, now, send), { sent: 2 });
+  assert.deepEqual(mails.map((m) => m.to), ['ana@x.pt', 'g@x.pt']);
+  assert.match(mails[0].text, /Olá Ana, sou João Lima[\s\S]*vmc[\s\S]*https:\/\/[^\s]+\/pedido\/[A-Za-z0-9_-]{24}/);
+  assert.deepEqual(await runAutoPedidos(store, now + 10 * 60e3, send), { sent: 0 }, 'never twice');
+  const { auto } = await (await api(store, 'GET', 'pedidos')).json();
+  assert.deepEqual(auto.map((a) => a.lead).sort(), ['A', 'G']);
+  await store.setJSON('empresa', { autoPedido: false });await store.setJSON('pedido-auto-ultimo', { t: 0 });
+  assert.deepEqual(await runAutoPedidos(store, now + 20 * 60e3, send), { skipped: 'off' });
 });

@@ -2,11 +2,7 @@
    pronta e, quando o cliente responde, preenche a lead (morada, soluções, tipo de casa, prazo…) e mostra as respostas. */
 let PED_MSG='',PED_BUSY=false,PED_AT=0;
 const PED_URL={};
-const pedFirst=l=>String(l.name||'').trim().split(/\s+/)[0]||'';
-const pedText=(l,url)=>{
- const me=globalThis.ENAT_EMPRESA?.contacto?.nome||'João Lima',sol=(l.solutions||[]).filter(s=>EnatPedido.TECHS.includes(s));
- return `Olá${pedFirst(l)?' '+pedFirst(l):''}, sou ${me}, da Enat - Ponte de Lima. Obrigado pelo seu pedido${sol.length?' de orçamento para '+sol.join(' e ').toLowerCase():' de orçamento'}.\n\nPara lhe enviar uma proposta à medida, sem visitas desnecessárias, pode responder a umas perguntas rápidas (2 minutos) e indicar a morada da instalação?\n\n${url}\n\nObrigado!\n${me}\nEnat - Ponte de Lima`;
-};
+const pedText=(l,url)=>EnatPedido.message(l.name,l.solutions,globalThis.ENAT_EMPRESA?.contacto?.nome,url);
 // Fotos do cliente: precisam da sessão, por isso são carregadas como blob.
 function pedPhotos(ids){for(const id of ids)if(!(id in PED_URL)){PED_URL[id]='';API('pedido/foto/'+id).then(r=>r.ok?r.blob():null).then(b=>{if(b){PED_URL[id]=URL.createObjectURL(b);if(V.tab==='leads'&&idle())render()}}).catch(()=>{})}}
 function pedidoSection(l){
@@ -15,7 +11,7 @@ function pedidoSection(l){
  const when=t=>new Date(t).toLocaleString('pt-PT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
  const answers=r?`<div class="grp">${EnatPedido.summary(r).map(([k,v])=>`<div class="row kv"><div class="rt"><span>${esc(k)}</span><b style="white-space:normal">${esc(v)}</b></div></div>`).join('')}</div>${(r.fotos||[]).length?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0">${r.fotos.map(id=>PED_URL[id]?`<a href="${esc(PED_URL[id])}" target="_blank" rel="noopener"><img src="${esc(PED_URL[id])}" alt="Foto do cliente" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;display:block"></a>`:'<div style="aspect-ratio:1;border-radius:10px;background:var(--chip)"></div>').join('')}</div>`:''}`:'';
  return `<h2>Pedir detalhes ao cliente</h2>
- ${r?`<p class="note">Respondeu a ${esc(when(r.at))}. Os dados já foram passados para esta lead.</p>${answers}`:p.sent?`<p class="note">Link enviado a ${esc(when(p.sent))}. Ainda sem resposta.</p>`:`<p class="note" style="margin:-4px 6px 10px">Envie ao cliente um link com perguntas rápidas: solução, gama (preço, equilíbrio ou qualidade), áreas, morada e fotos. As respostas entram nesta lead e recebe um aviso.</p>`}
+ ${r?`<p class="note">Respondeu a ${esc(when(r.at))}. Os dados já foram passados para esta lead.</p>${answers}`:p.sent?`<p class="note">${p.failed?'O email automático não foi aceite pelo servidor. Confirme o email do cliente e envie de novo.':(p.auto?'Enviado automaticamente por email a ':'Link enviado a ')+esc(when(p.sent))+'. Ainda sem resposta.'}</p>`:`<p class="note" style="margin:-4px 6px 10px">Envie ao cliente um link com perguntas rápidas: solução, gama (preço, equilíbrio ou qualidade), áreas, morada e fotos. As respostas entram nesta lead e recebe um aviso.</p>`}
  <div class="lead-call-add">${tel?`<button type="button" class="btn ${r?'alt':''}" data-ped="whatsapp" ${PED_BUSY?'disabled':''}>${r||p.sent?'Reenviar':'Enviar'} por WhatsApp</button>`:''}${mail?`<button type="button" class="btn alt" data-ped="email" ${PED_BUSY?'disabled':''}>${r||p.sent?'Reenviar':'Enviar'} por email</button>`:''}</div>
  ${!tel&&!mail?'<p class="note">Indique o contacto ou o email do cliente para enviar o link.</p>':''}
  ${PED_MSG?`<p class="note" role="status">${esc(PED_MSG)}</p>`:''}`;
@@ -38,13 +34,15 @@ function pedApply(l,resp){
 async function pedidosPull(force){
  if(!force&&Date.now()-PED_AT<6e4)return;PED_AT=Date.now();
  const r=await API('pedidos').catch(()=>null);if(!r?.ok)return;
- const {pedidos}=await r.json().catch(()=>({}));let changed=false;
+ const {pedidos,auto}=await r.json().catch(()=>({}));let changed=false;
  for(const p of pedidos||[]){
   const l=(S.leads||[]).find(x=>x.id===p.lead);if(!l||l.pedido?.resp?.at>=p.at)continue;
   pedApply(l,{...EnatPedido.clean(p.resp),fotos:(p.resp.fotos||[]).filter(f=>/^[a-z0-9]{8,40}$/.test(f)),at:p.at});changed=true;
   if(leadDraft?.id===l.id){const keep=leadDirty();Object.assign(leadDraft,structuredClone(l));if(!keep)leadOrig=JSON.stringify(leadDraft)}
   if(typeof notifAdd==='function')notifAdd({id:'pedido|'+l.id+'|'+p.at,kind:'lead',lead:l.id,title:'Detalhes recebidos: '+leadName(l),text:p.resp.sol?.join(', ')||'O cliente respondeu ao questionário',at:p.at});
  }
+ // Links enviados automaticamente por email pelo servidor.
+ for(const x of auto||[]){const l=(S.leads||[]).find(y=>y.id===x.lead);if(!l||l.pedido?.sent)continue;l.pedido={...(l.pedido||{}),token:x.token,sent:x.sent,auto:true,failed:x.failed};changed=true;if(leadDraft?.id===l.id){leadDraft.pedido=l.pedido;leadOrig=JSON.stringify({...JSON.parse(leadOrig),pedido:l.pedido})}}
  if(changed){save();if(idle())render()}
 }
 document.addEventListener('click',async e=>{

@@ -12,26 +12,34 @@ const DAY = 864e5, MAX_PHOTOS = 6, INDEX = 'pedidos';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const get = (store, token) => TOKEN.test(token) ? store.get('pedido-' + token, { type: 'json' }).catch(() => null) : null;
 
+// Um link por lead: voltar a pedir reutiliza o mesmo e mantém as respostas já dadas.
+async function createLink(store, lead, nome, solutions) {
+  let token = (await store.get('pedido-lead-' + lead, { type: 'json' }).catch(() => null))?.token;
+  const old = token ? await get(store, token) : null;
+  if (!old) token = randomBytes(18).toString('base64url');
+  const sol = (Array.isArray(solutions) ? solutions : []).filter((s) => P.TECHS.includes(s));
+  const p = { ...(old || { created: Date.now(), fotos: [] }), lead, nome: String(nome || '').trim().slice(0, 120), sol: old?.resp || !sol.length ? old?.sol || sol : sol };
+  await store.setJSON('pedido-' + token, p);
+  await store.setJSON('pedido-lead-' + lead, { token });
+  return { token, p };
+}
+
 // ---- App (com sessão) ----
 export async function handlePedidoApi(req, path, store) {
   if (path === 'pedido' && req.method === 'POST') {
     let b; try { b = await req.json(); } catch { return json(400, { error: 'Dados inválidos.' }); }
     const lead = String(b?.lead || '');
     if (!LEAD.test(lead)) return json(400, { error: 'Guarde a lead antes de pedir detalhes.' });
-    // Um link por lead: voltar a pedir reutiliza o mesmo e mantém as respostas já dadas.
-    let token = (await store.get('pedido-lead-' + lead, { type: 'json' }).catch(() => null))?.token;
-    const old = token ? await get(store, token) : null;
-    if (!old) token = randomBytes(18).toString('base64url');
-    const sol = (Array.isArray(b.sol) ? b.sol : []).filter((s) => P.TECHS.includes(s));
-    await store.setJSON('pedido-' + token, { ...(old || { created: Date.now(), fotos: [] }), lead, nome: String(b.nome || '').trim().slice(0, 120), sol: old?.resp || !sol.length ? old?.sol || sol : sol });
-    await store.setJSON('pedido-lead-' + lead, { token });
+    const { token } = await createLink(store, lead, b.nome, b.sol);
     return json(200, { token, url: new URL(req.url).origin + '/pedido/' + token });
   }
   if (path === 'pedidos' && req.method === 'GET') {
     const list = (await store.get(INDEX, { type: 'json' }).catch(() => null)) || [];
     const out = [];
     for (const x of list.slice(-60)) { const p = await get(store, x.token); if (p?.resp) out.push({ token: x.token, lead: p.lead, at: p.resp.at, resp: p.resp }); }
-    return json(200, { pedidos: out });
+    // Links enviados automaticamente por email às leads novas (a app marca-os na lead).
+    const auto = Object.entries((await store.get(AUTO_SENT, { type: 'json' }).catch(() => null)) || {}).map(([lead, x]) => ({ lead, token: x.token, sent: x.at, failed: Boolean(x.failed) }));
+    return json(200, { pedidos: out, auto });
   }
   const m = path.match(/^pedido\/foto\/([a-z0-9]{8,40})$/);
   if (m && req.method === 'GET') {
@@ -79,6 +87,61 @@ export async function handlePedidoPublic(req, token, sub, store) {
   if (gone) return new Response(page('Link indisponível', '<section class="card"><h1>Este link já não está disponível</h1><p>Contacte-nos para receber um novo pedido: <a href="mailto:pontedelima@enat.pt">pontedelima@enat.pt</a></p></section>'), { status: 404, headers: HTML });
   const empresa = (await store.get('empresa', { type: 'json' }).catch(() => null)) || {};
   return new Response(page('Pedido de orçamento · Enat', form(token, p, empresa)), { headers: HTML });
+}
+
+// ---- Envio automático por email às leads novas ----
+// Corre na função agendada (a cada minuto), no máximo a cada 5 minutos e só das 8h às 22h (hora de Lisboa).
+// Envia a leads com a fase «Lead nova», com email, recebidas nos últimos 7 dias, a quem nunca foi enviado o link.
+const AUTO_SENT = 'pedido-auto-enviados', AUTO_LAST = 'pedido-auto-ultimo', EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
+const leadTime = (l) => { const t = new Date(l.received || (l.date ? l.date + 'T12:00:00Z' : 0)).getTime(); return Number.isFinite(t) ? t : 0; };
+export function autoCandidates(state, inbox, sent, now = Date.now()) {
+  const del = state?.del || {}, seen = new Set(), out = [];
+  const inState = new Map((state?.leads || []).map((l) => [l.id, l]));
+  // As leads ainda só no email da campanha contam como novas; as da app só se continuarem na fase «Lead nova».
+  for (const l of [...(state?.leads || []), ...(inbox || []).filter((x) => !inState.has(x.id))]) {
+    if (!l || typeof l.id !== 'string' || seen.has(l.id)) continue;
+    seen.add(l.id);
+    if ((l.stage || 'nova') !== 'nova' || del['leads:' + l.id] || sent[l.id] || l.pedido?.sent || l.pedido?.resp) continue;
+    const email = String(l.email || '').trim();
+    if (!EMAIL.test(email) || email.length > 320 || !LEAD.test(l.id)) continue;
+    if (now - leadTime(l) > 7 * DAY) continue;
+    out.push({ id: l.id, email, name: String(l.name || '').trim(), solutions: l.solutions || [] });
+  }
+  return out;
+}
+async function sendEmail(to, subject, text, origin) {
+  const c = { host: process.env.SMTP_HOST || 'mail.enat.pt', port: Number(process.env.SMTP_PORT || 465), user: process.env.SMTP_USER || 'pontedelima@enat.pt', pass: process.env.SMTP_PASSWORD, from: process.env.EMAIL_FROM || 'pontedelima@enat.pt' };
+  if (!c.pass) throw new Error('smtp not configured');
+  const { createTransport } = await import('nodemailer');
+  const t = createTransport({ host: c.host, port: c.port, secure: c.port === 465, auth: { user: c.user, pass: c.pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
+  const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#122c3b;max-width:600px"><div style="padding:4px 0 14px;border-bottom:3px solid #f3a51c;margin-bottom:18px"><img src="' + esc(origin) + '/enat-logo.png" alt="Enat - Ponte de Lima" width="131" height="47" style="display:block"></div>'
+    + esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="display:inline-block;margin:6px 0;padding:12px 20px;background:#2f8f3a;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:bold">Responder às perguntas</a>').replace(/\n/g, '<br>') + '</div>';
+  const info = await t.sendMail({ from: { name: 'Enat - Ponte de Lima', address: c.from }, to, replyTo: c.from, subject, text, html });
+  if (!(info.accepted || []).map((a) => String(a?.address || a).toLowerCase()).includes(to.toLowerCase())) throw new Error('rejected');
+}
+export async function runAutoPedidos(store, now = Date.now(), send = sendEmail) {
+  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Lisbon', hour: '2-digit', hourCycle: 'h23' }).format(now));
+  if (h < 8 || h >= 22) return { skipped: 'night' };
+  const e = (await store.get('empresa', { type: 'json' }).catch(() => null)) || {};
+  if (e.autoPedido === false) return { skipped: 'off' };
+  if (!process.env.SMTP_PASSWORD && send === sendEmail) return { skipped: 'smtp' };
+  const last = await store.get(AUTO_LAST, { type: 'json' }).catch(() => null);
+  if (last && now - last.t < 5 * 60e3) return { skipped: 'recent' };
+  await store.setJSON(AUTO_LAST, { t: now });
+  const [state, meta, sent] = await Promise.all([store.get('estado', { type: 'json' }), store.get('leads-meta', { type: 'json' }), store.get(AUTO_SENT, { type: 'json' })].map((p) => p.catch(() => null)));
+  const todo = autoCandidates(state, meta?.leads, sent || {}, now).slice(0, 5);
+  if (!todo.length) return { sent: 0 };
+  const origin = process.env.URL || 'https://enat-contas.netlify.app', me = e.contacto?.nome || 'João Lima', done = { ...(sent || {}) };
+  let n = 0;
+  for (const l of todo) {
+    // Marcado antes de enviar: se o envio falhar a meio, nunca se envia duas vezes ao mesmo cliente.
+    const { token } = await createLink(store, l.id, l.name, l.solutions);
+    done[l.id] = { token, at: now };
+    await store.setJSON(AUTO_SENT, done);
+    try { await send(l.email, 'O seu pedido de orçamento · Enat - Ponte de Lima', P.message(l.name, l.solutions, me, origin + '/pedido/' + token), origin); n++; }
+    catch (x) { done[l.id] = { token, at: now, failed: true }; await store.setJSON(AUTO_SENT, done); console.error('pedido auto email', x?.code || x?.message); }
+  }
+  return { sent: n };
 }
 
 const HTML = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer' };

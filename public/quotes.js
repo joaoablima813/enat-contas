@@ -356,7 +356,8 @@ async function buildQuotePdf(q,detailed=true){
  const e=globalThis.ENAT_EMPRESA||{},c=e.contacto||{},sol=globalThis.EnatSolucoes,totals=quoteTotals(q);
  // Thousands separated by a space, as usual in Portugal (pt-PT does not group 4-digit numbers).
  const money=n=>{const v=Number(n)||0,[i,d]=Math.abs(v).toFixed(2).split('.');return (v<0?'-':'')+i.replace(/\B(?=(\d{3})+(?!\d))/g,' ')+','+d+' €'};
- const green=[42,114,58],orange=[244,160,12],ink=[33,37,41],grey=[108,117,125],tint=[241,247,242],rule=[214,222,216],white=[255,255,255],number=quoteNumber(q.id,q.date);
+ // Brand green for text; a very light green for the bands, the table header and the total.
+ const green=[42,114,58],light=[228,241,231],orange=[244,160,12],ink=[33,37,41],grey=[108,117,125],tint=[244,249,245],rule=[214,222,216],number=quoteNumber(q.id,q.date);
  const day=d=>d.toISOString().slice(0,10).split('-').reverse().join('/'),issued=new Date(q.date+'T00:00:00Z'),valid=new Date(issued.getTime()+quoteValidity(q)*864e5);
  const company='Enat - Ponte de Lima',person=quoteContact(),role=c.cargo||'Responsável comercial',email=e.email||'pontedelima@enat.pt';
  const phone=String(c.telefone||'').trim().replace(/^(\d{3})(\d{3})(\d{3})$/,'$1 $2 $3');
@@ -365,12 +366,12 @@ async function buildQuotePdf(q,detailed=true){
  const heading=(t,x,y)=>{font(9,'bold',green);doc.text(t.toUpperCase(),x,y)};
  const wrap=(t,w,size)=>{doc.setFontSize(size);return doc.splitTextToSize(String(t||''),w)};
  const header=first=>{
-  if(!first){doc.addImage(logo,'PNG',L,9,30,30*logoH/logoW);font(9,'bold',green);doc.text('ORÇAMENTO '+number.replace(/^ORC\s*/,''),R,15,{align:'right'});font(8.5,'normal',grey);doc.text(String(q.client||''),R,20,{align:'right'});doc.setFillColor(...green);doc.rect(0,25,210,1.2,'F');return}
+  if(!first){doc.addImage(logo,'PNG',L,9,30,30*logoH/logoW);font(9,'bold',green);doc.text('ORÇAMENTO '+number.replace(/^ORC\s*/,''),R,15,{align:'right'});font(8.5,'normal',grey);doc.text(String(q.client||''),R,20,{align:'right'});doc.setFillColor(...light);doc.rect(0,25,210,1.5,'F');return}
   doc.addImage(logo,'PNG',L,10,logoW,logoH);
   font(26,'bold',green);doc.text('ORÇAMENTO',R,24,{align:'right'});
-  // Green band with the document details.
-  doc.setFillColor(...green);doc.rect(0,36,210,13,'F');doc.setFillColor(...orange);doc.rect(0,49,210,1.2,'F');
-  [['N.º',number.replace(/^ORC\s*/,'')],['Data',day(issued)],['Válido até',day(valid)]].forEach(([k,v],i)=>{const x=L+i*62;font(8,'normal',[214,236,219]);doc.text(k,x,41);font(11,'bold',white);doc.text(v,x,46.5)});
+  // Light green band with the document details.
+  doc.setFillColor(...light);doc.rect(0,36,210,13,'F');doc.setFillColor(...orange);doc.rect(0,49,210,.8,'F');
+  [['N.º',number.replace(/^ORC\s*/,'')],['Data',day(issued)],['Válido até',day(valid)]].forEach(([k,v],i)=>{const x=L+i*62;font(8,'normal',grey);doc.text(k,x,41);font(11,'bold',green);doc.text(v,x,46.5)});
  };
  header(true);
  let y=60;
@@ -393,15 +394,15 @@ async function buildQuotePdf(q,detailed=true){
   // The summary version lists what is included without revealing line prices.
   ...(detailed?{head:[['Descrição','Qtd.','Un.','Preço unit.','Total']],body:q.lines.map((l,i)=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.',money(cents[i]/100/(l.quantity??1)),money(cents[i]/100)])}:{head:[['Descrição','Qtd.','Un.']],body:q.lines.map(l=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.'])}),
   styles:{font:'helvetica',fontSize:9.5,cellPadding:{top:2.7,right:2.5,bottom:2.7,left:2.5},overflow:'linebreak',textColor:ink,lineColor:rule,lineWidth:{bottom:.2}},
-  headStyles:{fillColor:green,textColor:255,fontStyle:'bold',fontSize:9,lineWidth:0},alternateRowStyles:{fillColor:[248,251,248]},
+  headStyles:{fillColor:light,textColor:green,fontStyle:'bold',fontSize:9,lineWidth:0},alternateRowStyles:{fillColor:[248,251,248]},
   columnStyles:detailed?{0:{cellWidth:86},1:{cellWidth:14,halign:'right'},2:{cellWidth:14},3:{cellWidth:33,halign:'right'},4:{cellWidth:33,halign:'right',fontStyle:'bold'}}:{0:{cellWidth:152},1:{cellWidth:14,halign:'right'},2:{cellWidth:14}},
   didParseCell:d=>{if(d.section==='head'&&d.column.index>0&&d.column.index!==2)d.cell.styles.halign='right'},rowPageBreak:'avoid',didDrawPage:later});
  y=doc.lastAutoTable.finalY+6;
- // Totals: net and VAT, then the total in a green bar.
+ // Totals: net and VAT, then the total in a light green bar.
  ensure(30);const tx=115;
  [['Total sem IVA',money(totals.net)],['IVA ('+q.vat+'%)',money(totals.vat)]].forEach(([k,v],i)=>{font(10,'normal',grey);doc.text(k,tx+4,y+i*6);font(10);doc.text(v,R-4,y+i*6,{align:'right'})});
- doc.setFillColor(...green);doc.rect(tx,y+9,R-tx,13,'F');doc.setFillColor(...orange);doc.rect(tx,y+9,1.5,13,'F');
- font(11,'bold',white);doc.text('Total com IVA',tx+6,y+17.4);font(16,'bold',white);doc.text(money(totals.total),R-4,y+17.8,{align:'right'});
+ doc.setFillColor(...light);doc.rect(tx,y+9,R-tx,13,'F');doc.setFillColor(...orange);doc.rect(tx,y+9,1.5,13,'F');
+ font(11,'bold',green);doc.text('Total com IVA',tx+6,y+17.4);font(16,'bold',green);doc.text(money(totals.total),R-4,y+17.8,{align:'right'});
  y+=30;
  // Short conditions in a 2 × 2 grid.
  const weeks=sol?sol.nextWeeks(e.semanas):[];
@@ -409,15 +410,15 @@ async function buildQuotePdf(q,detailed=true){
  ensure(30);heading('Condições',L,y);y+=3;doc.setDrawColor(...rule);doc.setLineWidth(.2);
  cond.forEach(([k,v],i)=>{const x=L+(i%2)*(half+10),cy=y+Math.floor(i/2)*12;doc.line(x,cy+11,x+half,cy+11);font(8.5,'bold',grey);doc.text(k,x,cy+4.5);font(10);doc.text(wrap(v,half,10)[0],x,cy+9.3)});
  y+=27;
- // Signatures.
+ // Company signature.
  ensure(22);y+=11;
- for(const [x,a,b] of [[L,company,person+' · '+role],[rx,'O cliente',String(q.client||'')+' · Data ___/___/______']]){doc.setDrawColor(...ink);doc.setLineWidth(.3);doc.line(x,y,x+half,y);font(10,'bold');doc.text(a,x,y+5.5);font(9,'normal',grey);doc.text(b,x,y+10.5)}
+ doc.setDrawColor(...ink);doc.setLineWidth(.3);doc.line(L,y,L+half,y);font(10,'bold');doc.text(company,L,y+5.5);font(9,'normal',grey);doc.text(person+' · '+role,L,y+10.5);
  // Quotes with a PV sizing get one more page with the study and the monthly chart.
  if(q.pv?.result?.panels&&typeof pvPdfSection==='function'){doc.addPage();header(false);pvPdfSection(doc,q.pv.result,{navy:green,grey,soft:tint,money})}
- // Footer: green rule, company identification, credentials and page number.
- const creds=(e.credenciais||[]).filter(x=>x.nome&&x.numero).map(x=>x.nome+' n.º '+x.numero).join('  ·  ');
+ // Footer: company identification, the alvará (the only credential shown in the PDF) and page number.
+ const creds=(e.credenciais||[]).filter(x=>x.nome&&x.numero&&/alvar/i.test(x.nome)).map(x=>x.nome+' n.º '+x.numero).join('  ·  ');
  const foot=[company,e.nif&&'NIF '+e.nif,phone,email,e.site].filter(Boolean).join('  ·  ');
- const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFillColor(...green);doc.rect(L,278,W,.6,'F');font(7.5,'normal',grey);doc.text(foot,L,283);if(creds)doc.text(wrap(creds,W-20,7.5)[0],L,287);font(7.5,'bold',green);doc.text(p+' / '+pages,R,283,{align:'right'})}
+ const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFillColor(...light);doc.rect(L,278,W,.8,'F');font(7.5,'normal',grey);doc.text(foot,L,283);if(creds)doc.text(wrap(creds,W-20,7.5)[0],L,287);font(7.5,'bold',green);doc.text(p+' / '+pages,R,283,{align:'right'})}
  // File names cannot contain slashes, so 2026/0042 becomes 2026-0042.
  const clean=v=>String(v||'').replace(/[\\/:*?"<>|\x00-\x1f]+/g,'-').replace(/\s+/g,' ').trim();
  return {doc,filename:clean('ORC Nº '+number.replace(/^ORC\s*/,'')+' '+q.client)+'.pdf'};

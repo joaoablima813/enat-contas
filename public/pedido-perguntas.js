@@ -2,25 +2,29 @@
    Usado pela página pública /pedido/<token> (servidor) e pela app, que mostra as respostas na lead e preenche os campos.
    Quase tudo é de escolher com um toque; só a morada e as notas são escritas. */
 (function(root){
- const AREA=['Até 30 m²','30 a 60 m²','60 a 100 m²','Mais de 100 m²'];
+ const YEARS=['Antes de 1990','1990 a 2005','2006 a 2015','Depois de 2015','Em construção'];
+ const ROOMS=['Sala','Quarto','Escritório','Cozinha','Outra'];
  const HOUSE_AREA=['Até 100 m²','100 a 150 m²','150 a 200 m²','200 a 300 m²','Mais de 300 m²'];
  const OBRA=['Obra nova','Remodelação','Casa habitada, sem obras'];
  const PESSOAS=['1 a 2','3 a 4','5 ou mais'];
  const AQS_ATUAL=['Esquentador a gás','Termoacumulador elétrico','Caldeira','Painel solar térmico','Outro'];
  const TECH={
   'Ar condicionado':[
-   {id:'ac_div',q:'Quantas divisões quer climatizar?',o:['1','2','3','4','5 ou mais']},
-   {id:'ac_area',q:'Área total aproximada dessas divisões',o:AREA},
+   {id:'ac_div',q:'Quantas divisões quer climatizar?',o:['1','2','3','4','5','6 ou mais']},
+   // Uma linha por divisão (tipo e área), conforme o número escolhido acima.
+   {id:'ac_rooms',q:'Que divisões e com que área?',rooms:'ac_div'},
    {id:'ac_uso',q:'Vai usar sobretudo para…',o:['Arrefecer no verão','Aquecer no inverno','As duas coisas']},
+   {id:'ac_ano',q:'Ano aproximado da casa',o:YEARS},
    {id:'ac_ext',q:'Onde pode ficar a máquina exterior?',o:['Varanda','Parede exterior','Telhado','Jardim / quintal','Não sei']},
    {id:'ac_pre',q:'A casa já tem pré-instalação de ar condicionado?',o:['Sim','Não','Não sei']},
-   {id:'ac_txt',q:'Que divisões? (opcional)',t:'Ex.: sala e 2 quartos'},
   ],
   'Bomba de calor climatização':[
-   {id:'bcc_area',q:'Área da casa a aquecer',o:HOUSE_AREA},
+   {id:'bcc_m2',q:'Área da casa a aquecer (m²)',n:[20,2000],ph:'Ex.: 140'},
    {id:'bcc_emis',q:'Como é distribuído o calor?',o:['Radiadores','Piso radiante','Ventiloconvectores','Ainda não tenho']},
+   {id:'bcc_rad',q:'Quantos radiadores tem a casa?',n:[1,80],ph:'Ex.: 10',if:['bcc_emis','Radiadores']},
+   {id:'bcc_elem',q:'Quantos elementos tem cada radiador, em média?',n:[2,40],ph:'Ex.: 10',if:['bcc_emis','Radiadores'],help:'Os elementos são as «fatias» verticais do radiador.'},
    {id:'bcc_atual',q:'Como aquece a casa hoje?',o:['Caldeira a gasóleo','Caldeira a gás','Lenha / salamandra','Aquecedores elétricos','Não aquece']},
-   {id:'bcc_ano',q:'Ano aproximado da casa',o:['Antes de 1990','1990 a 2005','2006 a 2015','Depois de 2015','Em construção']},
+   {id:'bcc_ano',q:'Ano aproximado da casa',o:YEARS},
    {id:'bcc_jan',q:'Janelas',o:['Vidro simples','Vidro duplo','Não sei']},
    {id:'bcc_aqs',q:'Também quer água quente com a bomba de calor?',o:['Sim','Não']},
   ],
@@ -70,14 +74,22 @@
  function clean(b){
   b=b&&typeof b==='object'?b:{};const s=(v,n)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,n):'';
   const sol=(Array.isArray(b.sol)?b.sol:[]).filter(x=>TECHS.includes(x));
-  const a={};const ids=new Set([...sol.flatMap(t=>TECH[t]),...COMMON].map(q=>q.id));
-  for(const q of ALL)if(ids.has(q.id)){const v=s(b.a?.[q.id],200);if(v&&(q.t||q.o.includes(v)))a[q.id]=v}
+  const a={};const ids=new Set([...sol.flatMap(t=>TECH[t]),...COMMON].map(q=>q.id)),raw=b.a||{};
+  for(const q of ALL){
+   if(!ids.has(q.id)||(q.if&&a[q.if[0]]!==q.if[1]))continue;
+   const v=raw[q.id];
+   if(q.rooms){const list=(Array.isArray(v)?v:[]).slice(0,12).map(x=>({t:ROOMS.includes(x?.t)?x.t:'Outra',m2:Math.round(Number(x?.m2))})).filter(x=>x.m2>=3&&x.m2<=500);if(list.length)a[q.id]=list}
+   else if(q.n){const n=Math.round(Number(v));if(Number.isFinite(n)&&n>=q.n[0]&&n<=q.n[1])a[q.id]=n}
+   else{const t=s(v,200);if(t&&(q.t||q.o.includes(t)))a[q.id]=t}
+  }
   return {sol,a,gama:GAMA.some(g=>g[0]===b.gama)?b.gama:'',morada:s(b.morada,300),cp:/^\d{4}-\d{3}$/.test(s(b.cp,8))?s(b.cp,8):'',local:s(b.local,80),notas:s(b.notas,1500)};
  }
+ const roomsText=list=>(list||[]).map(x=>x.t+' '+x.m2+' m²').join(', ');
+ const value=(q,v)=>q.rooms?roomsText(v):q.n?String(v)+(/m²/.test(q.q)?' m²':''):v;
  // Linhas para mostrar na app: [pergunta, resposta].
  function summary(r){
   const out=[['Soluções',r.sol.join(', ')]];const g=GAMA.find(x=>x[0]===r.gama);if(g)out.push(['Gama preferida',g[1]+' ('+g[2].toLowerCase()+')']);
-  for(const t of r.sol)for(const q of TECH[t])if(r.a[q.id])out.push([q.q.replace(/ \(opcional\)$/,''),r.a[q.id]]);
+  for(const t of r.sol)for(const q of TECH[t])if(r.a[q.id]!=null&&r.a[q.id]!=='')out.push([q.q.replace(/ \(opcional\)$/,''),value(q,r.a[q.id])]);
   for(const q of COMMON)if(r.a[q.id])out.push([q.q,r.a[q.id]]);
   if(r.morada||r.cp)out.push(['Morada',[r.morada,[r.cp,r.local].filter(Boolean).join(' ')].filter(Boolean).join(', ')]);
   if(r.notas)out.push(['Notas do cliente',r.notas]);
@@ -88,5 +100,5 @@
   const first=String(nome||'').trim().split(/\s+/)[0]||'',sol=(solutions||[]).filter(s=>TECHS.includes(s));me=me||'João Lima';
   return `Olá${first?' '+first:''}, sou ${me}, da Enat - Ponte de Lima. Obrigado pelo seu pedido${sol.length?' de orçamento para '+sol.join(' e ').toLowerCase():' de orçamento'}.\n\nPara lhe enviar uma proposta à medida, sem visitas desnecessárias, pode responder a umas perguntas rápidas (2 minutos) e indicar a morada da instalação?\n\n${url}\n\nObrigado!\n${me}\nEnat - Ponte de Lima`;
  }
- root.EnatPedido={TECH,TECHS,GAMA,COMMON,clean,summary,message};
+ root.EnatPedido={TECH,TECHS,GAMA,COMMON,ROOMS,clean,summary,message,roomsText};
 })(globalThis);

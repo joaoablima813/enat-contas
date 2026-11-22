@@ -17,9 +17,11 @@ const api = (store, method, path, body) => handlePedidoApi({ method, url: 'https
 const pub = (store, token, method = 'GET', body, sub = '', headers = {}) => handlePedidoPublic({ method, url: 'https://enat.example/pedido/' + token, headers: new Headers(headers), text: async () => JSON.stringify(body), arrayBuffer: async () => body }, token, sub, store);
 
 test('answers are cleaned: unknown solutions, options and fields are dropped', () => {
-  const r = P.clean({ sol: ['Ar condicionado', 'Hack'], a: { ac_div: '3', ac_uso: 'Inventado', pv_fat: 'Até 50 €', casa: 'Moradia', ac_txt: 'sala e quartos' }, gama: 'media', cp: '4990-062', morada: ' Rua 1 ' });
+  const r = P.clean({ sol: ['Ar condicionado', 'Hack'], a: { ac_div: '3', ac_uso: 'Inventado', pv_fat: 'Até 50 €', casa: 'Moradia', ac_rooms: [{ t: 'Sala', m2: '30' }, { t: 'Hack', m2: 12 }, { t: 'Quarto', m2: 9999 }] }, gama: 'media', cp: '4990-062', morada: ' Rua 1 ' });
   assert.deepEqual(r.sol, ['Ar condicionado']);
-  assert.deepEqual(r.a, { ac_div: '3', ac_txt: 'sala e quartos', casa: 'Moradia' }, 'only questions of the chosen solutions, with valid options');
+  assert.deepEqual(r.a, { ac_div: '3', ac_rooms: [{ t: 'Sala', m2: 30 }, { t: 'Outra', m2: 12 }], casa: 'Moradia' }, 'only questions of the chosen solutions, with valid options and room areas');
+  const rad = P.clean({ sol: ['Bomba de calor climatização'], a: { bcc_m2: '150', bcc_emis: 'Piso radiante', bcc_rad: 10 } });
+  assert.deepEqual(rad.a, { bcc_m2: 150, bcc_emis: 'Piso radiante' }, 'radiator count only when the client has radiators');
   assert.equal(r.gama, 'media');assert.equal(r.morada, 'Rua 1');
   assert.ok(P.summary(r).some(([k, v]) => k === 'Gama preferida' && /Equilíbrio/.test(v)));
 });

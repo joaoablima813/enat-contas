@@ -4,6 +4,7 @@
 // - a app lê as respostas (GET /api/pedidos), preenche a lead e recebe um aviso no telemóvel.
 import { randomBytes } from 'node:crypto';
 import '../../public/pedido-perguntas.js';
+import { sugestoes } from './sugestoes.mjs';
 
 const P = globalThis.EnatPedido;
 const json = (status, body) => Response.json(body, { status });
@@ -36,7 +37,7 @@ export async function handlePedidoApi(req, path, store) {
   if (path === 'pedidos' && req.method === 'GET') {
     const list = (await store.get(INDEX, { type: 'json' }).catch(() => null)) || [];
     const out = [];
-    for (const x of list.slice(-60)) { const p = await get(store, x.token); if (p?.resp) out.push({ token: x.token, lead: p.lead, at: p.resp.at, resp: p.resp }); }
+    for (const x of list.slice(-60)) { const p = await get(store, x.token); if (p?.resp) out.push({ token: x.token, lead: p.lead, at: p.resp.at, resp: p.resp, sug: sugestoes(p.resp) }); }
     // Links enviados automaticamente por email às leads novas (a app marca-os na lead).
     const auto = Object.entries((await store.get(AUTO_SENT, { type: 'json' }).catch(() => null)) || {}).map(([lead, x]) => ({ lead, token: x.token, sent: x.at, failed: Boolean(x.failed) }));
     return json(200, { pedidos: out, auto });
@@ -146,7 +147,15 @@ export async function runAutoPedidos(store, now = Date.now(), send = sendEmail) 
 
 const HTML = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer' };
 const chips = (id, opts, cur, multi) => `<div class="chips" data-q="${id}"${multi ? ' data-multi' : ''}>${opts.map((o) => `<button type="button" class="chip${(multi ? cur.includes(o) : cur === o) ? ' on' : ''}" data-v="${esc(o)}" aria-pressed="${multi ? cur.includes(o) : cur === o}">${esc(o)}</button>`).join('')}</div>`;
-const question = (q, a) => `<div class="q"><label>${esc(q.q)}</label>${q.t ? `<input data-t="${q.id}" value="${esc(a[q.id] || '')}" placeholder="${esc(q.t)}" maxlength="200">` : chips(q.id, q.o, a[q.id] || '')}</div>`;
+// Tipos de pergunta: escolha (chips), texto, número e lista de divisões (preenchida no navegador conforme o número escolhido).
+// As perguntas com «if» só aparecem com uma resposta concreta (ex.: radiadores).
+const question = (q, a) => {
+  const shown = !q.if || a[q.if[0]] === q.if[1];
+  const field = q.rooms ? `<div class="rooms" data-rooms="${q.id}" data-for="${q.rooms}"></div>`
+    : q.n ? `<input type="number" inputmode="numeric" data-n="${q.id}" min="${q.n[0]}" max="${q.n[1]}" value="${esc(a[q.id] ?? '')}" placeholder="${esc(q.ph || '')}">`
+    : q.t ? `<input data-t="${q.id}" value="${esc(a[q.id] || '')}" placeholder="${esc(q.t)}" maxlength="200">` : chips(q.id, q.o, a[q.id] || '');
+  return `<div class="q"${q.if ? ` data-if="${esc(q.if.join('|'))}"${shown ? '' : ' hidden'}` : ''}><label>${esc(q.q)}</label>${q.help ? `<p class="help">${esc(q.help)}</p>` : ''}${field}</div>`;
+};
 
 function form(token, p, e) {
   const r = p.resp || { sol: p.sol || [], a: {}, gama: '', morada: '', cp: '', local: '', notas: '' };
@@ -176,8 +185,24 @@ document.addEventListener('click',e=>{
  if(q==='sol'){const v=b.dataset.v,i=st.sol.indexOf(v);i<0?st.sol.push(v):st.sol.splice(i,1);b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',i<0);document.querySelectorAll('[data-tech]').forEach(s=>s.hidden=!st.sol.includes(s.dataset.tech));return}
  box.querySelectorAll('[data-v]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});
  if(q==='gama')st.gama=b.dataset.v;else st.a[q]=b.dataset.v;
+ refresh();
 });
-document.addEventListener('input',e=>{const t=e.target.dataset?.t;if(t)st.a[t]=e.target.value;if(e.target.id==='cp'){let v=e.target.value.replace(/\\D/g,'').slice(0,7);if(v.length>4)v=v.slice(0,4)+'-'+v.slice(4);e.target.value=v}});
+// Divisões do ar condicionado: uma linha (tipo e área) por divisão escolhida; com «6 ou mais» pode juntar mais.
+const ROOMS=${JSON.stringify(P.ROOMS)};
+function drawRooms(){document.querySelectorAll('[data-rooms]').forEach(box=>{
+ const id=box.dataset.rooms,n=parseInt(st.a[box.dataset.for])||0,list=st.a[id]=Array.isArray(st.a[id])?st.a[id]:[];
+ while(list.length<n)list.push({t:list.length?'Quarto':'Sala',m2:''});if(n<6&&list.length>n)list.length=n;
+ box.innerHTML=n?list.map((r,i)=>'<div class="room"><select data-room-t="'+i+'" aria-label="Tipo de divisão">'+ROOMS.map(t=>'<option'+(t===r.t?' selected':'')+'>'+t+'</option>').join('')+'</select><input type="number" inputmode="numeric" min="3" max="500" data-room-m="'+i+'" value="'+(r.m2||'')+'" placeholder="Área"><span>m²</span></div>').join('')+(n>=6&&list.length<12?'<button type="button" class="more" data-more-room>+ Mais uma divisão</button>':'')+'<p class="help">Se não souber a área exata, um valor aproximado chega.</p>':'<p class="help">Escolha primeiro quantas divisões.</p>';
+ box.dataset.n=n;
+})}
+function refresh(){
+ document.querySelectorAll('[data-if]').forEach(el=>{const [k,v]=el.dataset.if.split('|');el.hidden=st.a[k]!==v});
+ document.querySelectorAll('[data-rooms]').forEach(box=>{if(String(parseInt(st.a[box.dataset.for])||0)!==box.dataset.n)drawRooms()});
+}
+document.addEventListener('click',e=>{if(e.target.closest('[data-more-room]')){st.a.ac_rooms.push({t:'Quarto',m2:''});drawRooms()}});
+document.addEventListener('change',e=>{const i=e.target.dataset?.roomT;if(i!=null)st.a.ac_rooms[+i].t=e.target.value});
+document.addEventListener('input',e=>{const d=e.target.dataset||{};if(d.t)st.a[d.t]=e.target.value;if(d.n)st.a[d.n]=e.target.value;if(d.roomM!=null)st.a.ac_rooms[+d.roomM].m2=e.target.value;if(e.target.id==='cp'){let v=e.target.value.replace(/\\D/g,'').slice(0,7);if(v.length>4)v=v.slice(0,4)+'-'+v.slice(4);e.target.value=v}});
+drawRooms();
 // Fotos reduzidas no telemóvel antes de enviar (máx. 1600 px).
 const small=f=>new Promise((ok,ko)=>{const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{const k=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(b=>b?ok(b):ko(),'image/jpeg',.85)};i.onerror=ko;i.src=u});
 $('#ph').addEventListener('change',async e=>{
@@ -218,6 +243,9 @@ input,textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padd
 .row{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}
 .btn{display:block;width:100%;border:0;border-radius:14px;background:var(--green);color:#fff;font:inherit;font-weight:700;font-size:17px;padding:15px;margin-top:16px;cursor:pointer;text-align:center}.btn:disabled{opacity:.6}.btn.ghost{background:var(--tint);color:var(--green);font-size:15.5px;padding:12px;margin-top:10px}
 .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.thumb{aspect-ratio:1;border-radius:10px;background:var(--tint) center/cover}.thumb.busy{animation:p 1s infinite alternate}@keyframes p{to{opacity:.4}}
+.room{display:grid;grid-template-columns:1fr 96px auto;gap:8px;align-items:center;margin-bottom:8px}.room span{color:var(--mute)}
+select{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 10px;font:inherit;background:#fff;color:var(--ink)}
+.help{color:var(--mute);font-size:13.5px;margin:-4px 0 8px}.rooms .help{margin:4px 0 0}.more{border:0;background:none;color:var(--green);font:inherit;font-weight:600;padding:6px 0;cursor:pointer}
 .err{color:#b3261e;font-weight:600;min-height:1px;margin-top:12px}footer{color:var(--mute);font-size:13px;text-align:center;margin-top:20px}[hidden]{display:none!important}
 </style></head><body>${body}</body></html>`;
 }

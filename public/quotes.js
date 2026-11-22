@@ -178,7 +178,7 @@ function quotePicker(){
 }
 // The same conditions appear in the editor and in the PDF.
 // The IBAN is not in the proposal: the client receives it after awarding (quote page). Warranties come from the company profile.
-const quoteTerms=q=>{const e=globalThis.ENAT_EMPRESA||{},sol=globalThis.EnatSolucoes,wk=sol?sol.nextWeeks(e.semanas):[],creds=(e.credenciais||[]).filter(c=>c.nome&&c.numero);return ['Proposta válida por '+quoteValidity(q)+' dias','Garantia dos equipamentos: '+(e.garantiaEquip||'3 anos'),'Garantia de instalação: '+(e.garantiaInst||'2 anos'),'Prazo de instalação: '+(wk.length?'disponível a partir da '+sol.weekLabel(wk[0]):'a combinar'),'Condições de pagamento: 50% na adjudicação e 50% na conclusão da obra, por transferência bancária',...creds.map(c=>c.nome+': '+c.numero)]};
+const quoteTerms=q=>{const e=globalThis.ENAT_EMPRESA||{},sol=globalThis.EnatSolucoes,wk=sol?sol.nextWeeks(e.semanas):[];return ['Proposta válida por '+quoteValidity(q)+' dias','Garantia dos equipamentos: '+(e.garantiaEquip||'3 anos'),'Garantia de instalação: '+(e.garantiaInst||'2 anos'),'Prazo de instalação: '+(wk.length?'disponível a partir da '+sol.weekLabel(wk[0]):'a combinar'),'Condições de pagamento: 50% na adjudicação e 50% na conclusão da obra, por transferência bancária']};
 // A quote created or opened from a lead that is still open goes back to that lead.
 const quoteFromLead=()=>typeof leadDraft!=='undefined'&&leadDraft?.id&&quoteDraft?.lead===leadDraft.id;
 function quoteEditor(){const q=quoteDraft,folder=quoteClient&&quoteRows&&quoteClients().find(g=>g.key===quoteClient);return `<button class="back" data-qa="close">${ic('back')} ${quoteFromLead()?'Lead '+esc(leadName(leadDraft)):folder?esc(folder.latest.client):'Orçamentos'}</button><h1>${q.id?'Orçamento '+quoteNumber(q.id,q.date):'Novo orçamento'}</h1><p class="sub" id="quote-title">${esc(q.topics.length?quoteTitle(q):'Prepare uma proposta à medida do seu cliente.')}</p><form id="quote-form"><fieldset class="q-fields" ${quoteBusy?'disabled':''}><h2>Cliente e local de instalação</h2><div class="q-card">${quoteField('Nome do cliente','client','text','required maxlength="2000" autocomplete="name"')}${quoteField('Morada','address','text','required maxlength="4000" autocomplete="street-address"')}${quoteField('Contacto do cliente','contact','text','required maxlength="2000" autocomplete="tel"')}${quoteField('Email do cliente (opcional)','email','email','maxlength="320" autocomplete="email" placeholder="cliente@exemplo.pt"')}${quoteField('Data do orçamento','date','date','required')}<p class="note q-match" id="quote-match" aria-live="polite">${esc(quoteMatchNote())}</p></div><h2>Tipologias</h2><p class="note">Selecione todas as opções aplicáveis.</p><div class="q-topics">${TOPICS.map(t=>`<label><input type="checkbox" data-qt="${esc(t)}" ${q.topics.includes(t)?'checked':''}><span>${esc(t)}</span></label>`).join('')}</div><div class="q-card">${quoteField('Marca do equipamento','brand','text','maxlength="200" placeholder="Ex.: LG" list="quote-brands" autocomplete="off"')}<datalist id="quote-brands">${quoteTables().map(t=>`<option value="${esc(t.brand)}">`).join('')}</datalist></div>${typeof aiSection==='function'?aiSection():''}${typeof pvSection==='function'?pvSection():''}<h2>Produtos e serviços</h2><p class="note">Uma linha por produto ou serviço. Ajuste a quantidade para incluir várias unidades do mesmo produto.</p><div id="quote-lines">${q.lines.map((l,i)=>`<section class="q-card q-line"><div class="q-line-head"><button type="button" class="link neg" data-qa="remove" data-index="${i}" ${q.lines.length===1?'disabled':''}>Remover</button></div><label class="q-field"><span>Categoria</span><select data-ql="${i}" data-field="kind">${['Equipamento','Material','Acessórios','Mão de obra','Outros'].map(k=>`<option ${k===(l.kind==='Equipamento / material'?'Equipamento':l.kind)?'selected':''}>${k}</option>`).join('')}</select></label><label class="q-field"><span>Descrição</span><textarea data-ql="${i}" data-field="description" maxlength="4000" placeholder="${quoteTables().length?(i?'Escreva o próximo produto ou toque para escolher':'Escreva o produto ou toque para escolher'):'Produto, material ou serviço'}" rows="1">${esc(l.description)}</textarea></label>${quotePick?.line===i?quotePicker():quoteTables().length?`<button type="button" class="link q-line-pick" data-qa="pick-line" data-index="${i}">Escolher da tabela de preços</button>`:''}<div class="q-line-numbers"><label class="q-field"><span>Quantidade</span><input type="number" data-ql="${i}" data-field="quantity" value="${l.quantity??1}" min="0.001" max="1000000" step="0.001" required inputmode="decimal"></label><label class="q-field"><span>Unidade</span><select data-ql="${i}" data-field="unit">${["un.","m","m²","m³","h","dia","serviço"].map(u=>`<option ${u===(l.unit||"un.")?"selected":""}>${u}</option>`).join("")}</select></label><label class="q-field"><span>Custo/un. s/ IVA (€)</span><input type="number" data-ql="${i}" data-field="value" value="${l.value}" min="0" max="100000000" step="0.01" required inputmode="decimal"></label></div>${l.semPreco&&!l.value?'<p class="note q-line-src neg">Sem preço nas tabelas: indique o custo desta linha.</p>':''}<div class="q-break q-line-cost"><span>Subtotal de custo</span><b data-qcost="${i}">${eur(l.value*(l.quantity??1))}</b></div>${l.catalog?.src?`<p class="note q-line-src">Fatura: ${esc(l.catalog.src)} · ${eur(l.catalog.price)} s/ IVA</p>`:l.catalog?`<p class="note q-line-src">Tabela ${esc(l.catalog.brand)}${l.catalog.ref?' · Ref. '+esc(l.catalog.ref):''} · ${eur(l.catalog.price)} − ${String(l.catalog.discount).replace('.',',')}%</p>${supplierLineNote(l,i)}`:''}</section>`).join('')}</div><button type="button" class="btn alt" data-qa="add" ${q.lines.length>=200?'disabled':''}>Adicionar produto ou serviço</button><h2>Margem e totais</h2><div class="q-card">${quoteField('Margem de lucro (%)','margin','number','min="0" max="99.99" step="0.01" required inputmode="decimal"')}${quoteField('IVA (%)','vat','number','min="0" max="100" step="0.01" required inputmode="decimal"')}<p class="note">A margem é aplicada sobre o total com IVA. Ex.: custo de 3 548,38 €, IVA 23% e margem 20% = 4 364,51 € com IVA, 5 237,41 € ao cliente e 872,90 € de lucro.</p></div><div class="q-card" id="quote-summary" aria-live="polite">${quoteSummary()}</div><h2>Estado e condições</h2><div class="q-card"><label class="q-field"><span>Estado do orçamento</span><select data-qf="status">${Object.entries(QUOTE_STATUS).filter(([k])=>k!=='expirado').map(([k,l])=>`<option value="${k}" ${(q.status||'rascunho')===k?'selected':''}>${l}</option>`).join('')}</select></label>${quoteField('Validade da proposta (dias)','validity','number','min="1" max="365" step="1" required inputmode="numeric"')}<p class="note">${quoteState(q)==='expirado'?'<b class="neg">Expirou a '+quoteExpires(q).split('-').reverse().join('/')+'.</b> Altere a data ou a validade para renovar a proposta.':'Válido até '+quoteExpires(q).split('-').reverse().join('/')+'.'}</p><p class="q-terms">${quoteTerms(q).join('<br>')}</p><p class="q-terms">${esc(globalThis.ENAT_EMPRESA?.contacto?.cargo||'Responsável comercial')}<br><b>${esc(quoteContact())}</b></p><p class="q-terms">Obra a cargo de<br><b>Enat - Ponte de Lima</b></p></div></fieldset><p id="quote-message" role="status" class="note">${esc(quoteError)}</p><button class="btn" type="submit" ${quoteBusy?'disabled':''}>${quoteBusy?'A guardar…':'Guardar orçamento'}</button>${q.id?`<div id="quote-track">${quoteTrackHtml(q)}</div><h2>Seguimento</h2>${q.obra&&typeof S!=='undefined'&&S.obras.some(o=>o.id===q.obra)?`<button type="button" class="btn alt" data-a="open" data-id="${esc(q.obra)}">Abrir a obra deste orçamento</button>`:`<button type="button" class="btn" data-qa="to-obra" ${quoteBusy?'disabled':''}>Orçamento aceite: converter em obra</button>`}<button type="button" class="btn alt" data-qa="duplicate" ${quoteBusy?'disabled':''}>Duplicar orçamento</button>`:''}<h2>PDF para o cliente</h2><p class="note">Escolha se o cliente vê o preço de cada equipamento e serviço ou apenas os totais.</p><button type="button" class="btn alt" data-qa="pdf" data-pdf="summary" ${quoteBusy?'disabled':''}>PDF só com totais (sem preços por linha)</button><button type="button" class="btn alt" data-qa="pdf" data-pdf="detailed" ${quoteBusy?'disabled':''}>PDF detalhado (com preços por linha)</button>${quoteWaPanel('editor',q.contact,[{id:q.id,document:q}],q.email)}${q.id?`<button type="button" class="btn alt neg q-delete" data-qa="delete" ${quoteBusy?'disabled':''}>Eliminar orçamento</button>`:''}</form>`}
@@ -347,79 +347,70 @@ async function quoteWaSend(docs,channel='whatsapp'){
  }catch(e){status(e.message||'Não foi possível preparar o envio.')}
 }
 async function downloadQuotePdf(q,detailed=true){const {doc,filename}=await buildQuotePdf(q,detailed);doc.save(filename)}
-// A4 quote in the Enat brand colours (green and orange from the logo): letterhead, a green band with the
-// document details, client and company blocks, the lines, a highlighted total, short conditions and signatures.
 async function buildQuotePdf(q,detailed=true){
  if(!window.jspdf||!window.jspdf.jsPDF)throw Error('O gerador de PDF não carregou. Recarregue a página e tente novamente.');
  const {jsPDF}=window.jspdf,doc=new jsPDF();
  const logo=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Não foi possível carregar o logótipo ENAT. Tente novamente.'));img.src='/enat-logo.png'});
- const e=globalThis.ENAT_EMPRESA||{},c=e.contacto||{},sol=globalThis.EnatSolucoes,totals=quoteTotals(q);
- // Thousands separated by a space, as usual in Portugal (pt-PT does not group 4-digit numbers).
- const money=n=>{const v=Number(n)||0,[i,d]=Math.abs(v).toFixed(2).split('.');return (v<0?'-':'')+i.replace(/\B(?=(\d{3})+(?!\d))/g,' ')+','+d+' €'};
- // Brand green for text; a very light green for the bands, the table header and the total.
- const green=[42,114,58],light=[228,241,231],orange=[244,160,12],ink=[33,37,41],grey=[108,117,125],tint=[244,249,245],rule=[214,222,216],number=quoteNumber(q.id,q.date);
+ const money=n=>Number(n).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/ | /g,' ')+' €',totals=quoteTotals(q);
+ const navy=[18,44,59],grey=[110,120,125],soft=[242,246,248],number=quoteNumber(q.id,q.date);
  const day=d=>d.toISOString().slice(0,10).split('-').reverse().join('/'),issued=new Date(q.date+'T00:00:00Z'),valid=new Date(issued.getTime()+quoteValidity(q)*864e5);
- const company='Enat - Ponte de Lima',person=quoteContact(),role=c.cargo||'Responsável comercial',email=e.email||'pontedelima@enat.pt';
- const phone=String(c.telefone||'').trim().replace(/^(\d{3})(\d{3})(\d{3})$/,'$1 $2 $3');
- const logoW=50,logoH=Math.min(22,logoW*logo.height/logo.width),L=15,R=195,W=R-L,BOTTOM=270;
- const font=(size,style='normal',color=ink)=>{doc.setFont('helvetica',style);doc.setFontSize(size);doc.setTextColor(...color)};
- const heading=(t,x,y)=>{font(9,'bold',green);doc.text(t.toUpperCase(),x,y)};
- const wrap=(t,w,size)=>{doc.setFontSize(size);return doc.splitTextToSize(String(t||''),w)};
+ const logoW=46,logoH=Math.min(26,logoW*logo.height/logo.width);
  const header=first=>{
-  if(!first){doc.addImage(logo,'PNG',L,9,30,30*logoH/logoW);font(9,'bold',green);doc.text('ORÇAMENTO '+number.replace(/^ORC\s*/,''),R,15,{align:'right'});font(8.5,'normal',grey);doc.text(String(q.client||''),R,20,{align:'right'});doc.setFillColor(...light);doc.rect(0,25,210,1.5,'F');return}
-  doc.addImage(logo,'PNG',L,10,logoW,logoH);
-  font(26,'bold',green);doc.text('ORÇAMENTO',R,24,{align:'right'});
-  // Light green band with the document details.
-  doc.setFillColor(...light);doc.rect(0,36,210,13,'F');doc.setFillColor(...orange);doc.rect(0,49,210,.8,'F');
-  [['N.º',number.replace(/^ORC\s*/,'')],['Data',day(issued)],['Válido até',day(valid)]].forEach(([k,v],i)=>{const x=L+i*62;font(8,'normal',grey);doc.text(k,x,41);font(11,'bold',green);doc.text(v,x,46.5)});
+  doc.setFillColor(...navy);doc.rect(0,0,210,4,'F');
+  if(!first){doc.addImage(logo,'PNG',16,10,28,28*logoH/logoW);doc.setTextColor(...navy);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Orçamento '+number,194,16,{align:'right'});doc.setDrawColor(210,218,222);doc.line(16,40,194,40);return}
+  doc.addImage(logo,'PNG',16,12,logoW,logoH);
+  doc.setTextColor(...navy);doc.setFont('helvetica','bold');doc.setFontSize(22);doc.text('ORÇAMENTO',194,20,{align:'right'});
+  doc.setFontSize(9);let ly=28;
+  for(const [label,value] of [['N.º',number],['Data',day(issued)],['Válido até',day(valid)]]){doc.setFont('helvetica','normal');doc.setTextColor(...grey);doc.text(label,150,ly);doc.setFont('helvetica','bold');doc.setTextColor(...navy);doc.text(value,194,ly,{align:'right'});ly+=5}
  };
  header(true);
- let y=60;
- const ensure=h=>{if(y+h>BOTTOM){doc.addPage();header(false);y=34}};
- // Client on the left, company and contact on the right.
- const half=(W-10)/2,rx=L+half+10;
- const client=[[q.client,'bold',11],...wrap(q.address,half,10).map(t=>[t]),q.contact&&['Tel. '+q.contact],q.email&&[q.email]].filter(x=>x&&x[0]);
- const firm=[[company,'bold',11],e.morada&&[e.morada],e.nif&&['NIF '+e.nif],[person+' · '+role],[[phone,email].filter(Boolean).join(' · ')]].filter(Boolean);
- for(const [x,t,rows] of [[L,'Cliente',client],[rx,'De',firm]]){heading(t,x,y);rows.forEach(([v,s,z],i)=>{font(z||10,s||'normal');doc.text(wrap(v,half,z||10)[0],x,y+7+i*5.2)})}
- y+=7+Math.max(client.length,firm.length)*5.2+5;
- doc.setFillColor(...tint);doc.rect(L,y,W,10,'F');doc.setFillColor(...green);doc.rect(L,y,1.5,10,'F');
- font(10,'bold',green);doc.text('Assunto',L+5,y+6.6);font(10.5,'bold');doc.text(wrap(quoteTitle(q).replace(/^Orçamento para /,''),W-32,10.5)[0],L+27,y+6.6);y+=15;
+ // Client details sit in a shaded panel; the subject follows in bold.
+ let y=Math.max(12+logoH,42)+8;doc.setFont('helvetica','normal');doc.setFontSize(10);
+ const info=[[q.client,'bold'],...doc.splitTextToSize(q.address,166).map(t=>[t,'normal']),['Contacto: '+q.contact,'normal']];
+ const boxH=11+info.length*5;doc.setFillColor(...soft);doc.roundedRect(16,y,178,boxH,2,2,'F');doc.setFillColor(...navy);doc.rect(16,y,1.4,boxH,'F');
+ doc.setFontSize(7.5);doc.setTextColor(...grey);doc.setFont('helvetica','bold');doc.text('CLIENTE',22,y+6);
+ doc.setFontSize(10);doc.setTextColor(...navy);let iy=y+11.5;for(const [t,w] of info){doc.setFont('helvetica',w);doc.text(t,22,iy);iy+=5}
+ y+=boxH+9;doc.setFontSize(7.5);doc.setTextColor(...grey);doc.setFont('helvetica','bold');doc.text('ASSUNTO',16,y);
+ doc.setFontSize(13);doc.setTextColor(...navy);const title=doc.splitTextToSize(quoteTitle(q),178);doc.text(title,16,y+6);y+=6+title.length*6;
  // Allocate rounded sale prices so the published line values add up to the exact net total.
  let remaining=Math.round(totals.net*100);
  const cents=q.lines.map(l=>Math.floor((totals.cost?(l.value*(l.quantity??1))/totals.cost*totals.net:0)*100));
  remaining-=cents.reduce((s,n)=>s+n,0);for(let i=0;remaining>0;i=(i+1)%cents.length,remaining--)cents[i]++;
  const quantity=n=>Number(n).toLocaleString('pt-PT',{maximumFractionDigits:3}).replace(/ | /g,' ');
- const margin={left:L,right:210-R,top:32,bottom:31},later=()=>{if(doc.internal.getCurrentPageInfo().pageNumber>1)header(false)};
- doc.autoTable({startY:y,margin,theme:'plain',
+ const margin={left:16,right:16,top:46,bottom:20},headed=new Set(),later=()=>{const n=doc.internal.getCurrentPageInfo().pageNumber;if(n>1&&!headed.has(n)){headed.add(n);header(false)}};
+ doc.autoTable({startY:y+2,margin,theme:'plain',
   // The summary version lists what is included without revealing line prices.
   ...(detailed?{head:[['Descrição','Qtd.','Un.','Preço unit.','Total']],body:q.lines.map((l,i)=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.',money(cents[i]/100/(l.quantity??1)),money(cents[i]/100)])}:{head:[['Descrição','Qtd.','Un.']],body:q.lines.map(l=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.'])}),
-  styles:{font:'helvetica',fontSize:9.5,cellPadding:{top:2.7,right:2.5,bottom:2.7,left:2.5},overflow:'linebreak',textColor:ink,lineColor:rule,lineWidth:{bottom:.2}},
-  headStyles:{fillColor:light,textColor:green,fontStyle:'bold',fontSize:9,lineWidth:0},alternateRowStyles:{fillColor:[248,251,248]},
-  columnStyles:detailed?{0:{cellWidth:86},1:{cellWidth:14,halign:'right'},2:{cellWidth:14},3:{cellWidth:33,halign:'right'},4:{cellWidth:33,halign:'right',fontStyle:'bold'}}:{0:{cellWidth:152},1:{cellWidth:14,halign:'right'},2:{cellWidth:14}},
+  styles:{font:'helvetica',fontSize:9,cellPadding:{top:3,right:2.5,bottom:3,left:2.5},overflow:'linebreak',textColor:navy,lineColor:[221,228,231],lineWidth:{bottom:.2}},headStyles:{fillColor:navy,textColor:255,fontStyle:'bold',fontSize:8.5,lineWidth:0},alternateRowStyles:{fillColor:[249,251,252]},
+  columnStyles:detailed?{0:{cellWidth:82},1:{cellWidth:16,halign:'right'},2:{cellWidth:16},3:{cellWidth:32,halign:'right'},4:{cellWidth:32,halign:'right',fontStyle:'bold'}}:{0:{cellWidth:146},1:{cellWidth:16,halign:'right'},2:{cellWidth:16}},
   didParseCell:d=>{if(d.section==='head'&&d.column.index>0&&d.column.index!==2)d.cell.styles.halign='right'},rowPageBreak:'avoid',didDrawPage:later});
- y=doc.lastAutoTable.finalY+6;
- // Totals: net and VAT, then the total in a light green bar.
- ensure(30);const tx=115;
- [['Total sem IVA',money(totals.net)],['IVA ('+q.vat+'%)',money(totals.vat)]].forEach(([k,v],i)=>{font(10,'normal',grey);doc.text(k,tx+4,y+i*6);font(10);doc.text(v,R-4,y+i*6,{align:'right'})});
- doc.setFillColor(...light);doc.rect(tx,y+9,R-tx,13,'F');doc.setFillColor(...orange);doc.rect(tx,y+9,1.5,13,'F');
- font(11,'bold',green);doc.text('Total com IVA',tx+6,y+17.4);font(16,'bold',green);doc.text(money(totals.total),R-4,y+17.8,{align:'right'});
- y+=30;
- // Short conditions in a 2 × 2 grid.
- const weeks=sol?sol.nextWeeks(e.semanas):[];
- const cond=[['Validade','Até '+day(valid)],['Pagamento','50% na adjudicação e 50% no fim da obra'],['Prazo',weeks.length?'A partir da '+sol.weekLabel(weeks[0]):'A combinar na adjudicação'],['Garantia',(e.garantiaEquip||'3 anos')+' equipamentos · '+(e.garantiaInst||'2 anos')+' instalação']];
- ensure(30);heading('Condições',L,y);y+=3;doc.setDrawColor(...rule);doc.setLineWidth(.2);
- cond.forEach(([k,v],i)=>{const x=L+(i%2)*(half+10),cy=y+Math.floor(i/2)*12;doc.line(x,cy+11,x+half,cy+11);font(8.5,'bold',grey);doc.text(k,x,cy+4.5);font(10);doc.text(wrap(v,half,10)[0],x,cy+9.3)});
- y+=27;
- // Company signature.
- ensure(22);y+=11;
- doc.setDrawColor(...ink);doc.setLineWidth(.3);doc.line(L,y,L+half,y);font(10,'bold');doc.text(company,L,y+5.5);font(9,'normal',grey);doc.text(person+' · '+role,L,y+10.5);
+ const terms=quoteTerms(q).join('\n');
+ const plain={fillColor:false},span=3;
+ // Totals, conditions and signatures are three separate blocks: each one moves to the next page only
+ // when it does not fit, so the totals stay right under the table instead of leaving the page half empty.
+ const block=(body,extra={})=>doc.autoTable({startY:doc.lastAutoTable.finalY+(extra.gap??0),margin,theme:'plain',pageBreak:'avoid',rowPageBreak:'avoid',styles:{font:'helvetica',fontSize:10,cellPadding:2.2,textColor:navy},columnStyles:{0:{cellWidth:94},1:{cellWidth:46},2:{cellWidth:38,halign:'right'}},body,didDrawCell:extra.didDrawCell,didDrawPage:later});
+ block([
+  ['',{content:'Total sem IVA',styles:{textColor:grey}},money(totals.net)],
+  ['',{content:'IVA ('+q.vat+'%)',styles:{textColor:grey}},money(totals.vat)],
+  ['',{content:'Total com IVA',styles:{fontStyle:'bold',fontSize:11,fillColor:navy,textColor:255,cellPadding:4}},{content:money(totals.total),styles:{fontStyle:'bold',fontSize:13,fillColor:navy,textColor:255,cellPadding:4}}],
+ ],{gap:6});
+ block([
+  [{content:'CONDIÇÕES GERAIS',colSpan:span,styles:{...plain,fontStyle:'bold',fontSize:8,textColor:grey,cellPadding:{top:10,right:0,bottom:1,left:0}}}],
+  [{content:terms,colSpan:span,styles:{...plain,fontSize:9,cellPadding:{top:1,right:0,bottom:4,left:0}}}],
+ ]);
+ block([
+  [{content:(globalThis.ENAT_EMPRESA?.contacto?.cargo||'Responsável comercial')+'\n'+quoteContact(),styles:{fontStyle:'bold',cellPadding:{top:12,right:0,bottom:1,left:0}}},{content:'Obra a cargo de:\nEnat - Ponte de Lima',colSpan:2,styles:{fontStyle:'bold',cellPadding:{top:12,right:0,bottom:1,left:0}}}],
+  // Space for the client to sign and date the acceptance.
+  [{content:'Aceitação do cliente\n'+q.client,styles:{fontStyle:'bold',cellPadding:{top:12,right:0,bottom:1,left:0}}},{content:'Data:  ____ / ____ / ________',colSpan:2,styles:{cellPadding:{top:17,right:0,bottom:1,left:0}}}]
+ ],{didDrawCell:d=>{if(d.section==='body'&&(d.row.index===0||d.row.index===1&&d.column.index===0)){doc.setDrawColor(...navy);doc.setLineWidth(.3);doc.line(d.cell.x,d.cell.y+8,d.cell.x+70,d.cell.y+8)}}});
  // Quotes with a PV sizing get one more page with the study and the monthly chart.
- if(q.pv?.result?.panels&&typeof pvPdfSection==='function'){doc.addPage();header(false);pvPdfSection(doc,q.pv.result,{navy:green,grey,soft:tint,money})}
- // Footer: company identification, the alvará (the only credential shown in the PDF) and page number.
- const creds=(e.credenciais||[]).filter(x=>x.nome&&x.numero&&/alvar/i.test(x.nome)).map(x=>x.nome+' n.º '+x.numero).join('  ·  ');
- const foot=[company,e.nif&&'NIF '+e.nif,phone,email,e.site].filter(Boolean).join('  ·  ');
- const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFillColor(...light);doc.rect(L,278,W,.8,'F');font(7.5,'normal',grey);doc.text(foot,L,283);if(creds)doc.text(wrap(creds,W-20,7.5)[0],L,287);font(7.5,'bold',green);doc.text(p+' / '+pages,R,283,{align:'right'})}
+ if(q.pv?.result?.panels&&typeof pvPdfSection==='function'){doc.addPage();header(false);pvPdfSection(doc,q.pv.result,{navy,grey,soft,money})}
+ // Footer: company details from Definições → Empresa (NIF, morada, contactos) and the alvará.
+ const e=globalThis.ENAT_EMPRESA||{},alvara=(e.credenciais||[]).filter(x=>x.nome&&x.numero&&/alvar/i.test(x.nome)).map(x=>x.nome+' n.º '+x.numero).join(' · ');
+ const firm=['Enat - Ponte de Lima',e.nif&&'NIF '+e.nif,e.morada,e.contacto?.telefone&&'Tel. '+e.contacto.telefone,e.email||'pontedelima@enat.pt',e.site].filter(Boolean).join(' · ');
+ const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setDrawColor(210,218,222);doc.setLineWidth(.2);doc.line(16,280,194,280);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...grey);doc.text(doc.splitTextToSize(firm,178)[0],16,283.5);if(alvara)doc.text(doc.splitTextToSize(alvara,120)[0],16,287);doc.text('Orçamento '+number+' · Página '+p+' de '+pages,194,287,{align:'right'})}
  // File names cannot contain slashes, so 2026/0042 becomes 2026-0042.
  const clean=v=>String(v||'').replace(/[\\/:*?"<>|\x00-\x1f]+/g,'-').replace(/\s+/g,' ').trim();
  return {doc,filename:clean('ORC Nº '+number.replace(/^ORC\s*/,'')+' '+q.client)+'.pdf'};
 }
+

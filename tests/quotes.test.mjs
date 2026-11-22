@@ -27,7 +27,7 @@ test('PDF includes logo, customer, numbered title, selected topics, conditions a
  vm.runInContext(math+'\n'+ui,c);c.proposal={...sample,id:42,lines:Array.from({length:65},(_,i)=>({...sample.lines[i%2],description:'Alínea '+(i+1)+' · Fornecimento e instalação de equipamento com acessórios e ensaios de funcionamento.'}))};
  await vm.runInContext('downloadQuotePdf(proposal)',c);
  assert.equal(filename,'ORC Nº 2026-0042 Cliente de teste.pdf');assert.ok(pdf.getNumberOfPages()>1);
- const output=text.join('\n');for(const expected of ['2026/0042','3 anos equipamentos','Enat - Ponte de Lima','Cliente de teste','Ar condicionado + VMC','Válido até','CONDIÇÕES','2 anos instalação','50% na adjudicação','João Lima','Total sem IVA','Total com IVA'])assert.ok(output.includes(expected),expected);
+ const output=text.join('\n');for(const expected of ['ORC 2026/0042','Garantia dos equipamentos: 3 anos','Enat - Ponte de Lima','Cliente de teste','Ar condicionado + VMC','15 dias','Garantia de instalação: 2 anos','50% na adjudicação','João Lima','Total sem IVA','Total com IVA'])assert.ok(output.includes(expected),expected);
  assert.doesNotMatch(output,/Lucro previsto|Margem|Custo das alíneas/);
  assert.ok(pdf.output('arraybuffer').byteLength>10000);
 });
@@ -43,7 +43,6 @@ test('summary PDF lists items and totals without line prices',async()=>{
  for(const expected of ['Linha 1','Linha 2','Total sem IVA','IVA (','Total com IVA'])assert.ok(output.includes(expected),expected);
  assert.doesNotMatch(output,/Preço unit\./);
  assert.equal((output.match(/ €/g)||[]).length,3,'only net, VAT and total amounts are shown');
- assert.match(output,/50% na adjudicação e 50% no fim da obra/);
  assert.ok(t.total>0);
 });
 

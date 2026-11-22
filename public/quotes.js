@@ -347,62 +347,90 @@ async function quoteWaSend(docs,channel='whatsapp'){
  }catch(e){status(e.message||'Não foi possível preparar o envio.')}
 }
 async function downloadQuotePdf(q,detailed=true){const {doc,filename}=await buildQuotePdf(q,detailed);doc.save(filename)}
+// A4 quote: header with the company data, client and contact panels, the lines, totals with the 50/50 split,
+// what is included, conditions, credentials, the next steps and the acceptance signature.
+// Each block moves to the next page as a whole when it does not fit.
 async function buildQuotePdf(q,detailed=true){
  if(!window.jspdf||!window.jspdf.jsPDF)throw Error('O gerador de PDF não carregou. Recarregue a página e tente novamente.');
  const {jsPDF}=window.jspdf,doc=new jsPDF();
  const logo=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Não foi possível carregar o logótipo ENAT. Tente novamente.'));img.src='/enat-logo.png'});
- const money=n=>Number(n).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/ | /g,' ')+' €',totals=quoteTotals(q);
- const navy=[18,44,59],grey=[110,120,125],soft=[242,246,248],number=quoteNumber(q.id,q.date);
+ const e=globalThis.ENAT_EMPRESA||{},c=e.contacto||{},sol=globalThis.EnatSolucoes,totals=quoteTotals(q);
+ // Thousands separated by a space, as usual in Portugal (pt-PT does not group 4-digit numbers).
+ const money=n=>{const v=Number(n)||0,[i,d]=Math.abs(v).toFixed(2).split('.');return (v<0?'-':'')+i.replace(/\B(?=(\d{3})+(?!\d))/g,' ')+','+d+' €'};
+ const navy=[18,44,59],grey=[110,120,125],soft=[242,246,248],rule=[221,228,231],amber=[242,169,0],green=[47,133,90],white=[255,255,255],number=quoteNumber(q.id,q.date);
  const day=d=>d.toISOString().slice(0,10).split('-').reverse().join('/'),issued=new Date(q.date+'T00:00:00Z'),valid=new Date(issued.getTime()+quoteValidity(q)*864e5);
- const logoW=46,logoH=Math.min(26,logoW*logo.height/logo.width);
+ const company='Enat - Ponte de Lima',person=quoteContact(),role=c.cargo||'Responsável comercial',phone=String(c.telefone||'').trim().replace(/^(\d{3})(\d{3})(\d{3})$/,'$1 $2 $3'),email=e.email||'pontedelima@enat.pt';
+ const logoW=44,logoH=Math.min(24,logoW*logo.height/logo.width),L=16,R=194,W=R-L,BOTTOM=277;
+ const font=(size,style='normal',color=navy)=>{doc.setFont('helvetica',style);doc.setFontSize(size);doc.setTextColor(...color)};
+ const label=(t,x,y)=>{font(7.5,'bold',grey);doc.text(t.toUpperCase(),x,y)};
  const header=first=>{
-  doc.setFillColor(...navy);doc.rect(0,0,210,4,'F');
-  if(!first){doc.addImage(logo,'PNG',16,10,28,28*logoH/logoW);doc.setTextColor(...navy);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text('Orçamento '+number,194,16,{align:'right'});doc.setDrawColor(210,218,222);doc.line(16,40,194,40);return}
-  doc.addImage(logo,'PNG',16,12,logoW,logoH);
-  doc.setTextColor(...navy);doc.setFont('helvetica','bold');doc.setFontSize(22);doc.text('ORÇAMENTO',194,20,{align:'right'});
-  doc.setFontSize(9);let ly=28;
-  for(const [label,value] of [['N.º',number],['Data',day(issued)],['Válido até',day(valid)]]){doc.setFont('helvetica','normal');doc.setTextColor(...grey);doc.text(label,150,ly);doc.setFont('helvetica','bold');doc.setTextColor(...navy);doc.text(value,194,ly,{align:'right'});ly+=5}
+  doc.setFillColor(...navy);doc.rect(0,0,210,4,'F');doc.setFillColor(...amber);doc.rect(0,4,210,.8,'F');
+  if(!first){doc.addImage(logo,'PNG',L,9,26,26*logoH/logoW);font(9,'bold');doc.text('Orçamento '+number,R,14,{align:'right'});font(8,'normal',grey);doc.text(String(q.client||''),R,18.5,{align:'right'});doc.setDrawColor(...rule);doc.setLineWidth(.2);doc.line(L,26,R,26);return 26}
+  doc.addImage(logo,'PNG',L,11,logoW,logoH);
+  let cy=11+logoH+5;font(8,'bold');doc.text(company,L,cy);font(7.5,'normal',grey);
+  const facts=[e.anos&&e.anos+' anos de experiência',e.instalacoes&&e.instalacoes+' instalações realizadas',e.google?.nota&&'Nota '+e.google.nota+' no Google'+(e.google.total?' ('+e.google.total+' opiniões)':'')].filter(Boolean).join(' · ');
+  for(const t of [e.morada,[e.nif&&'NIF '+e.nif,phone&&'Tel. '+phone].filter(Boolean).join(' · '),[email,e.site].filter(Boolean).join(' · ')].filter(Boolean)){cy+=3.8;doc.text(t,L,cy)}
+  if(facts){cy+=4.4;font(7.5,'bold',green);doc.text(facts,L,cy)}
+  font(20,'bold');doc.text('ORÇAMENTO',R,19,{align:'right'});
+  let ly=27;for(const [k,v,hi] of [['N.º',number],['Data',day(issued)],['Válido até',day(valid),1]]){font(8.5,'normal',grey);doc.text(k,146,ly);font(8.5,'bold',hi?[176,110,0]:navy);doc.text(v,R,ly,{align:'right'});ly+=5}
+  return Math.max(cy,ly);
  };
- header(true);
- // Client details sit in a shaded panel; the subject follows in bold.
- let y=Math.max(12+logoH,42)+8;doc.setFont('helvetica','normal');doc.setFontSize(10);
- const info=[[q.client,'bold'],...doc.splitTextToSize(q.address,166).map(t=>[t,'normal']),['Contacto: '+q.contact,'normal']];
- const boxH=11+info.length*5;doc.setFillColor(...soft);doc.roundedRect(16,y,178,boxH,2,2,'F');doc.setFillColor(...navy);doc.rect(16,y,1.4,boxH,'F');
- doc.setFontSize(7.5);doc.setTextColor(...grey);doc.setFont('helvetica','bold');doc.text('CLIENTE',22,y+6);
- doc.setFontSize(10);doc.setTextColor(...navy);let iy=y+11.5;for(const [t,w] of info){doc.setFont('helvetica',w);doc.text(t,22,iy);iy+=5}
- y+=boxH+9;doc.setFontSize(7.5);doc.setTextColor(...grey);doc.setFont('helvetica','bold');doc.text('ASSUNTO',16,y);
- doc.setFontSize(13);doc.setTextColor(...navy);const title=doc.splitTextToSize(quoteTitle(q),178);doc.text(title,16,y+6);y+=6+title.length*6;
+ let y=header(true)+7;
+ const ensure=h=>{if(y+h>BOTTOM){doc.addPage();header(false);y=34}};
+ // Client and contact side by side.
+ const colW=(W-6)/2,wrap=(t,w,size)=>{doc.setFontSize(size);return doc.splitTextToSize(String(t||''),w)};
+ const left=[[q.client,'bold'],...wrap(q.address,colW-10,9).map(t=>[t]),q.contact&&['Tel. '+q.contact],q.email&&[q.email]].filter(x=>x&&x[0]);
+ const right=[[person,'bold'],[role],phone&&['Tel. / WhatsApp '+phone],[email]].filter(Boolean);
+ const panelH=12+Math.max(left.length,right.length)*4.6;
+ for(const [x,title,rows] of [[L,'Cliente',left],[L+colW+6,'O seu contacto na Enat',right]]){
+  doc.setFillColor(...soft);doc.roundedRect(x,y,colW,panelH,2,2,'F');doc.setFillColor(...navy);doc.rect(x,y,1.2,panelH,'F');
+  label(title,x+6,y+6);let ry=y+11.5;for(const [t,s] of rows){font(9,s||'normal');doc.text(String(t),x+6,ry);ry+=4.6}
+ }
+ y+=panelH+7;label('Assunto',L,y);font(13,'bold');const title=doc.splitTextToSize(quoteTitle(q),W);doc.text(title,L,y+6);y+=4+title.length*6;
  // Allocate rounded sale prices so the published line values add up to the exact net total.
  let remaining=Math.round(totals.net*100);
  const cents=q.lines.map(l=>Math.floor((totals.cost?(l.value*(l.quantity??1))/totals.cost*totals.net:0)*100));
  remaining-=cents.reduce((s,n)=>s+n,0);for(let i=0;remaining>0;i=(i+1)%cents.length,remaining--)cents[i]++;
  const quantity=n=>Number(n).toLocaleString('pt-PT',{maximumFractionDigits:3}).replace(/ | /g,' ');
- const margin={left:16,right:16,top:46,bottom:20},later=()=>{if(doc.internal.getCurrentPageInfo().pageNumber>1)header(false)};
+ const margin={left:L,right:L,top:34,bottom:25},later=()=>{if(doc.internal.getCurrentPageInfo().pageNumber>1)header(false)};
  doc.autoTable({startY:y+2,margin,theme:'plain',
   // The summary version lists what is included without revealing line prices.
   ...(detailed?{head:[['Descrição','Qtd.','Un.','Preço unit.','Total']],body:q.lines.map((l,i)=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.',money(cents[i]/100/(l.quantity??1)),money(cents[i]/100)])}:{head:[['Descrição','Qtd.','Un.']],body:q.lines.map(l=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.'])}),
-  styles:{font:'helvetica',fontSize:9,cellPadding:{top:3,right:2.5,bottom:3,left:2.5},overflow:'linebreak',textColor:navy,lineColor:[221,228,231],lineWidth:{bottom:.2}},headStyles:{fillColor:navy,textColor:255,fontStyle:'bold',fontSize:8.5,lineWidth:0},alternateRowStyles:{fillColor:[249,251,252]},
-  columnStyles:detailed?{0:{cellWidth:82},1:{cellWidth:16,halign:'right'},2:{cellWidth:16},3:{cellWidth:32,halign:'right'},4:{cellWidth:32,halign:'right',fontStyle:'bold'}}:{0:{cellWidth:146},1:{cellWidth:16,halign:'right'},2:{cellWidth:16}},
+  styles:{font:'helvetica',fontSize:9,cellPadding:{top:2.3,right:2.5,bottom:2.3,left:2.5},overflow:'linebreak',textColor:navy,lineColor:rule,lineWidth:{bottom:.2}},headStyles:{fillColor:navy,textColor:255,fontStyle:'bold',fontSize:8.5,lineWidth:0},alternateRowStyles:{fillColor:[249,251,252]},
+  columnStyles:detailed?{0:{cellWidth:86},1:{cellWidth:14,halign:'right'},2:{cellWidth:14},3:{cellWidth:32,halign:'right'},4:{cellWidth:32,halign:'right',fontStyle:'bold'}}:{0:{cellWidth:150},1:{cellWidth:14,halign:'right'},2:{cellWidth:14}},
   didParseCell:d=>{if(d.section==='head'&&d.column.index>0&&d.column.index!==2)d.cell.styles.halign='right'},rowPageBreak:'avoid',didDrawPage:later});
- const terms=quoteTerms(q).join('\n');
- const plain={fillColor:false},span=3;
- // Keep totals, conditions and signatures together whenever they fit on one page.
- // AutoTable measures wrapped text and moves the complete block before drawing it.
- doc.autoTable({startY:doc.lastAutoTable.finalY+6,margin,theme:'plain',pageBreak:'avoid',rowPageBreak:'avoid',styles:{font:'helvetica',fontSize:10,cellPadding:2.2,textColor:navy},columnStyles:{0:{cellWidth:94},1:{cellWidth:46},2:{cellWidth:38,halign:'right'}},body:[
-  ['',{content:'Total sem IVA',styles:{textColor:grey}},money(totals.net)],
-  ['',{content:'IVA ('+q.vat+'%)',styles:{textColor:grey}},money(totals.vat)],
-  ['',{content:'Total com IVA',styles:{fontStyle:'bold',fontSize:11,fillColor:navy,textColor:255,cellPadding:4}},{content:money(totals.total),styles:{fontStyle:'bold',fontSize:13,fillColor:navy,textColor:255,cellPadding:4}}],
-  [{content:'CONDIÇÕES GERAIS',colSpan:span,styles:{...plain,fontStyle:'bold',fontSize:8,textColor:grey,cellPadding:{top:10,right:0,bottom:1,left:0}}}],
-  [{content:terms,colSpan:span,styles:{...plain,fontSize:9,cellPadding:{top:1,right:0,bottom:4,left:0}}}],
-  [{content:(globalThis.ENAT_EMPRESA?.contacto?.cargo||'Responsável comercial')+'\n'+quoteContact(),styles:{fontStyle:'bold',cellPadding:{top:16,right:0,bottom:2,left:0}}},{content:'Obra a cargo de:\nEnat - Ponte de Lima',colSpan:2,styles:{fontStyle:'bold',cellPadding:{top:16,right:0,bottom:2,left:0}}}],
-  // Space for the client to sign and date the acceptance.
-  [{content:'Aceitação do cliente\n'+q.client,styles:{fontStyle:'bold',cellPadding:{top:16,right:0,bottom:2,left:0}}},{content:'Data:  ____ / ____ / ________',colSpan:2,styles:{cellPadding:{top:21,right:0,bottom:2,left:0}}}]
- ],didDrawCell:d=>{if(d.section==='body'&&(d.row.index===5||d.row.index===6&&d.column.index===0)){doc.setDrawColor(...navy);doc.setLineWidth(.3);doc.line(d.cell.x,d.cell.y+12,d.cell.x+70,d.cell.y+12)}},didDrawPage:later});
+ y=doc.lastAutoTable.finalY+4;
+ // Totals on the right; on the left, until when the price holds and when the work can start.
+ const weeks=sol?sol.nextWeeks(e.semanas):[],half=Math.round(totals.total*50)/100;
+ ensure(32);const tx=118;
+ [['Total sem IVA',money(totals.net)],['IVA ('+q.vat+'%)',money(totals.vat)]].forEach(([k,v],i)=>{font(9,'normal',grey);doc.text(k,tx+3,y+4.5+i*5.5);font(9);doc.text(v,R-3,y+4.5+i*5.5,{align:'right'})});
+ doc.setFillColor(...navy);doc.roundedRect(tx,y+12,R-tx,12,1.5,1.5,'F');font(10,'bold',white);doc.text('Total com IVA',tx+3,y+19.6);font(14,'bold',white);doc.text(money(totals.total),R-3,y+20,{align:'right'});
+ font(7.5,'normal',grey);doc.text('Adjudicação (50%): '+money(half)+'   ·   Fim da obra (50%): '+money(totals.total-half),R,y+29,{align:'right'});
+ const boxW=tx-L-8;doc.setFillColor(255,248,230);doc.roundedRect(L,y+2,boxW,22,1.5,1.5,'F');doc.setFillColor(...amber);doc.rect(L,y+2,1.2,22,'F');
+ font(9,'bold');doc.text('Preço garantido até '+day(valid),L+5,y+10);font(8.5);
+ doc.text(doc.splitTextToSize('Instalação: '+(weeks.length?'disponível a partir da '+sol.weekLabel(weeks[0]):'data a combinar consigo')+'.',boxW-8),L+5,y+15.5);
+ y+=35;
+ // What is included (with check marks) next to the conditions; the install week is already in the box above.
+ const terms=quoteTerms(q),cond=terms.filter(t=>!/^(Proposta válida|Prazo de instalação)/.test(t));
+ const inc=e.incluido&&e.incluido.length?e.incluido:sol?sol.INCLUDED:[],lh=3.9;
+ const incL=inc.map(t=>wrap(t,colW-7,8.5)),condL=cond.map(t=>wrap(t,colW-5,8.5)),hOf=ls=>ls.reduce((s,l)=>s+l.length*lh+1.2,0),blockH=7+Math.max(hOf(incL),hOf(condL));
+ ensure(blockH);
+ const tick=(x,ly)=>{doc.setDrawColor(...green);doc.setLineWidth(.55);doc.lines([[1,1.1],[2.2,-2.6]],x+.3,ly-1.5)},dot=(x,ly)=>{doc.setFillColor(...navy);doc.circle(x+1,ly-1.1,.55,'F')};
+ const list=(x,title,lines,mark,indent)=>{label(title,x,y);let ly=y+6;for(const ls of lines){mark(x,ly);font(8.5);doc.text(ls,x+indent,ly);ly+=ls.length*lh+1.2}};
+ if(inc.length)list(L,'Incluído no preço',incL,tick,5.5);list(inc.length?L+colW+6:L,'Condições',condL,dot,4);
+ y+=blockH+3;
+ // Next steps, so the client knows exactly how to go ahead, then the signatures.
+ const steps=[['Confirme a proposta','No link que recebeu, ou fale com '+person+(phone?' ('+phone+')':'')+'.'],['Pagamento e data','Enviamos os dados para o pagamento de 50% e marcamos a semana da instalação.'],['Instalação','Instalamos, testamos e explicamos o funcionamento. Os restantes 50% pagam-se no fim.']];
+ const sw=(W-12)/3,sl=steps.map(s=>wrap(s[1],sw-8,8)),sh=10+Math.max(...sl.map(l=>l.length))*3.6;
+ ensure(sh+24);label('Como avançar',L,y);y+=3;
+ steps.forEach(([t],i)=>{const x=L+i*(sw+6);doc.setFillColor(...navy);doc.circle(x+2.8,y+3.6,2.8,'F');font(8,'bold',white);doc.text(String(i+1),x+2.8,y+4.8,{align:'center'});font(9,'bold');doc.text(t,x+8,y+4.6);font(8,'normal',grey);doc.text(sl[i],x+8,y+9)});
+ y+=sh+2;doc.setDrawColor(...navy);doc.setLineWidth(.3);
+ for(const [x,a,b] of [[L,'Pela '+company,person+' · '+role],[L+colW+6,'Aceitação do cliente',String(q.client||'')+'      Data: ___ / ___ / ______']]){doc.line(x,y+10,x+colW-6,y+10);font(8.5,'bold');doc.text(a,x,y+14.5);font(8,'normal',grey);doc.text(b,x,y+18.5)}
  // Quotes with a PV sizing get one more page with the study and the monthly chart.
  if(q.pv?.result?.panels&&typeof pvPdfSection==='function'){doc.addPage();header(false);pvPdfSection(doc,q.pv.result,{navy,grey,soft,money})}
- const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setDrawColor(210,218,222);doc.setLineWidth(.2);doc.line(16,281,194,281);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...grey);doc.text('Enat - Ponte de Lima · Orçamento '+number,16,286);doc.text('Página '+p+' de '+pages,194,286,{align:'right'})}
+ const foot=[company,e.nif&&'NIF '+e.nif,phone&&'Tel. '+phone,email,e.site].filter(Boolean).join(' · ');
+ const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setDrawColor(...rule);doc.setLineWidth(.2);doc.line(L,281,R,281);font(7.5,'normal',grey);doc.text(foot,L,286);doc.text('Orçamento '+number+' · Página '+p+' de '+pages,R,286,{align:'right'})}
  // File names cannot contain slashes, so 2026/0042 becomes 2026-0042.
  const clean=v=>String(v||'').replace(/[\\/:*?"<>|\x00-\x1f]+/g,'-').replace(/\s+/g,' ').trim();
  return {doc,filename:clean('ORC Nº '+number.replace(/^ORC\s*/,'')+' '+q.client)+'.pdf'};
 }
-

@@ -8,7 +8,7 @@ try{globalThis.ENAT_EMPRESA=JSON.parse(localStorage.getItem('enat-empresa')||'nu
 const empKeep=e=>{globalThis.ENAT_EMPRESA=e;try{localStorage.setItem('enat-empresa',JSON.stringify(e))}catch(x){}};
 // Lido do servidor ao abrir o ecrã e antes de enviar um orçamento, para o PDF usar sempre os dados atuais.
 async function empresaLoad(){const r=await API('empresa');if(!r.ok)throw new Error('Sem ligação ao servidor.');const {empresa}=await r.json();if(empresa)empKeep(empresa);return empresa}
-const empBlank=()=>({contacto:{nome:'João Lima',cargo:'Responsável comercial',telefone:'',foto:''},apresentacao:'',instalacao:'',posVenda:'',anos:'',instalacoes:'',equipaFoto:'',
+const empBlank=()=>({contacto:{nome:'João Lima',cargo:'Responsável comercial',telefone:'',foto:''},apresentacao:'',instalacao:'',posVenda:'',anos:'',instalacoes:'',equipaFoto:'',nif:'',morada:'',email:'pontedelima@enat.pt',site:'',
  credenciais:EnatSolucoes.CREDENTIALS.map(nome=>({nome,numero:''})),garantiaEquip:'3 anos',garantiaInst:'2 anos',google:{nota:'',total:'',link:''},incluido:[...EnatSolucoes.INCLUDED],semanas:[]});
 function empStart(){
  if(EMP)return;EMP=structuredClone(globalThis.ENAT_EMPRESA||empBlank());EMP_MSG='A carregar…';
@@ -25,6 +25,8 @@ function vEmp(){
  ${EMP_MSG?`<p class="note" role="status">${esc(EMP_MSG)}</p>`:''}
  <h2>Pessoa de contacto</h2><div class="grp">${empPhoto('contacto','Foto da pessoa de contacto',true)}</div><div class="fld" style="margin-top:10px">${empIn('contacto.nome','Nome','João Lima')}${empIn('contacto.cargo','Cargo','Responsável comercial')}${empIn('contacto.telefone','Telemóvel (WhatsApp)','912 345 678','tel','inputmode="tel"')}</div>
  <p class="note">Com o telemóvel, a proposta mostra os botões WhatsApp e Ligar. Uma foto real aumenta muito a confiança.</p>
+ <h2>Dados no orçamento (PDF)</h2><div class="fld">${empIn('nif','NIF','Ex.: 512345678','text','inputmode="numeric"')}${empIn('morada','Morada','Ex.: Rua …, 4990-000 Ponte de Lima')}${empIn('email','Email','pontedelima@enat.pt','email')}${empIn('site','Site','Ex.: enat.pt')}</div>
+ <p class="note">Aparecem no cabeçalho e no rodapé do PDF, como em qualquer documento comercial.</p>
  <h2>Quem somos</h2>${empArea('apresentacao','Ex.: Somos a Enat de Ponte de Lima. Instalamos climatização, bombas de calor e painéis solares no Alto Minho, com acompanhamento do início ao fim.')}
  <div class="fld">${empIn('anos','Anos de experiência','Ex.: 10','text','inputmode="numeric"')}${empIn('instalacoes','Instalações feitas','Ex.: 250','text','inputmode="numeric"')}</div><p class="note">Na app há ${done} obra${done===1?'':'s'} concluída${done===1?'':'s'}. Pode indicar o total real, incluindo obras anteriores à app.</p>
  <h2>Credenciais</h2><p class="note" style="margin:-4px 6px 10px">Só aparecem as que tiverem o número ou a referência preenchidos (ex.: n.º do certificado, seguradora e capital).</p>

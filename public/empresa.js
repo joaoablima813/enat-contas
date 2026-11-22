@@ -37,6 +37,7 @@ function vEmp(){
  <h2>Opiniões no Google</h2><div class="fld">${empIn('google.nota','Nota (ex.: 4,9)','','text','inputmode="decimal"')}${empIn('google.total','N.º de opiniões','','text','inputmode="numeric"')}${empIn('google.link','Link das opiniões','https://g.page/…','url')}</div>
  <h2>Foto da equipa ou de uma obra</h2><div class="grp">${empPhoto('equipa','Foto da equipa',false)}</div>
  <h2>Incluído no preço, sem surpresas</h2><p class="note" style="margin:-4px 6px 10px">Uma linha por item. Deixe só o que está incluído em todas as obras.</p>${empArea('incluido','Equipamentos e materiais indicados na proposta',5).replace(/>[^<]*<\/textarea>/,'>'+esc((e.incluido||[]).join('\n'))+'</textarea>')}
+ <h2>Leads novas</h2><label class="row kv" style="gap:10px;cursor:pointer"><input type="checkbox" data-emp="autoPedido" ${e.autoPedido!==false?'checked':''} style="width:22px;height:22px;flex:none"><div class="rt"><b>Enviar o questionário por email automaticamente</b><span>Às leads na fase «Lead nova» com email, recebidas nos últimos 7 dias, uma vez por lead (das 8h às 22h).</span></div></label>
  <h2>Semanas livres para instalação</h2><p class="note" style="margin:-4px 6px 10px">Indique só semanas já confirmadas com as equipas. O cliente escolhe uma ao avançar; as semanas passadas desaparecem sozinhas.</p>
  <div class="fld">${weeks.length?weeks.map((d,i)=>`<label><span>Semana de</span><input type="date" data-emp-week="${i}" value="${esc(d)}"><button class="mini neg" data-ea="rmweek" data-id="${i}" aria-label="Remover semana">✕</button></label>`).join(''):'<div class="empty">Sem semanas indicadas. A proposta diz «a combinar».</div>'}</div><button class="link" data-ea="addweek">Adicionar semana</button>
  <button class="btn" data-ea="save" ${EMP_BUSY?'disabled':''}>${EMP_BUSY?'A guardar…':'Guardar'}</button>
@@ -45,7 +46,8 @@ function vEmp(){
 const empSet=(path,v)=>{const ks=path.split('.'),last=ks.pop();ks.reduce((o,k)=>o[k]=o[k]||{},EMP)[last]=v};
 document.addEventListener('input',ev=>{
  const t=ev.target;if(!EMP||V.tab!=='emp')return;
- if(t.dataset.emp)empSet(t.dataset.emp,t.dataset.emp==='incluido'?t.value.split('\n').map(s=>s.trim()).filter(Boolean):t.value);
+ if(t.type==='checkbox'&&t.dataset.emp)empSet(t.dataset.emp,t.checked);
+ else if(t.dataset.emp)empSet(t.dataset.emp,t.dataset.emp==='incluido'?t.value.split('\n').map(s=>s.trim()).filter(Boolean):t.value);
  else if(t.dataset.empCred!==undefined)EMP.credenciais[+t.dataset.empCred][t.dataset.f]=t.value;
  else if(t.dataset.empWeek!==undefined)EMP.semanas[+t.dataset.empWeek]=t.value;
 });

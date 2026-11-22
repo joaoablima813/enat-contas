@@ -83,5 +83,10 @@
   if(r.notas)out.push(['Notas do cliente',r.notas]);
   return out.filter(x=>x[1]);
  }
- root.EnatPedido={TECH,TECHS,GAMA,COMMON,clean,summary};
+ // Mensagem com o link (WhatsApp, email manual e email automático às leads novas).
+ function message(nome,solutions,me,url){
+  const first=String(nome||'').trim().split(/\s+/)[0]||'',sol=(solutions||[]).filter(s=>TECHS.includes(s));me=me||'João Lima';
+  return `Olá${first?' '+first:''}, sou ${me}, da Enat - Ponte de Lima. Obrigado pelo seu pedido${sol.length?' de orçamento para '+sol.join(' e ').toLowerCase():' de orçamento'}.\n\nPara lhe enviar uma proposta à medida, sem visitas desnecessárias, pode responder a umas perguntas rápidas (2 minutos) e indicar a morada da instalação?\n\n${url}\n\nObrigado!\n${me}\nEnat - Ponte de Lima`;
+ }
+ root.EnatPedido={TECH,TECHS,GAMA,COMMON,clean,summary,message};
 })(globalThis);

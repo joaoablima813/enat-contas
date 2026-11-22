@@ -34,6 +34,8 @@ export async function handleQuotes(req:Request,path:string){
     b.lines=b.lines.map(({catalog,...l}:any)=>catalog?{...l,catalog:{brand:catalog.brand,ref:catalog.ref,price:catalog.price,discount:catalog.discount}}:l);
     if(b.brand!==undefined&&(typeof b.brand!=='string'||b.brand.length>200))return fail(400,'Marca inválida.');
     b.brand=(b.brand||'').trim();
+    // Gama pedida pelo cliente no questionário (usada pelo orçamento automático para escolher os produtos).
+    if(b.gama!==undefined&&!['','preco','media','qualidade'].includes(b.gama))return fail(400,'Gama inválida.');
     // The client email is optional; when present it must look like a real address.
     if(b.email!==undefined&&(typeof b.email!=='string'||b.email.length>320))return fail(400,'Email inválido.');
     b.email=(b.email||'').trim();

@@ -47,8 +47,14 @@ const PICK = `Para cada linha do orçamento escolhe, entre os candidatos encontr
 Se o produto é vendido em embalagem/rolo/caixa (ex.: "rolo 15 m", "caixa 100 un."), converte a quantidade em embalagens inteiras e põe a unidade "un.". Se é vendido ao metro e a linha está em metros, mantém os metros.
 Responde APENAS com JSON: {"escolhas": [{"id": "i1", "candidato": número ou null, "quantidade": n, "unidade": "un."}]}`;
 
+// Gama pedida pelo cliente no questionário: entre os candidatos que cumprem a especificação, escolher pelo preço.
+const GAMA = {
+  preco: 'GAMA: o cliente quer o melhor preço. Entre os candidatos que cumprem a especificação, escolhe o de preço mais baixo (marcas fiáveis de gama de entrada).',
+  media: 'GAMA: o cliente quer equilíbrio. Entre os candidatos que cumprem a especificação, escolhe um de preço intermédio, de boa marca, evitando o mais barato e o mais caro.',
+  qualidade: 'GAMA: o cliente quer a máxima qualidade. Entre os candidatos que cumprem a especificação, escolhe o de gama mais alta (melhor marca, maior eficiência, mais silencioso), normalmente o mais caro.',
+};
 export async function runPick(input) {
-  const r = await ask('És o orçamentista técnico sénior da ENAT (climatização). ' + PICK, `Marca pedida: ${input.marca || '(nenhuma)'}\n\nLINHAS E CANDIDATOS:\n${JSON.stringify(input.itens)}\n\nResponde apenas com o objeto JSON.`, { effort: 'low', timeout: 25000 });
+  const r = await ask('És o orçamentista técnico sénior da ENAT (climatização). ' + PICK + (GAMA[input.gama] ? '\n' + GAMA[input.gama] : ''), `Marca pedida: ${input.marca || '(nenhuma)'}\nGama pedida pelo cliente: ${input.gama || '(sem preferência)'}\n\nLINHAS E CANDIDATOS:\n${JSON.stringify(input.itens)}\n\nResponde apenas com o objeto JSON.`, { effort: 'low', timeout: 25000 });
   const ids = new Set(input.itens.map((i) => i.id));
   return {
     escolhas: safeArr(r.escolhas, 200).filter((e) => e && ids.has(e.id)).map((e) => {
@@ -73,7 +79,7 @@ export function readPickInput(b) {
     id: clip(i.id, 20), descricao: clip(i.descricao, 400), especificacao: clip(i.especificacao, 400), quantidade: Number(i.quantidade) || 1, unidade: clip(i.unidade, 10),
     candidatos: safeArr(i.candidatos, 8).map((c, n) => ({ n, nome: clip(c?.nome, 200), ref: clip(c?.ref, 40), marca: clip(c?.marca, 40), preco: Number(c?.preco) || 0 })),
   })).filter((i) => i.candidatos.length);
-  return itens.length ? { marca: clip(b.marca, 100), itens } : null;
+  return itens.length ? { marca: clip(b.marca, 100), gama: ['preco', 'media', 'qualidade'].includes(b.gama) ? b.gama : '', itens } : null;
 }
 
 const errMsg = (e) => {

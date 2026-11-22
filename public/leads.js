@@ -160,7 +160,7 @@ function leadSave(){
 function leadQuote(){
  const l=leadSave();
  quoteWa.key=null;quotePick=null;quotePickLast=null;quotePickOff=null;quoteClient=null;quoteError='';
- quoteDraft=newQuote();Object.assign(quoteDraft,{client:l.name,address:l.address,contact:l.contact,email:l.email,brand:l.brand,topics:leadTopics(l),lead:l.id});
+ quoteDraft=newQuote();Object.assign(quoteDraft,{client:l.name,address:l.address,contact:l.contact,email:l.email,brand:l.brand,topics:leadTopics(l),lead:l.id,...(l.pedido?.resp?.gama?{gama:l.pedido.resp.gama}:{})});
  V.tab='orc';V.obra=null;window.scrollTo?.(0,0);
 }
 

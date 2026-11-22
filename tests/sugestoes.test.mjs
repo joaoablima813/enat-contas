@@ -32,3 +32,10 @@ test('other technologies get a first sizing; missing answers give no made-up fig
   assert.match(all.find((s) => s.titulo === 'Carregador').linhas[0], /11 kW trifásico/);
   assert.deepEqual(sugestoes({ sol: ['Bomba de calor climatização', 'VMC'], a: {} }), []);
 });
+
+test('heat pump that also heats water: DHW tank from the people at home, separate from the buffer tank', () => {
+  const s = pick({ sol: ['Bomba de calor climatização'], a: { m2: 150, bcc_emis: 'Ventiloconvectores', bcc_aqs: 'Sim', pessoas: '5 ou mais' } }, 'Bomba de calor (aquecimento)');
+  assert.ok(s.linhas.some((l) => /Depósito de água quente \(AQS\) de 300 L para 5 ou mais pessoas/.test(l)), s.linhas.join(' | '));
+  assert.ok(s.linhas.some((l) => /Depósito de inércia de \d+ L \(circuito de aquecimento/.test(l)));
+  assert.match(pick({ sol: ['Bomba de calor AQS'], a: { pessoas: '1 a 2' } }, 'Bomba de calor AQS').nota, /40 a 50 L de água quente por pessoa/);
+});

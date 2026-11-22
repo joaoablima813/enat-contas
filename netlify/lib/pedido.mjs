@@ -149,12 +149,13 @@ const HTML = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-
 const chips = (id, opts, cur, multi) => `<div class="chips" data-q="${id}"${multi ? ' data-multi' : ''}>${opts.map((o) => `<button type="button" class="chip${(multi ? cur.includes(o) : cur === o) ? ' on' : ''}" data-v="${esc(o)}" aria-pressed="${multi ? cur.includes(o) : cur === o}">${esc(o)}</button>`).join('')}</div>`;
 // Tipos de pergunta: escolha (chips), texto, número e lista de divisões (preenchida no navegador conforme o número escolhido).
 // As perguntas com «if» só aparecem com uma resposta concreta (ex.: radiadores).
-const question = (q, a) => {
+const question = (q, a, sol) => {
   const shown = !q.if || a[q.if[0]] === q.if[1];
   const field = q.rooms ? `<div class="rooms" data-rooms="${q.id}" data-for="${q.rooms}"></div>`
     : q.n ? `<input type="number" inputmode="numeric" data-n="${q.id}" min="${q.n[0]}" max="${q.n[1]}" value="${esc(a[q.id] ?? '')}" placeholder="${esc(q.ph || '')}">`
     : q.t ? `<input data-t="${q.id}" value="${esc(a[q.id] || '')}" placeholder="${esc(q.t)}" maxlength="200">` : chips(q.id, q.o, a[q.id] || '');
-  return `<div class="q"${q.if ? ` data-if="${esc(q.if.join('|'))}"${shown ? '' : ' hidden'}` : ''}><label>${esc(q.q)}</label>${q.help ? `<p class="help">${esc(q.help)}</p>` : ''}${field}</div>`;
+  const forSol = q.for && sol ? ` data-sols="${esc(q.for.join('|'))}"${q.for.some((t) => sol.includes(t)) ? '' : ' hidden'}` : '';
+  return `<div class="q"${q.if ? ` data-if="${esc(q.if.join('|'))}"${shown ? '' : ' hidden'}` : ''}${forSol}><label>${esc(q.q)}</label>${q.help ? `<p class="help">${esc(q.help)}</p>` : ''}${field}</div>`;
 };
 
 function form(token, p, e) {
@@ -165,9 +166,10 @@ function form(token, p, e) {
 <section class="card hero"><h1>Olá${first ? ' ' + esc(first) : ''}, obrigado pelo seu contacto</h1><p>Para preparar um orçamento à sua medida, sem visitas desnecessárias, responda a estas perguntas. Leva cerca de 2 minutos.</p>${p.resp ? '<p class="done">Já recebemos as suas respostas. Pode alterá-las e enviar de novo.</p>' : ''}</section>
 <form id="f" novalidate>
 <section class="card"><h2>Para que quer orçamento?</h2><p class="muted">Pode escolher mais do que uma opção.</p>${chips('sol', P.TECHS, r.sol, true)}</section>
-${P.TECHS.map((t) => `<section class="card tech" data-tech="${esc(t)}"${r.sol.includes(t) ? '' : ' hidden'}><h2>${esc(t)}</h2>${P.TECH[t].map((q) => question(q, r.a)).join('')}</section>`).join('')}
+<section class="card"><h2>Sobre a casa</h2><p class="muted">Perguntamos só uma vez, mesmo que escolha várias soluções.</p>${P.HOUSE.map((q) => question(q, r.a, r.sol)).join('')}</section>
+${P.TECHS.filter((t) => P.TECH[t].length).map((t) => `<section class="card tech" data-tech="${esc(t)}"${r.sol.includes(t) ? '' : ' hidden'}><h2>${esc(t)}</h2>${P.TECH[t].map((q) => question(q, r.a)).join('')}</section>`).join('')}
 <section class="card"><h2>Que gama prefere?</h2><div class="gama" data-q="gama">${P.GAMA.map(([k, t, d]) => `<button type="button" class="opt${r.gama === k ? ' on' : ''}" data-v="${k}" aria-pressed="${r.gama === k}"><b>${esc(t)}</b><small>${esc(d)}</small></button>`).join('')}</div></section>
-<section class="card"><h2>Sobre a casa e o contacto</h2>${P.COMMON.map((q) => question(q, r.a)).join('')}</section>
+<section class="card"><h2>Prazo e contacto</h2>${P.COMMON.map((q) => question(q, r.a)).join('')}</section>
 <section class="card"><h2>Morada da instalação</h2><div class="q"><label for="morada">Rua e número</label><input id="morada" value="${esc(r.morada)}" autocomplete="street-address" maxlength="300" required></div>
 <div class="row"><div class="q"><label for="cp">Código postal</label><input id="cp" value="${esc(r.cp)}" inputmode="numeric" autocomplete="postal-code" placeholder="4990-000" maxlength="8" required></div><div class="q"><label for="local">Localidade</label><input id="local" value="${esc(r.local)}" autocomplete="address-level2" maxlength="80"></div></div></section>
 <section class="card"><h2>Fotos (opcional)</h2><p class="muted">Ajudam-nos a orçamentar sem visita: o local onde fica o equipamento, o quadro elétrico, o telhado ou as divisões. Até ${MAX_PHOTOS} fotos.</p><div class="thumbs" id="thumbs"></div><label class="btn ghost" id="addph">Adicionar fotos<input type="file" id="ph" accept="image/*" multiple hidden></label></section>
@@ -182,7 +184,7 @@ const T=${JSON.stringify(token)},st={a:${JSON.stringify(r.a)},sol:${JSON.stringi
 const $=s=>document.querySelector(s);
 document.addEventListener('click',e=>{
  const b=e.target.closest('[data-v]');if(!b)return;const box=b.parentElement,q=box.dataset.q;
- if(q==='sol'){const v=b.dataset.v,i=st.sol.indexOf(v);i<0?st.sol.push(v):st.sol.splice(i,1);b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',i<0);document.querySelectorAll('[data-tech]').forEach(s=>s.hidden=!st.sol.includes(s.dataset.tech));return}
+ if(q==='sol'){const v=b.dataset.v,i=st.sol.indexOf(v);i<0?st.sol.push(v):st.sol.splice(i,1);b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',i<0);document.querySelectorAll('[data-tech]').forEach(s=>s.hidden=!st.sol.includes(s.dataset.tech));document.querySelectorAll('[data-sols]').forEach(q=>q.hidden=!q.dataset.sols.split('|').some(t=>st.sol.includes(t)));return}
  box.querySelectorAll('[data-v]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});
  if(q==='gama')st.gama=b.dataset.v;else st.a[q]=b.dataset.v;
  refresh();

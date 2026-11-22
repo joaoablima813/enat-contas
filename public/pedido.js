@@ -24,10 +24,10 @@ function pedApply(l,resp){
  l.solutions=[...new Set([...(l.solutions||[]),...resp.sol])];
  const house=a.casa&&LEAD_HOUSES.includes(a.casa)?a.casa:'';if(house&&!l.house)l.house=house;
  if(a.prazo&&!l.timing)l.timing=a.prazo;
- const heat=a.aqs_atual||a.st_atual;if(heat&&!l.heating)l.heating=heat;
+ if(a.agua&&!l.heating)l.heating=a.agua;
  if(a.pv_fat&&!l.bill)l.bill=a.pv_fat+' por mês';
  const rooms=EnatPedido.roomsText(a.ac_rooms);if((rooms||a.ac_div)&&!l.rooms)l.rooms=rooms||a.ac_div+' divisão(ões)';
- const area=rooms||(a.bcc_m2?a.bcc_m2+' m²':'')||a.pr_area||a.vmc_area;if(area&&!l.area)l.area=area;
+ const area=rooms||(a.m2?a.m2+' m² de área útil':'');if(area&&!l.area)l.area=area;
  l.pedido={...(l.pedido||{}),resp};
  if(l.stage==='nova'||l.stage==='contacto')l.stage='triagem';
 }

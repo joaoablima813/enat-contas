@@ -9,15 +9,14 @@ const btuTxt = (b) => String(Math.round(b)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '
 
 // Isolamento a partir do ano da casa, das janelas e do tipo de casa.
 export function isolamento(a = {}) {
-  const ano = a.bcc_ano || a.ac_ano;
+  const ano = a.ano;
   let lvl = { 'Antes de 1990': 0, '1990 a 2005': 1, '2006 a 2015': 1, 'Depois de 2015': 2, 'Em construção': 2 }[ano] ?? (a.casa === 'Moradia antiga' ? 0 : 1);
-  if (a.bcc_jan === 'Vidro simples') lvl = Math.max(0, lvl - 1);
-  if (a.bcc_jan === 'Vidro duplo' && ano === '2006 a 2015') lvl = 2;
+  if (a.jan === 'Vidro simples') lvl = Math.max(0, lvl - 1);
+  if (a.jan === 'Vidro duplo' && ano === '2006 a 2015') lvl = 2;
   return ['fraco', 'medio', 'bom'][lvl];
 }
 const ISO_TXT = { fraco: 'isolamento fraco', medio: 'isolamento médio', bom: 'isolamento bom' };
 const PESSOAS = { '1 a 2': 2, '3 a 4': 4, '5 ou mais': 6 };
-const AREA = { 'Até 100 m²': 90, '100 a 150 m²': 125, '150 a 200 m²': 175, '200 a 300 m²': 250, 'Mais de 300 m²': 320 };
 const FATURA = { 'Até 50 €': 40, '50 a 100 €': 75, '100 a 150 €': 125, '150 a 250 €': 200, 'Mais de 250 €': 300 };
 const USO = { Sala: 'sala', Quarto: 'quarto', 'Escritório': 'escritorio', Cozinha: 'cozinha', Outra: 'outro' };
 
@@ -45,14 +44,14 @@ export function sugestoes(resp) {
   }
 
   if (sol.includes('Bomba de calor climatização')) {
-    const area = a.bcc_m2;
+    const area = a.m2;
     if (area) {
       const emis = { Radiadores: 'radiadores', 'Piso radiante': 'piso', Ventiloconvectores: 'ventiloconvectores' }[a.bcc_emis] || 'ventiloconvectores';
       const b = bombaCalorHabitacao({ area_m2: area, isolamento: iso, emissores: emis, pessoas_aqs: a.bcc_aqs === 'Sim' ? 4 : 0 });
       const linhas = [`Bomba de calor de ${kwTxt(b.potencia_nominal_kw)} (necessidade estimada ${kwTxt(b.necessidade_aquecimento_kw)})`];
       if (a.bcc_aqs === 'Sim') linhas.push('Com produção de água quente: depósito de 200 a 300 L');
       if (b.inercia_recomendada_l) linhas.push(`Depósito de inércia de ${b.inercia_recomendada_l} L`);
-      let nota = `${fmt(area, 0)} m² com ${ISO_TXT[iso]}${a.bcc_ano ? ' (casa ' + a.bcc_ano.toLowerCase() + (a.bcc_jan ? ', ' + a.bcc_jan.toLowerCase() : '') + ')' : ''}.`;
+      let nota = `${fmt(area, 0)} m² com ${ISO_TXT[iso]}${a.ano ? ' (casa ' + a.ano.toLowerCase() + (a.jan ? ', ' + a.jan.toLowerCase() : '') + ')' : ''}.`;
       if (emis === 'radiadores' && a.bcc_rad && a.bcc_elem) {
         const elems = a.bcc_rad * a.bcc_elem, need = b.necessidade_aquecimento_kw;
         const at = [45, 55, 65, 75].find((t) => radKw(elems, t) >= need);
@@ -71,34 +70,34 @@ export function sugestoes(resp) {
     }
   }
 
-  const pess = PESSOAS[a.aqs_pess];
+  const pess = PESSOAS[a.pessoas];
   if (sol.includes('Bomba de calor AQS') && pess) {
     const q = aqs({ pessoas: pess });
     out.push({ sol: 'Bomba de calor AQS', titulo: 'Bomba de calor AQS', linhas: [`Depósito de ${q.volume_l} L`], nota: q.nota + ' Com banhos seguidos ou banheira grande, escolher o tamanho acima.' });
   }
-  if (sol.includes('Painéis solares térmicos') && PESSOAS[a.st_pess]) {
-    const p = PESSOAS[a.st_pess], col = p <= 2 ? 1 : p <= 4 ? 2 : 3, dep = p <= 2 ? 150 : p <= 4 ? 200 : 300;
-    out.push({ sol: 'Painéis solares térmicos', titulo: 'Solar térmico', linhas: [`${col} coletor${col > 1 ? 'es' : ''} de ≈2 m² + depósito de ${dep} L`], nota: `${a.st_pess} pessoas, cerca de 50 L de água quente por pessoa e por dia.` });
+  if (sol.includes('Painéis solares térmicos') && PESSOAS[a.pessoas]) {
+    const p = PESSOAS[a.pessoas], col = p <= 2 ? 1 : p <= 4 ? 2 : 3, dep = p <= 2 ? 150 : p <= 4 ? 200 : 300;
+    out.push({ sol: 'Painéis solares térmicos', titulo: 'Solar térmico', linhas: [`${col} coletor${col > 1 ? 'es' : ''} de ≈2 m² + depósito de ${dep} L`], nota: `${a.pessoas} pessoas, cerca de 50 L de água quente por pessoa e por dia.` });
   }
 
   if (sol.includes('Painéis fotovoltaicos') && FATURA[a.pv_fat]) {
     const eur = FATURA[a.pv_fat], kwhAno = eur / 0.22 * 12, ev = a.pv_ev === 'Já tenho' || a.pv_ev === 'Em breve';
     const kwp = Math.max(1.5, Math.round(((kwhAno * 0.55) / 1350 + (ev ? 1.5 : 0)) * 2) / 2), paineis = Math.ceil(kwp * 1000 / 450);
-    const linhas = [`≈ ${fmt(kwp)} kWp: ${paineis} painéis de 450 W`, `Inversor ${a.pv_fase === 'Trifásica' ? 'trifásico' : a.pv_fase === 'Monofásica' ? 'monofásico' : 'mono ou trifásico (confirmar)'} de ${fmt(Math.max(1.5, Math.round(kwp * 0.9 * 2) / 2))} kW${a.pv_bat === 'Sim' || a.pv_bat === 'Quero saber mais' ? ' (híbrido, para bateria)' : ''}`];
+    const linhas = [`≈ ${fmt(kwp)} kWp: ${paineis} painéis de 450 W`, `Inversor ${a.fase === 'Trifásica' ? 'trifásico' : a.fase === 'Monofásica' ? 'monofásico' : 'mono ou trifásico (confirmar)'} de ${fmt(Math.max(1.5, Math.round(kwp * 0.9 * 2) / 2))} kW${a.pv_bat === 'Sim' || a.pv_bat === 'Quero saber mais' ? ' (híbrido, para bateria)' : ''}`];
     if (a.pv_bat === 'Sim' || a.pv_bat === 'Quero saber mais') linhas.push(`Bateria de ${fmt(Math.max(5, Math.round(kwhAno / 365 * 0.5)), 0)} kWh`);
     out.push({ sol: 'Painéis fotovoltaicos', titulo: 'Fotovoltaico', linhas, nota: `Fatura de ${a.pv_fat} por mês ≈ ${fmt(kwhAno, 0)} kWh por ano (0,22 €/kWh); dimensionado para cerca de metade do consumo, 1 350 kWh/kWp no Minho${ev ? ', +1,5 kWp pelo carro elétrico' : ''}. Faça o estudo PVGIS no orçamento para confirmar.` });
   }
 
-  if (sol.includes('Piso radiante') && AREA[a.pr_area]) {
-    const m2 = AREA[a.pr_area], b = bombaCalorHabitacao({ area_m2: m2, isolamento: iso, emissores: 'piso' });
-    out.push({ sol: 'Piso radiante', titulo: 'Piso radiante', linhas: [`≈ ${fmt(m2 * 6.7, 0)} m de tubo (passo 15 cm) e coletor de ${Math.ceil(m2 / 15)} saídas`, a.pr_fonte === 'Caldeira' ? 'Fonte de calor: caldeira existente' : `Bomba de calor de ${kwTxt(b.potencia_nominal_kw)}`], nota: `Área média do intervalo «${a.pr_area}» (${m2} m²).` });
+  if (sol.includes('Piso radiante') && a.m2) {
+    const m2 = a.m2, b = bombaCalorHabitacao({ area_m2: m2, isolamento: iso, emissores: 'piso' });
+    out.push({ sol: 'Piso radiante', titulo: 'Piso radiante', linhas: [`≈ ${fmt(m2 * 6.7, 0)} m de tubo (passo 15 cm) e coletor de ${Math.ceil(m2 / 15)} saídas`, a.pr_fonte === 'Caldeira' ? 'Fonte de calor: caldeira existente' : `Bomba de calor de ${kwTxt(b.potencia_nominal_kw)}`], nota: `${m2} m² de área útil (confirmar a área efetiva de piso a aquecer).` });
   }
-  if (sol.includes('VMC') && AREA[a.vmc_area]) {
-    const m2 = AREA[a.vmc_area], caudal = m2 * 2.6 * 0.6, un = [150, 250, 350, 450, 550].find((x) => x >= caudal) || 650;
+  if (sol.includes('VMC') && a.m2) {
+    const m2 = a.m2, caudal = m2 * 2.6 * 0.6, un = [150, 250, 350, 450, 550].find((x) => x >= caudal) || 650;
     out.push({ sol: 'VMC', titulo: 'VMC', linhas: [`Recuperador de calor de ${un} m³/h (caudal necessário ≈ ${fmt(caudal, 0)} m³/h)`], nota: `${m2} m², pé-direito 2,6 m, 0,6 renovações por hora${a.vmc_hum === 'Sim, bastante' ? '; com muita humidade, aumentar a extração nas casas de banho e cozinha' : ''}.` });
   }
   if (sol.includes('Carregador automóvel')) {
-    const tri = a.car_fase === 'Trifásica', dist = { 'Até 10 m': 10, '10 a 25 m': 25, 'Mais de 25 m': 35 }[a.car_dist] || 15;
+    const tri = a.fase === 'Trifásica', dist = { 'Até 10 m': 10, '10 a 25 m': 25, 'Mais de 25 m': 35 }[a.car_dist] || 15;
     const c = carregador({ potencia_kw: tri ? 11 : 7.4, distancia_m: dist });
     out.push({ sol: 'Carregador automóvel', titulo: 'Carregador', linhas: [`Carregador de ${tri ? '11 kW trifásico' : '7,4 kW monofásico'}`, `Cabo ${c.cabo} (≈ ${c.metros} m) e disjuntor ${c.disjuntor}`], nota: c.nota_potencia });
   }

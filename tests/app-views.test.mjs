@@ -214,6 +214,6 @@ test('company screen: blank profile suggests credentials to fill, and the quote 
  assert.doesNotMatch(run("quoteTerms({validity:30}).join('|')"),/IBAN/);
  run("globalThis.ENAT_EMPRESA={garantiaEquip:'5 anos',semanas:['2099-03-04'],credenciais:[{nome:'DGEG',numero:'n.º 77'},{nome:'Sem n.º',numero:''}],contacto:{nome:'Ana Reis'}}");
  const t=run("quoteTerms({validity:30}).join('|')");
- assert.match(t,/Garantia dos equipamentos: 5 anos/);assert.match(t,/disponível a partir da semana de 2 de março/);assert.match(t,/DGEG: n\.º 77/);assert.doesNotMatch(t,/Sem n\.º/);
+ assert.match(t,/Garantia dos equipamentos: 5 anos/);assert.match(t,/disponível a partir da semana de 2 de março/);assert.doesNotMatch(t,/DGEG: n\.º 77/);assert.doesNotMatch(t,/Sem n\.º/);
  assert.match(run("quoteWaText([{client:'Rui',id:1,date:'2026-11-22',topics:['VMC'],brand:'',lines:[],validity:15}],['https://x/1'])"),/Sou Ana Reis, da Enat[\s\S]*Ana Reis\nEnat/);
 });

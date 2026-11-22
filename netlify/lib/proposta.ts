@@ -11,6 +11,7 @@ import '../../public/quote-math.js';
 import '../../public/gestao.js';
 import '../../public/quote-obra.js';
 import '../../public/solucoes.js';
+import { getPortfolio, nearby, monthLabel } from './portfolio.mjs';
 
 const G: any = globalThis;
 export const ANSWERS: Record<string, string> = { adjudicar: 'Adjudicado', revisao: 'Pedido de revisão', pensar: 'Vai pensar', mais_tarde: 'Fica para mais tarde', rejeitar: 'Rejeitado' };
@@ -140,11 +141,12 @@ export async function handleProposta(req: Request, token: string, store: any) {
   if (req.method !== 'GET') return fail(405, 'Método não permitido.');
   if (!found) return new Response(page('Proposta não encontrada', `<section class="card"><h1>Proposta não encontrada</h1><p>Este link já não está disponível. Contacte-nos para receber uma nova proposta.</p><p><a class="btn ghost" href="mailto:${COMPANY.email}">${COMPANY.email}</a></p></section>`), { status: 404, headers: HTML });
   const { row, group } = found, q: any = row.document;
-  const [answer, siblings, empresa, views] = await Promise.all([
+  const [answer, siblings, empresa, views, works] = await Promise.all([
     lastAnswer(row.id),
     group ? store.get('grupo-' + group, { type: 'json' }) : null,
     empresaOf(store),
     db.select().from(quoteEvents).where(and(eq(quoteEvents.quoteId, row.id), eq(quoteEvents.kind, 'visto'))),
+    getPortfolio(store).catch(() => []),
   ]);
   let others: any[] = [];
   const ids = ((siblings as any[]) || []).filter(s => s.quote !== row.id).map(s => s.quote);
@@ -152,7 +154,7 @@ export async function handleProposta(req: Request, token: string, store: any) {
     const rows = await db.select().from(quotes).where(inArray(quotes.id, ids));
     others = ((siblings as any[]) || []).map(s => ({ ...s, row: rows.find((r: any) => r.id === s.quote) })).filter(s => s.row);
   }
-  return new Response(page('Proposta ' + quoteNumber(row.id, q.date) + ' · ' + COMPANY.name, body(token, row, answer, others, empresa, (views as any[]).length)), { headers: HTML });
+  return new Response(page('Proposta ' + quoteNumber(row.id, q.date) + ' · ' + COMPANY.name, body(token, row, answer, others, empresa, (views as any[]).length, works as any[])), { headers: HTML });
 }
 
 const HTML = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer' };
@@ -178,7 +180,7 @@ const OPTIONS: [string, string, string][] = [
   ['nao', 'Ainda não vou avançar', 'Diga-nos porquê, ajuda-nos a melhorar'],
 ];
 
-function body(token: string, row: any, answer: any, others: any[], e: any, views: number) {
+function body(token: string, row: any, answer: any, others: any[], e: any, views: number, works: any[] = []) {
   const q = row.document, number = quoteNumber(row.id, q.date), total = G.quoteTotals(q).total, until = expires(q), half = Math.round(total * 50) / 100;
   const expired = new Date().toISOString().slice(0, 10) > until;
   const c = e.contacto || {}, person = c.nome || COMPANY.contact, role = c.cargo || COMPANY.role, tel = String(c.telefone || '').trim(), wa = waNumber(tel);
@@ -203,6 +205,10 @@ function body(token: string, row: any, answer: any, others: any[], e: any, views
  <ul class="creds">${creds.map((x: any) => `<li>${icon('shield')}<span><b>${esc(x.nome)}</b><small>${esc(x.numero)}</small></span></li>`).join('')}<li>${icon('shield')}<span><b>Garantia de ${esc(gEquip)} nos equipamentos</b><small>e ${esc(gInst)} na instalação, por escrito na proposta</small></span></li></ul>
  ${e.equipaFoto ? `<img class="team" src="${img(e.equipaFoto)}" alt="A equipa da Enat" loading="lazy">` : ''}
  ${e.google?.link ? `<a class="link" href="${esc(e.google.link)}" target="_blank" rel="noopener">${icon('star')}Ver as opiniões dos nossos clientes no Google</a>` : ''}</section>`;
+
+  // 2b. Local proof: finished jobs near the client, with the client's consent (type of work, town and month only).
+  const near = nearby(works, q.address, q.topics || []);
+  const proof = near.items.length ? `<section class="card" id="obras"><h2>${esc(near.title)}</h2><div class="works">${near.items.map((w: any) => `<figure><div class="shots${w.fotos.length > 1 ? ' many' : ''}">${w.fotos.map((f: string) => `<img src="${img(f)}" alt="${esc(w.titulo)} em ${esc(w.local)}" loading="lazy">`).join('')}</div><figcaption><b>${esc(w.titulo)}</b><small>${esc(w.local)}${w.mes ? ' · ' + esc(monthLabel(w.mes)) : ''}</small></figcaption></figure>`).join('')}</div></section>` : '';
 
   // 3. What the client gains and what is included, before any figure.
   const benefits: string[][] = G.EnatSolucoes.benefits(q.topics);
@@ -236,6 +242,7 @@ ${back}
  ${contactCard}
 </section>
 ${trust}
+${proof}
 ${value}
 ${price}
 ${list}
@@ -352,6 +359,7 @@ ul.creds,ul.benefits,ul.incl,ul.kit,ul.steps{list-style:none;margin:0;padding:0;
 .kit li{display:flex;justify-content:space-between;gap:10px;font-size:14.5px;padding-bottom:8px;border-bottom:1px solid var(--line)}.kit em{font-style:normal;color:var(--mute);white-space:nowrap}
 .steps li{display:flex;justify-content:space-between;gap:10px;font-size:15px}.steps span{font-variant-numeric:tabular-nums}.price .muted{margin:14px 0}
 .team{display:block;width:100%;border-radius:16px;margin-top:14px;aspect-ratio:16/10;object-fit:cover}
+.works{display:grid;gap:16px}.works figure{margin:0}.shots{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;border-radius:14px;scrollbar-width:none}.shots::-webkit-scrollbar{display:none}.shots img{flex:0 0 100%;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;scroll-snap-align:start}.shots.many img{flex-basis:85%;width:85%}.works figcaption{padding:8px 2px 0}.works figcaption b{display:block;font-size:15px;font-weight:600}.works figcaption small{color:var(--mute);font-size:13.5px}
 .link{display:inline-flex;align-items:center;gap:6px;margin-top:14px;color:var(--blue);font-weight:600;font-size:15px;text-decoration:none;background:none;border:0;padding:0;cursor:pointer;font-family:inherit}.link svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
 .options{display:grid;gap:8px}
 .opt{display:flex;align-items:center;gap:14px;text-align:left;width:100%;background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:12px 14px;font:inherit;color:var(--ink);cursor:pointer;transition:border-color .15s,background .15s,transform .12s;-webkit-tap-highlight-color:transparent}.opt:active{transform:scale(.99)}

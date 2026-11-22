@@ -98,6 +98,9 @@ nav button.on{color:var(--blue)}
 <script src="/solucoes.js?v=20261122"></script>
 <script src="/quotes.js?v=20261123"></script>
 <script src="/empresa.js?v=20261123"></script>
+<script src="/portfolio.js?v=20261123"></script>
+<script src="/pedido-perguntas.js?v=20261123"></script>
+<script src="/pedido.js?v=20261123"></script>
 <script src="/quote-ai.js?v=20261114"></script>
 <script src="/leads.js?v=20261109"></script>
 <script src="/push.js?v=20261109"></script>
@@ -303,11 +306,12 @@ function vObra(){
  else if(V.seg==='faturas')body=`<h2>Faturas desta obra</h2><div class="grp">${c.t.filter(x=>x.type==='fatura').length?srt(c.t.filter(x=>x.type==='fatura')).map(x=>invOf(x.id)?invRow(invOf(x.id)):txRow(x)).join(''):'<div class="empty">Ainda sem faturas nesta obra. Adicione a primeira por foto ou PDF.</div>'}${kv('Total de faturas c/ IVA',eur(c.ft),'tot')}</div><button class="btn" data-a="scan" data-o="${o.id}">${ic('cam')}Adicionar fatura por foto ou PDF</button>`;
  else if(V.seg==='recebimentos')body=`<h2>Recebimentos desta obra</h2><div class="grp">${c.t.some(x=>x.type==='recebimento')?srt(c.t.filter(x=>x.type==='recebimento')).map(x=>txRow(x)).join(''):'<div class="empty">Ainda sem recebimentos nesta obra.</div>'}${kv('Total recebido',eur(c.rec),'tot')}${kv('Por receber',eur(c.porRec))}</div><button class="btn" data-a="newtx" data-t="recebimento" data-o="${o.id}">Adicionar recebimento</button>${planHtml(c)}`;
  else if(V.seg==='mao_obra')body=`<h2>Mão de obra por tópico</h2><div class="grp">${c.t.some(x=>x.type==='mao_obra')?srt(c.t.filter(x=>x.type==='mao_obra')).map(x=>txRow(x)).join(''):'<div class="empty">Adicione a mão de obra de cada tópico desta obra.</div>'}${kv('Custo de mão de obra s/ IVA',eur(c.mo))}${kv('IVA da mão de obra',eur(c.mi))}${kv('Total pago de mão de obra',eur(c.mt),'tot')}</div><button class="btn" data-a="newtx" data-t="mao_obra" data-o="${o.id}">Adicionar mão de obra</button>`;
+ else if(V.seg==='fotos'&&typeof pfSection==='function')body=pfSection(o);
  else if(V.seg==='mov')body=`<div style="height:12px"></div><div class="grp">${c.t.length?srt(c.t).map(x=>txRow(x)).join(''):'<div class="empty">Sem movimentos nesta obra.</div>'}</div>`;
  else body=`<h2>Acerto de IVA</h2><div class="grp">${kv('IVA cobrado ao cliente',eur(c.ivaLiq))}${kv('IVA suportado nas faturas',eur(-c.fi))}${kv(c.ivaEst>=0?'A entregar ao Estado':'Crédito de IVA',sg(c.ivaEst),'tot')}</div>
  <p class="note">Valor sem IVA da obra ${eur(c.base)}. Depois de pagar fornecedores e entregar o IVA, o líquido previsto é ${eur(c.lucro)}.</p>`;
  return`<button class="back" data-a="back">${ic('back')}Obras</button><h1 style="margin-top:2px">${esc(o.name)}</h1><div class="sub" style="margin:-8px 0 14px">${esc(o.client)} · ${STAT[o.status]}</div>${hero(c,'Lucro previsto da obra')}${acts(o.id)}
- <div class="seg obra-seg">${[['contas','Contas'],['recebimentos','Recebimentos'],['faturas','Faturas'],['mao_obra','Mão de obra'],['mov','Movimentos'],['iva','IVA']].map(([k,l])=>`<button class="${V.seg===k?'on':''}" data-a="seg" data-id="${k}">${l}</button>`).join('')}</div>${body}`;
+ <div class="seg obra-seg">${[['contas','Contas'],['recebimentos','Recebimentos'],['faturas','Faturas'],['mao_obra','Mão de obra'],['mov','Movimentos'],['iva','IVA'],['fotos','Fotos']].map(([k,l])=>`<button class="${V.seg===k?'on':''}" data-a="seg" data-id="${k}">${l}</button>`).join('')}</div>${body}`;
 }
 
 /* ---------- materiais, manutenção, leitura de faturas ---------- */
@@ -624,8 +628,10 @@ document.addEventListener('click',async e=>{
   // Mantém os dados que não estão no formulário, como o orçamento de origem e os custos previstos.
   const old=S.obras.find(y=>y.id===D.id)||{};
   const o={...old,id:D.id||uid(),name:D.name.trim(),client:(D.client||'').trim()||'Sem cliente',status:D.status||'em_curso',valor:num(D.valor),phone:D.phone||'',email:(D.email||'').trim(),nif:(D.nif||'').trim(),address:(D.address||'').trim(),done:D.done||'',equip:D.equip||[],plano};
-  const i=S.obras.findIndex(y=>y.id===o.id);i<0?S.obras.push(o):S.obras[i]=o;save();D=null;sheet()}
- else if(a==='delobra'){if(!confirm('Eliminar a obra e todos os seus movimentos?'))return;S.obras=S.obras.filter(o=>o.id!==D.id);S.tx=S.tx.filter(x=>x.obra!==D.id);S.inv=S.inv.filter(v=>v.obra!==D.id);V.obra=null;save();D=null;sheet()}
+  const i=S.obras.findIndex(y=>y.id===o.id);i<0?S.obras.push(o):S.obras[i]=o;save();D=null;sheet();
+  // A obra com fotos passa a aparecer (ou deixa de aparecer) nas propostas quando muda de estado.
+  if(o.port?.fotos?.length&&typeof pfPublish==='function')pfPublish().catch(()=>{})}
+ else if(a==='delobra'){if(!confirm('Eliminar a obra e todos os seus movimentos?'))return;S.obras=S.obras.filter(o=>o.id!==D.id);S.tx=S.tx.filter(x=>x.obra!==D.id);S.inv=S.inv.filter(v=>v.obra!==D.id);V.obra=null;save();if(D.port?.fotos?.length&&typeof pfPublish==='function')pfPublish().catch(()=>{});D=null;sheet()}
  else if(a==='of')V.of=id;
  else if(a==='oy')V.oy=id;
  else if(a==='per')V.per=id;
@@ -720,7 +726,7 @@ async function sendState(tries=3){
 }
 const push=()=>{clearTimeout(pt);setSync('saving');pt=setTimeout(()=>sendState().catch(()=>setSync('off')),900)};
 async function pull(){if(OFFLINE)return;try{const r=await API('estado');if(r.status===401)return setSync('off');const d=await r.json();
- try{pullState(d)}finally{if(leadInbox(d.inbox)){save();if(idle())render()}}
+ try{pullState(d)}finally{if(leadInbox(d.inbox)){save();if(idle())render()}if(typeof pedidosPull==='function')pedidosPull().catch(()=>{})}
 }catch(e){setSync('off')}}
 function pullState(d){
  if(!d.state){if(S.obras.length||S.tx.length)push();else{SYNCAT=Date.now();setSync('ok')}return}

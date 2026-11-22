@@ -234,9 +234,15 @@ test('lead questionnaire: link buttons on the lead, and answers fill empty field
  run("V.tab='leads';leadOpen('L1')");const html=run('leadEditor()');
  assert.match(html,/Pedir detalhes ao cliente/);assert.match(html,/Enviar por WhatsApp/);assert.match(html,/Enviar por email/);
  assert.match(run("pedText(S.leads[0],'https://x/pedido/abc')"),/Olá Maria, sou João Lima, da Enat[\s\S]*2 minutos[\s\S]*https:\/\/x\/pedido\/abc/);
- run("pedApply(S.leads[0],{sol:['Ar condicionado'],a:{ac_div:'3',ac_area:'30 a 60 m²',casa:'Moradia',prazo:'Dentro de 1 mês'},gama:'media',morada:'Rua 1',cp:'4990-062',local:'Ponte de Lima',notas:'',fotos:[],at:1})");
+ run("pedApply(S.leads[0],{sol:['Ar condicionado'],a:{ac_div:'2',ac_rooms:[{t:'Sala',m2:30},{t:'Quarto',m2:12}],casa:'Moradia',prazo:'Dentro de 1 mês'},gama:'media',morada:'Rua 1',cp:'4990-062',local:'Ponte de Lima',notas:'',fotos:[],at:1})");
  const l=JSON.parse(run('JSON.stringify(S.leads[0])'));
  assert.equal(l.address,'Rua 1, 4990-062 Ponte de Lima');assert.deepEqual(l.solutions,['VMC','Ar condicionado']);assert.equal(l.house,'Moradia');
- assert.equal(l.timing,'Já escrito','does not overwrite what was typed');assert.equal(l.area,'30 a 60 m²');assert.equal(l.stage,'triagem');
+ assert.equal(l.timing,'Já escrito','does not overwrite what was typed');assert.equal(l.area,'Sala 30 m², Quarto 12 m²');assert.equal(l.stage,'triagem');
  run("leadOpen('L1')");const after=run('leadEditor()');assert.match(after,/Respondeu a/);assert.match(after,/Gama preferida/);assert.match(after,/Equilíbrio/);
+});
+
+test('lead shows the suggested equipment calculated from the client answers',()=>{
+ const {run}=app({...state,leads:[{id:'L2',name:'Rui',stage:'triagem',solutions:['Ar condicionado'],calls:[],pedido:{resp:{sol:['Ar condicionado'],a:{},gama:'',morada:'',cp:'',local:'',notas:'',fotos:[],at:1},sug:[{titulo:'Ar condicionado',linhas:['Sala (30 m²): 3,5 kW · 12 000 BTU'],nota:'Carga por divisão'}]}}]});
+ run("V.tab='leads';leadOpen('L2')");const html=run('leadEditor()');
+ assert.match(html,/Equipamentos sugeridos/);assert.match(html,/12 000 BTU/);assert.match(html,/primeira estimativa/);
 });

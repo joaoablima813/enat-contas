@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
+import * as portfolio from '../netlify/lib/portfolio.mjs';
 const read=f=>readFileSync(new URL('../'+f,import.meta.url),'utf8');
 const ts=f=>stripTypeScriptTypes(read(f).replace(/^import .*;\n/gm,'').replace(/^export /gm,''));
 const sample={client:'Família Araújo',address:'Rua da Instalação, 12',contact:'912 345 678',email:'a@b.pt',date:new Date().toISOString().slice(0,10),topics:['Ar condicionado'],brand:'LG',margin:20,vat:23,warranty:'3 anos',status:'enviado',validity:30,lines:[{kind:'Equipamento',description:'Unidade',value:1000,quantity:1,unit:'un.'},{kind:'Mão de obra',description:'Montagem',value:200,quantity:1,unit:'un.'}]};
@@ -27,7 +28,7 @@ function blobs(){const m=new Map();return {m,set:async(k,v,o)=>m.set(k,{data:v,m
 function server(){
  const f=fakeDb(),store=blobs();
  // Each server module runs in its own context, sharing the same database and blob store.
- const ctx=()=>vm.createContext({...f,Response,URL,Buffer,Headers,console,structuredClone,randomBytes:k=>Buffer.alloc(k,++n),process:{env:{}},store});
+ const ctx=()=>vm.createContext({...f,...portfolio,Response,URL,Buffer,Headers,console,structuredClone,randomBytes:k=>Buffer.alloc(k,++n),process:{env:{}},store});
  const c=ctx(),w=ctx(),q=ctx();
  for(const p of ['public/quote-math.js','public/gestao.js','public/quote-obra.js','public/solucoes.js'])vm.runInContext(read(p),c);
  vm.runInContext(ts('netlify/lib/proposta.ts'),c);vm.runInContext(ts('netlify/lib/whatsapp.ts'),w);vm.runInContext(ts('netlify/lib/quotes.ts'),q);
@@ -142,4 +143,13 @@ test('a returning client without an answer is asked again, first thing on the pa
  assert.match(await (await s.call(token)).text(),/id="welcome"/);
  await s.call(token,'POST',{kind:'pensar'});
  assert.doesNotMatch(await (await s.call(token)).text(),/id="welcome"/);
+});
+
+test('finished jobs near the client appear before the price, without client names, and only with consent',async()=>{
+ const s=server();s.f.tables.quotes.push({id:11,document:{...sample,address:'Rua da Igreja 12, 4990-062 Ponte de Lima'}});const token=await s.send(11);
+ await s.store.setJSON('portfolio',[{id:'o1',tipo:'Ar condicionado',titulo:'Ar condicionado em moradia',local:'Ponte de Lima',cp:'4990',mes:'2026-05',fotos:['abcdefgh1'],ok:true},{id:'o2',tipo:'VMC',titulo:'Obra secreta',local:'Ponte de Lima',cp:'4990',mes:'2026-06',fotos:['abcdefgh2'],ok:false}]);
+ const html=await (await s.call(token)).text();
+ assert.match(html,/Obras que fizemos perto de si/);assert.match(html,/Ar condicionado em moradia/);assert.match(html,/maio de 2026/);
+ assert.match(html,new RegExp('/proposta/'+token+'/img/abcdefgh1'));assert.doesNotMatch(html,/Obra secreta|abcdefgh2/);
+ assert.ok(html.indexOf('perto de si')<html.indexOf('O seu investimento'));
 });

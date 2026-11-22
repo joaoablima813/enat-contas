@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -216,4 +216,15 @@ test('company screen: blank profile suggests credentials to fill, and the quote 
  const t=run("quoteTerms({validity:30}).join('|')");
  assert.match(t,/Garantia dos equipamentos: 5 anos/);assert.match(t,/disponível a partir da semana de 2 de março/);assert.doesNotMatch(t,/DGEG: n\.º 77/);assert.doesNotMatch(t,/Sem n\.º/);
  assert.match(run("quoteWaText([{client:'Rui',id:1,date:'2026-11-22',topics:['VMC'],brand:'',lines:[],validity:15}],['https://x/1'])"),/Sou Ana Reis, da Enat[\s\S]*Ana Reis\nEnat/);
+});
+
+test('job photos screen: prefilled town and postcode, and only finished jobs with consent are published as visible',()=>{
+ const {run}=app({...state,obras:[...state.obras,{id:'o3',name:'AC',client:'Rui',status:'concluida',address:'Rua Nova 5, 4990-062 Ponte de Lima'}]});
+ run("V.tab='obras';V.obra='o3';V.seg='fotos'");const html=run('vObra()');
+ assert.match(html,/Fotos para as propostas/);assert.match(html,/O cliente autorizou/);
+ run("pfStart(S.obras[2])");assert.equal(run('S.obras[2].port.local'),'Ponte de Lima');assert.equal(run('S.obras[2].port.cp'),'4990');
+ run("Object.assign(S.obras[2].port,{fotos:['abcdefgh1'],titulo:'AC em moradia',ok:true});S.obras[0].port={fotos:['abcdefgh2'],titulo:'x',local:'y',ok:true}");
+ const pub=JSON.parse(run('JSON.stringify(pfPublic())'));
+ assert.deepEqual(pub.map(w=>[w.id,w.ok]),[['o1',false],['o3',true]],'a job still in progress is not shown yet');
+ assert.ok(!JSON.stringify(pub).includes('Rui')&&!JSON.stringify(pub).includes('Rua Nova'),'no client name or address');
 });

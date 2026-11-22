@@ -26,9 +26,9 @@ test('client folder lets the user pick only that client\'s quotes for WhatsApp',
 test('message lists every selected quote with its link and a professional sign-off',()=>{
  const c=browser();
  const one=vm.runInContext("quoteWaText([{...sample,id:42}],['https://x/api/pdf/a'])",c);
- assert.match(one,/Segue o orçamento ORC 2026\/0042, referente a Ar condicionado LG, no valor total de \*147\.60 €\*/);assert.match(one,/:\nhttps:\/\/x\/api\/pdf\/a/);assert.match(one,/A proposta é válida por 15 dias/);assert.match(one,/João Lima\nEnat - Ponte de Lima$/);
+ assert.match(one,/preparei a proposta ORC 2026\/0042 para Ar condicionado LG\./);assert.doesNotMatch(one,/147/,'the price is on the proposal page, not in the message');assert.match(one,/responda no próprio link, com um toque/);assert.match(one,/:\nhttps:\/\/x\/api\/pdf\/a/);assert.match(one,/A proposta é válida por 15 dias/);assert.match(one,/João Lima\nEnat - Ponte de Lima$/);
  const many=vm.runInContext("quoteWaText([{...sample,id:42},{...sample,id:43}],['https://x/1','https://x/2'])",c);
- assert.match(many,/Seguem os orçamentos/);assert.match(many,/\*ORC 2026\/0042\*.*\nhttps:\/\/x\/1/);assert.match(many,/\*ORC 2026\/0043\*.*\nhttps:\/\/x\/2/);assert.match(many,/As propostas são válidas/);
+ assert.match(many,/preparei as propostas que pediu/);assert.doesNotMatch(many,/€/);assert.match(many,/\*ORC 2026\/0042\*.*\nhttps:\/\/x\/1/);assert.match(many,/\*ORC 2026\/0043\*.*\nhttps:\/\/x\/2/);assert.match(many,/As propostas são válidas/);
 });
 
 test('server stores the PDF behind a private link that serves it back',async()=>{

@@ -29,6 +29,28 @@
   ['desmontagem','Desmontagem e remoção de equipamento antigo','un.'],
   ['deslocacao','Deslocação','serviço'],
  ].map(([id,nome,unidade])=>({id,nome,unidade,preco:0}));
+ // Onde procurar cada produto. Material, acessórios, cabos e tubos: sempre nos catálogos da Sanipower e da Sanitop.
+ // Equipamentos: conforme a gama pedida pelo cliente (o utilizador pode mudar estas listas na caixa da IA).
+ const SOURCES={preco:'Sanipower, Ekallor',media:'LG, Ekallor, Sanipower',qualidade:'Daikin, LG',material:'Sanipower, Sanitop'};
+ const sources=()=>({...SOURCES,...(S.iaFontes||{})});
+ const names=v=>String(v||'').split(/[,;]/).map(x=>quoteNorm(x)).filter(Boolean);
+ const tableName=t=>quoteNorm(t.supplier||t.brand||'');
+ // Índices das tabelas onde se pode procurar esta linha (null = todas).
+ function allowed(categoria,gama,tables=quoteTables()){
+  const want=categoria==='Equipamento'?(gama?names(sources()[gama]):null):names(sources().material);
+  if(!want||!want.length)return null;
+  return new Set(tables.map((t,i)=>[t,i]).filter(([t])=>!t.invoices&&want.some(w=>tableName(t).includes(w))).map(([,i])=>i));
+ }
+ // O mesmo material com outros nomes nos catálogos (a procura tenta também estas variantes).
+ const SYN={
+  multicamada:['multicapa','pex-al-pex','pert-al-pert'],isolamento:['coquilha','isolante','armaflex'],coquilha:['isolamento'],
+  'pre-isolado':['isolado'],preisolado:['isolado'],cobre:['frigorifico'],calha:['canaleta'],'passa':['passamuros'],
+  condensados:['condensado','drenagem'],disjuntor:['magnetotermico'],antivibraticos:['antivibratico','amortecedores','silentblock'],antivibratico:['amortecedor','silentblock'],
+  suporte:['consola','mensula'],inibidor:['protetor','aditivo'],dieletrico:['dieletrica','isolante'],manguito:['uniao','casquilho'],
+  esfera:['passagem'],valvula:['valv','torneira'],tubo:['tubagem'],vaso:['vaso'],expansao:['expansao'],purgador:['purgador'],
+  interligacao:['comando','sinal'],alimentacao:['energia'],flexivel:['flexiveis','mangueira'],termostato:['cronotermostato'],
+ };
+ const variants=ws=>{const out=[ws];ws.forEach((w,i)=>(SYN[w]||[]).forEach(v=>{if(out.length<8)out.push([...ws.slice(0,i),...v.split(' '),...ws.slice(i+1)])}));return out};
  const st=root.QUOTE_AI={busy:false,phase:'',error:'',labour:false,draft:null};
  const labour=()=>Array.isArray(S.maoObra)&&S.maoObra.length?S.maoObra:LABOUR.map(x=>({...x}));
  const n2=n=>String(Math.round(n*100)/100).replace('.',',');
@@ -48,12 +70,12 @@
  const text=q=>q.ai?.texto??leadText(q);
 
  // Procura local: todas as tabelas, catálogos e faturas, com os termos de pesquisa da IA.
- const words=s=>quoteNorm(String(s||'').replace(/(\d),(\d)/g,'$1.$2')).split(/[\s"']+/).filter(w=>w&&!['de','do','da','para','com','p/','e','c/'].includes(w));
+ const words=s=>quoteNorm(String(s||'').replace(/(\d),(\d)/g,'$1.$2').replace(/(\d)\s*[x×]\s*(\d)/gi,'$1x$2').replace(/(\d)\s*"/g,'$1')).split(/[\s"']+/).filter(w=>w&&!['de','do','da','para','com','p/','e','c/'].includes(w));
  const HAY=new WeakMap();
  // Condições do servidor (medidas, potência, secção): expressões que o nome do produto tem de cumprir.
  const RX=new Map();
  const rx=ex=>(Array.isArray(ex)?ex:[]).map(g=>(Array.isArray(g)?g:[g]).map(src=>{let r=RX.get(src);if(r===undefined){try{r=new RegExp(src,'i')}catch{r=null}RX.set(src,r)}return r}).filter(Boolean)).filter(g=>g.length);
- function hay(t,p){let h=HAY.get(p);if(h===undefined){h=quoteNorm([t.invoices?'fatura':t.brand,p.maker,p.ref,p.name,...p.group].join(' ')).replace(/(\d),(\d)/g,'$1.$2');HAY.set(p,h)}return h}
+ function hay(t,p){let h=HAY.get(p);if(h===undefined){h=quoteNorm([t.invoices?'fatura':t.brand,p.maker,p.ref,p.name,...p.group].join(' ')).replace(/(\d),(\d)/g,'$1.$2').replace(/(\d)\s*[x×]\s*(\d)/gi,'$1x$2').replace(/(\d)\s*"/g,'$1');HAY.set(p,h)}return h}
  // Índice de texto por tabela: todos os nomes num só texto, para encontrar cada palavra de uma vez (rápido no telemóvel).
  const IDX=new WeakMap();
  function index(t){
@@ -67,18 +89,19 @@
   for(let i=x.big.indexOf(w);i>=0;){let lo=0,hi=o.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(o[m]<=i)lo=m;else hi=m-1}out.add(lo);const next=lo+1<o.length?o[lo+1]:x.big.length;i=x.big.indexOf(w,Math.max(i+1,next))}
   if(x.hits.size>3000)x.hits.clear();x.hits.set(w,out);return out;
  }
- function search(item,brand,tables=quoteTables()){
-  const qs=[...(item.pesquisa||[]),item.descricao].map(words).filter(w=>w.length),b=quoteNorm(brand),found=[];
+ function search(item,brand,tables=quoteTables(),only=null){
+  const qs=[...(item.pesquisa||[]),item.descricao].map(words).filter(w=>w.length).flatMap(variants),b=quoteNorm(brand),found=[];
   if(!qs.length)return [];
   const ex=rx(item.exige);
   tables.forEach((t,ti)=>{
+   if(only&&!only.has(ti))return;
    const x=index(t),best=new Map();
    qs.forEach((ws,k)=>{
     const cnt=new Map();for(const w of new Set(ws))for(const pi of hits(x,w))cnt.set(pi,(cnt.get(pi)||0)+ws.filter(v=>v===w).length);
     for(const [pi,m] of cnt){if(m<Math.min(2,ws.length))continue;const r=m/ws.length-(k?0.03*k:0);if(r>(best.get(pi)||0))best.set(pi,r)}
    });
    for(const [pi,v] of best){
-    if(v<0.6)continue;
+    if(v<0.5)continue;
     const p=t.products[pi],h=hay(t,p),ok=ex.length?ex.every(g=>g.some(r=>r.test(h))):null;
     let s=v;if(ok)s+=0.25;else if(ok===false)s-=0.1;if(b&&item.categoria==='Equipamento'&&h.includes(b))s+=0.2;if(item.tipologia&&p.group[0]===item.tipologia)s+=0.05;if(t.invoices)s+=0.03;if(p.est)s-=0.02;if(t.live&&p.stock===0)s-=0.05;
     found.push({ti,pi,s,ok});
@@ -86,9 +109,16 @@
   });
   found.sort((x,y)=>y.s-x.s);
   const seen=new Set(),out=[];
-  for(const f of found){const t=tables[f.ti],p=t.products[f.pi],k=quoteNorm(p.name+'|'+(p.ref||''));if(seen.has(k))continue;seen.add(k);out.push(f);if(out.length>=8)break}
+  for(const f of found){const t=tables[f.ti],p=t.products[f.pi],k=quoteNorm(p.name+'|'+(p.ref||''));if(seen.has(k))continue;seen.add(k);out.push(f);if(out.length>=12)break}
   return out;
  }
+ const learnKey=(it,gama)=>(it.categoria==='Equipamento'?(gama||'')+'|':'')+quoteNorm(String(it.descricao||'').replace(/\s+(LG|Daikin|Ekallor|Mitsubishi|Fujitsu|Toshiba|Panasonic|Samsung|Midea|Haier|Gree|Hisense)$/i,''));
+ function learned(key,tables=quoteTables()){
+  const m=(S.iaAprendido||{})[key];if(!m)return null;
+  for(let ti=0;ti<tables.length;ti++){const t=tables[ti];if(tableName(t)!==m.src)continue;const pi=t.products.findIndex(p=>(m.ref&&p.ref===m.ref)||(!m.ref&&p.name===m.name));if(pi>=0)return {ti,pi,s:2,ok:true}}
+  return null;
+ }
+ root.quoteAiLearn=(line,t,p)=>{if(!line?.aiKey||!t||!p)return;S.iaAprendido={...(S.iaAprendido||{}),[line.aiKey]:{src:tableName(t),ref:p.ref||'',name:p.name}};if(typeof save==='function')save()};
  const candidate=(t,p)=>({nome:p.name+(p.model&&!String(p.name).includes(p.model)?' – '+p.model:''),ref:p.ref||'',marca:t.invoices?'(última fatura)':t.live?p.maker||'':t.brand,grupo:p.group.join(' › '),preco:priceNet(t,p)});
 
  // Pedido direto ao servidor (responde em poucos segundos), com limite de tempo.
@@ -113,17 +143,16 @@
  const statusHtml=()=>st.busy?`<p class="note qai-busy"><span class="qai-spin"></span>${esc(st.phase||'A trabalhar…')}</p>`:st.error?`<p class="note neg">${esc(st.error)}</p>`:'';
 
  // Linhas do orçamento a partir do plano e das escolhas: preço das tabelas ou da mão de obra; o resto fica "sem preço".
- function buildLines(plan,picks,found,rates){
-  const tables=quoteTables(),lines=[],live=[];
+ function buildLines(plan,picks,found,rates,gama=''){
+  const tables=quoteTables(),lines=[],live=[],works=[];
   for(const it of plan.itens){
-   if(it.categoria==='Mão de obra'){
-    const r=rates.find(x=>x.id===it.mao_obra),v=it.preco_indicado??(r&&Number(r.preco)>0?Number(r.preco):0);
-    lines.push({kind:'Mão de obra',description:it.descricao,quantity:it.quantidade,unit:r?.unidade&&!it.preco_indicado?r.unidade:it.unidade,value:v,...(v?{}:{semPreco:true})});continue;
-   }
+   if(it.categoria==='Mão de obra'){works.push(it);continue}
    const e=picks[it.id],c=e&&e.candidato!=null?found[it.id]?.[e.candidato]:null;
-   if(c){const t=tables[c.ti],p=t.products[c.pi],l=quoteCatalogLine(t,p);l.kind=it.categoria;l.quantity=e.quantidade||it.quantidade;if(e.unidade)l.unit=e.unidade;else if(l.unit==='un.'&&it.unidade!=='un.'&&/\b(ml|metro|ao metro|\/m)\b/i.test(p.name))l.unit=it.unidade;lines.push(l);if(t.live)live.push([t,p,l]);continue}
-   lines.push({kind:it.categoria,description:it.descricao+(it.especificacao&&!it.descricao.includes(it.especificacao)?' – '+it.especificacao:''),quantity:it.quantidade,unit:it.unidade,value:it.preco_indicado||0,...(it.preco_indicado?{}:{semPreco:true})});
+   if(c){const t=tables[c.ti],p=t.products[c.pi],l=quoteCatalogLine(t,p);l.kind=it.categoria;l.aiKey=learnKey(it,gama);l.quantity=e.quantidade||it.quantidade;if(e.unidade)l.unit=e.unidade;else if(l.unit==='un.'&&it.unidade!=='un.'&&/\b(ml|metro|ao metro|\/m)\b/i.test(p.name))l.unit=it.unidade;lines.push(l);if(t.live)live.push([t,p,l]);continue}
+   lines.push({kind:it.categoria,description:it.descricao+(it.especificacao&&!it.descricao.includes(it.especificacao)?' – '+it.especificacao:''),quantity:it.quantidade,unit:it.unidade,value:it.preco_indicado||0,aiKey:learnKey(it,gama),...(it.preco_indicado?{}:{semPreco:true})});
   }
+  // Uma única linha de mão de obra, a última, para o utilizador pôr o valor que entender.
+  if(works.length){const fmt=x=>String(Math.round(x*100)/100).replace('.',',');const list=works.map(w=>(w.quantidade&&w.quantidade!==1?fmt(w.quantidade)+' '+(w.unidade||'')+' ':'')+w.descricao.replace(/^Instalação de /,'instalação de ')).join('; ');lines.push({kind:'Mão de obra',description:('Mão de obra de instalação: '+list).slice(0,1500),quantity:1,unit:'serviço',value:0,semPreco:true})}
   return {lines,live};
  }
 
@@ -141,7 +170,12 @@
    if(quoteDraft!==q)return;
    st.phase='A procurar os produtos nas tabelas de preços…';paint();
    const found={},items=[],picks={};
-   for(const it of plan.itens){if(it.categoria==='Mão de obra')continue;await new Promise(r=>setTimeout(r,0));const f=search(it,q.brand||plan.marca);found[it.id]=f;const a=autoPick(it,f,gama,f.map(c=>{const t=quoteTables()[c.ti];return priceNet(t,t.products[c.pi])}));if(a)picks[it.id]=a;if(f.length)items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
+   const missing=new Set();
+   for(const it of plan.itens){if(it.categoria==='Mão de obra')continue;await new Promise(r=>setTimeout(r,0));
+    const only=allowed(it.categoria,gama);if(only&&!only.size)missing.add(it.categoria==='Equipamento'?sources()[gama]:sources().material);
+    const hit=learned(learnKey(it,gama));if(hit){found[it.id]=[hit];picks[it.id]={id:it.id,candidato:0,quantidade:null,unidade:null};continue}
+    // Com gama, a marca escrita no pedido não se sobrepõe aos fornecedores da gama.
+    const f=search(it,gama&&it.categoria==='Equipamento'?q.brand:(q.brand||plan.marca),quoteTables(),only);found[it.id]=f;const a=autoPick(it,f,gama,f.map(c=>{const t=quoteTables()[c.ti];return priceNet(t,t.products[c.pi])}));if(a)picks[it.id]=a;if(f.length&&!picks[it.id])items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
    if(items.length){
     st.phase='A escolher os produtos certos…';paint();
     // Se a IA falhar ou demorar, ficam as escolhas locais.
@@ -149,12 +183,12 @@
     catch(e){console.warn('escolha local',e.message)}
    }
    if(quoteDraft!==q)return;
-   const {lines,live}=buildLines(plan,picks,found,rates);
+   const {lines,live}=buildLines(plan,picks,found,rates,gama);
    q.lines=mode==='replace'?lines:[...q.lines.filter(l=>!quoteLineBlank(l)),...lines];
    q.topics=[...new Set([...q.topics,...plan.tipologias])];
    if(!String(q.brand||'').trim()&&plan.marca)q.brand=plan.marca;
-   const noPrice=lines.filter(l=>l.semPreco).length;
-   q.ai={texto,at:new Date().toISOString(),resumo:plan.resumo,dimensionamento:plan.dimensionamento,pressupostos:plan.pressupostos,perguntas:plan.perguntas,avisos:plan.avisos||[],verificacao:plan.verificacao,calculos:plan.calculos||[],linhas:lines.length,semPreco:noPrice};
+   const noPrice=lines.filter(l=>l.semPreco&&l.kind!=='Mão de obra').length;
+   q.ai={texto,at:new Date().toISOString(),gama,fontesEmFalta:[...missing],resumo:plan.resumo,dimensionamento:plan.dimensionamento,pressupostos:plan.pressupostos,perguntas:plan.perguntas,avisos:plan.avisos||[],verificacao:plan.verificacao,calculos:plan.calculos||[],linhas:lines.length,semPreco:noPrice};
    quoteEnsureBlank();
    st.phase='';
    // Os produtos dos fornecedores online são confirmados no site, como quando se escolhem à mão.
@@ -168,7 +202,9 @@
   if(!ai?.at)return '';
   const ok=(ai.verificacao||[]).filter(c=>c.estado==='incluido').length,na=(ai.verificacao||[]).filter(c=>c.estado!=='incluido');
   return `<div class="qai-result"><p><b>Orçamento preparado pela IA</b> · ${new Date(ai.at).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${ai.linhas} linhas</p>${ai.resumo?`<p>${esc(ai.resumo)}</p>`:''}
-  ${ai.semPreco?`<p class="qai-warn">${ai.semPreco} ${ai.semPreco===1?'linha ficou':'linhas ficaram'} sem preço (assinaladas a vermelho): o produto não está nas tabelas ou falta o valor na tabela de mão de obra. Indique o custo antes de enviar.</p>`:''}
+  ${(ai.fontesEmFalta||[]).length?`<p class="qai-warn">Não encontrei os catálogos de ${esc(ai.fontesEmFalta.join(' / '))} neste dispositivo. Abra Definições › Fornecedores para os atualizar e gere de novo.</p>`:''}
+  ${ai.semPreco?`<p class="qai-warn">${ai.semPreco} ${ai.semPreco===1?'linha ficou':'linhas ficaram'} sem preço (assinaladas a vermelho): não encontrei o produto nos fornecedores certos. Toque em «Escolher da tabela de preços» nessa linha: a app aprende e da próxima vez usa esse produto.</p>`:''}
+  <p class="note">A última linha é a mão de obra: indique o valor que entender.</p>
   ${list('Dimensionamento',(ai.dimensionamento||[]).map(d=>`<b>${esc(d.titulo)}</b> — ${esc(d.detalhe)}`))}
   ${list('Pressupostos (confirme na visita)',(ai.pressupostos||[]).map(esc))}
   ${list('A confirmar com o cliente',(ai.perguntas||[]).map(esc))}
@@ -178,12 +214,12 @@
   <p class="note">Reveja as linhas abaixo: pode alterar quantidades, trocar produtos ou apagar linhas como num orçamento normal.</p></div>`;
  }
  function labourHtml(){
-  const L=labour(),set=L.filter(x=>Number(x.preco)>0).length;
-  return `<details class="qai-labour" ${st.labour?'open':''} data-qi-toggle="labour"><summary>Preços de mão de obra (${set} de ${L.length} com valor)</summary><p class="note">Custo sem IVA por unidade. A IA usa estes valores em cada trabalho; se escrever um valor no pedido (ex.: «mão de obra do split 180 €») esse prevalece.</p>${L.map((m,i)=>`<div class="qai-rate"><input type="text" data-qi="rate-nome" data-i="${i}" value="${esc(m.nome)}" maxlength="120" aria-label="Trabalho"><select data-qi="rate-unidade" data-i="${i}" aria-label="Unidade">${UNITS.map(u=>`<option ${u===m.unidade?'selected':''}>${u}</option>`).join('')}</select><input type="number" data-qi="rate-preco" data-i="${i}" value="${Number(m.preco)>0?m.preco:''}" min="0" step="0.01" inputmode="decimal" placeholder="€" aria-label="Preço"><button type="button" class="link neg" data-qi="rate-del" data-i="${i}" aria-label="Remover">✕</button></div>`).join('')}<button type="button" class="link" data-qi="rate-add">+ Acrescentar trabalho</button><label class="q-field"><span>As suas regras (opcional)</span><textarea data-qi="regras" rows="3" maxlength="4000" placeholder="Ex.: por omissão 5 m de linha por split; exteriores sempre em suporte de parede; usar sempre bomba de condensados nos quartos">${esc(S.iaRegras||'')}</textarea></label></details>`;
+  const src=sources(),n=Object.keys(S.iaAprendido||{}).length;
+  return `<details class="qai-labour" ${st.labour?'open':''} data-qi-toggle="labour"><summary>Fornecedores e regras${n?' · '+n+' produto'+(n>1?'s':'')+' aprendido'+(n>1?'s':''):''}</summary><p class="note">Onde a IA vai buscar cada produto (nomes separados por vírgulas, como aparecem nas tabelas e catálogos).</p>${[['material','Material, acessórios, cabos e tubos'],['preco','Equipamentos · Melhor preço'],['media','Equipamentos · Equilíbrio'],['qualidade','Equipamentos · Máxima qualidade']].map(([k,t])=>`<label class="q-field"><span>${t}</span><input data-qi="fonte" data-k="${k}" value="${esc(src[k])}" maxlength="200"></label>`).join('')}${n?'<button type="button" class="link neg" data-qi="esquecer">Esquecer os produtos aprendidos</button>':''}<label class="q-field"><span>As suas regras (opcional)</span><textarea data-qi="regras" rows="3" maxlength="4000" placeholder="Ex.: por omissão 5 m de linha por split; exteriores sempre em suporte de parede; usar sempre bomba de condensados nos quartos">${esc(S.iaRegras||'')}</textarea></label></details>`;
  }
  root.aiSection=()=>{
   const q=quoteDraft;if(!q)return '';
-  return `<h2>Orçamento automático com IA</h2><div class="q-card qai" id="qai-card"><p class="note">Descreva a obra como a explicaria a um técnico: divisões e áreas, onde fica a unidade exterior, distâncias, distância ao quadro elétrico, o que o cliente quer. A IA dimensiona, escolhe os equipamentos e junta todo o material, acessórios e mão de obra com os preços das suas tabelas.</p><label class="q-field"><span>Pedido / notas da visita</span><textarea data-qi="texto" rows="6" maxlength="8000" placeholder="Ex.: Moradia T3 em Ponte de Lima, LG. Ar condicionado na sala (30 m², virada a sul) e nos 3 quartos (12, 12 e 10 m²). Multisplit com a exterior na varanda; linhas de 4, 7, 9 e 11 m. Quadro elétrico a 12 m. Sem esgoto nos quartos." ${st.busy?'disabled':''}>${esc(text(q))}</textarea></label><label class="q-field"><span>Gama dos equipamentos e materiais</span><select data-qi="gama">${[['','Sem preferência (o produto que melhor corresponde)'],['preco','Melhor preço (os mais baratos que cumprem)'],['media','Equilíbrio (gama média)'],['qualidade','Máxima qualidade (os melhores e mais caros)']].map(([k,t])=>`<option value="${k}" ${(q.gama||'')===k?'selected':''}>${t}</option>`).join('')}</select></label>${labourHtml()}<button type="button" class="btn" data-qi="gerar" ${st.busy||quoteBusy?'disabled':''}>${st.busy?'A preparar o orçamento…':q.ai?.at?'Gerar de novo com a IA':'Gerar orçamento com IA'}</button><div id="qai-status" aria-live="polite">${statusHtml()}</div>${st.busy?'':result(q.ai)}</div>`;
+  return `<h2>Orçamento automático com IA</h2><div class="q-card qai" id="qai-card"><p class="note">Descreva a obra como a explicaria a um técnico: divisões e áreas, onde fica a unidade exterior, distâncias, distância ao quadro elétrico, o que o cliente quer. A IA dimensiona, escolhe os equipamentos nos fornecedores da gama pedida e junta todo o material, acessórios, cabos e tubos da Sanipower e da Sanitop. A mão de obra fica numa linha no fim, para pôr o seu valor.</p><label class="q-field"><span>Pedido / notas da visita</span><textarea data-qi="texto" rows="6" maxlength="8000" placeholder="Ex.: Moradia T3 em Ponte de Lima, LG. Ar condicionado na sala (30 m², virada a sul) e nos 3 quartos (12, 12 e 10 m²). Multisplit com a exterior na varanda; linhas de 4, 7, 9 e 11 m. Quadro elétrico a 12 m. Sem esgoto nos quartos." ${st.busy?'disabled':''}>${esc(text(q))}</textarea></label><label class="q-field"><span>Gama dos equipamentos e materiais</span><select data-qi="gama">${[['','Sem preferência (o produto que melhor corresponde)'],['preco','Melhor preço (os mais baratos que cumprem)'],['media','Equilíbrio (gama média)'],['qualidade','Máxima qualidade (os melhores e mais caros)']].map(([k,t])=>`<option value="${k}" ${(q.gama||'')===k?'selected':''}>${t}</option>`).join('')}</select></label>${labourHtml()}<button type="button" class="btn" data-qi="gerar" ${st.busy||quoteBusy?'disabled':''}>${st.busy?'A preparar o orçamento…':q.ai?.at?'Gerar de novo com a IA':'Gerar orçamento com IA'}</button><div id="qai-status" aria-live="polite">${statusHtml()}</div>${st.busy?'':result(q.ai)}</div>`;
  };
 
  let saveT=null;const keep=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{if(typeof save==='function')save()},600)};
@@ -193,6 +229,7 @@
   if(k==='texto'){quoteDraft.ai={...(quoteDraft.ai||{}),texto:t.value};return}
   if(k==='gama'){quoteDraft.gama=t.value;return}
   if(k==='regras'){S.iaRegras=t.value;keep();return}
+  if(k==='fonte'){S.iaFontes={...(S.iaFontes||{}),[t.dataset.k]:t.value};keep();return}
   const i=Number(t.dataset.i);
   if(k==='rate-nome')setRates(L=>{L[i].nome=t.value});
   if(k==='rate-preco')setRates(L=>{L[i].preco=Number(t.value)||0});
@@ -204,8 +241,9 @@
   const b=e.target.closest?.('button[data-qi]');if(!b||!quoteDraft)return;
   const k=b.dataset.qi;
   if(k==='gerar'){generate();return}
+  if(k==='esquecer'){if(confirm('Esquecer todos os produtos aprendidos?')){S.iaAprendido={};keep();render()}return}
   if(k==='rate-add'){st.labour=true;setRates(L=>L.push({id:'mo'+Date.now().toString(36),nome:'',unidade:'un.',preco:0}));render();return}
   if(k==='rate-del'){st.labour=true;setRates(L=>L.splice(Number(b.dataset.i),1));render()}
  });
- Object.assign(root,{quoteAiSearch:search,quoteAiAutoPick:autoPick,quoteAiBuildLines:buildLines,quoteAiLabour:labour,quoteAiLeadText:leadText});
+ Object.assign(root,{quoteAiAllowed:allowed,quoteAiLearnKey:learnKey,quoteAiLearned:learned,quoteAiSearch:search,quoteAiAutoPick:autoPick,quoteAiBuildLines:buildLines,quoteAiLabour:labour,quoteAiLeadText:leadText});
 })(globalThis);

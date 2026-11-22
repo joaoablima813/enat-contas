@@ -85,9 +85,12 @@ test('the app finds products for the AI terms and keeps catalogue prices',()=>{
  const out=run(`(()=>{const plan={itens:[{id:'i1',categoria:'Material',descricao:'Par de cobre',quantidade:6,unidade:'m',pesquisa:['par cobre isolado 1/4 3/8']},{id:'i2',categoria:'Mão de obra',descricao:'Instalação do split',quantidade:1,unidade:'un.',mao_obra:'ac_mono'},{id:'i3',categoria:'Acessórios',descricao:'Bomba de condensados',quantidade:1,unidade:'un.'},{id:'i4',categoria:'Mão de obra',descricao:'Deslocação',quantidade:1,unidade:'serviço',mao_obra:'x',preco_indicado:30}]};
   const found={i1:quoteAiSearch(plan.itens[0],'')};return quoteAiBuildLines(plan,{i1:{id:'i1',candidato:0,quantidade:6,unidade:'m'}},found,quoteAiLabour()).lines})()`);
  assert.equal(out[0].value,9);assert.equal(out[0].quantity,6);assert.equal(out[0].unit,'m');assert.equal(out[0].catalog.ref,'C38');
- assert.equal(out[1].value,150);assert.equal(out[2].value,0);assert.equal(out[2].semPreco,true);assert.equal(out[3].value,30);
+ // A mão de obra fica numa só linha, a última, sem valor, com os trabalhos incluídos: o utilizador põe o preço.
+ assert.equal(out.length,3);assert.equal(out[1].value,0);assert.equal(out[1].semPreco,true);assert.equal(out[1].kind,'Acessórios');
+ assert.equal(out[2].kind,'Mão de obra');assert.equal(out[2].value,0);assert.equal(out[2].quantity,1);assert.match(out[2].description,/^Mão de obra de instalação: .*split.*Deslocação/i);
+ assert.equal(out.filter(l=>l.kind==='Mão de obra').length,1);
  const html=run(`quoteDraft.ai={texto:'Sala 30 m²',at:'2026-11-14T10:00:00Z',resumo:'Split',linhas:4,semPreco:1,verificacao:[{ponto:'Suportes',estado:'incluido'}],dimensionamento:[{titulo:'Sala',detalhe:'3,5 kW'}]};aiSection()`);
- assert.match(html,/Gerar de novo com a IA/);assert.match(html,/1 linha ficou sem preço/);assert.match(html,/Preços de mão de obra \(1 de 1 com valor\)/);
+ assert.match(html,/Gerar de novo com a IA/);assert.match(html,/1 linha ficou sem preço/);assert.match(html,/Fornecedores e regras/);assert.match(html,/value="Sanipower, Sanitop"/);assert.match(html,/A última linha é a mão de obra/);
  assert.match(run('quoteEditor()'),/Orçamento automático com IA/);
 });
 test('the app prefers products that meet the required sizes and can pick on its own',()=>{
@@ -113,4 +116,31 @@ test('price tier from the client questionnaire: cheapest, middle or most expensi
  assert.equal(run(`quoteAiAutoPick({id:'e',categoria:'Equipamento'},${f}).candidato`),0,'no tier: best match');
  assert.equal(readPickInput({gama:'qualidade',itens:[{id:'i1',candidatos:[{nome:'x'}]}]}).gama,'qualidade');
  assert.equal(readPickInput({gama:'hack',itens:[{id:'i1',candidatos:[{nome:'x'}]}]}).gama,'');
+});
+
+test('suppliers by tier: material only from Sanipower and Sanitop; cheap equipment from Sanipower or Ekallor, never Daikin',()=>{
+ const run=app();
+ run(`PRICE_TABLES.length=0;PRICE_TABLES.push(
+  {brand:'Daikin',table:'T',discount:0,products:[{group:['Ar condicionado','Monosplit'],ref:'D35',name:'Monosplit 3,5 kW Perfera',price:1500}]},
+  {brand:'Ekallor',table:'T',discount:0,products:[{group:['Ar condicionado','Monosplit'],ref:'E35',name:'Monosplit 3,5 kW Ekallor',price:600}]},
+  {brand:'Sanipower',supplier:'sanipower',live:true,table:'Catálogo',discount:0,products:[{group:['Climatização'],ref:'S1',name:'Tubo cobre frigorifico isolado 1/4 x 3/8',price:5,maker:''}]},
+  {brand:'Outra loja',table:'T',discount:0,products:[{group:['Material'],ref:'O1',name:'Par cobre isolado 1/4 3/8',price:2}]})`);
+ const ids=k=>JSON.stringify([...run(`quoteAiAllowed(${JSON.stringify(k[0])},${JSON.stringify(k[1])})`)]);
+ assert.equal(ids(['Material','preco']),'[2]','material only from Sanipower / Sanitop');
+ assert.equal(ids(['Equipamento','preco']),'[1,2]','cheap equipment: Ekallor or Sanipower');
+ assert.equal(ids(['Equipamento','qualidade']),'[0]');
+ assert.equal(run(`quoteAiAllowed('Equipamento','')`),null,'no tier: every table');
+ // «Par de cobre pré-isolado» encontra «Tubo cobre frigorifico isolado 1/4 x 3/8» (outro nome, outra forma de escrever as medidas).
+ const f=run(`quoteAiSearch({descricao:'Par de cobre pré-isolado 1/4" + 3/8"',pesquisa:['par cobre isolado 1/4 3/8'],categoria:'Material'},'',quoteTables(),quoteAiAllowed('Material','preco'))`);
+ assert.equal(f.length,1);assert.equal(f[0].ti,2);
+});
+
+test('a product picked by hand for an AI line is remembered and used next time',()=>{
+ const run=app();
+ run(`PRICE_TABLES.length=0;PRICE_TABLES.push({brand:'Sanitop',supplier:'sanitop',live:true,table:'Catálogo',discount:0,products:[{group:['Fixação'],ref:'X9',name:'Kit mensula parede AC 450mm',price:20,maker:''}]})`);
+ const key=run(`quoteAiLearnKey({categoria:'Acessórios',descricao:'Suporte de parede para unidade exterior (par)'},'preco')`);
+ assert.equal(run(`quoteAiLearned(${JSON.stringify(key)})`),null);
+ run(`quoteAiLearn({aiKey:${JSON.stringify(key)}},PRICE_TABLES[0],PRICE_TABLES[0].products[0])`);
+ assert.equal(run(`quoteAiLearned(${JSON.stringify(key)}).pi`),0);
+ assert.match(run('JSON.stringify(S.iaAprendido)'),/"src":"sanitop","ref":"X9"/);
 });

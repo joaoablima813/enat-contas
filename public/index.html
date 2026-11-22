@@ -95,7 +95,9 @@ nav button.on{color:var(--blue)}
 <script src="/quote-obra.js?v=20261029"></script>
 <script src="/toc-invoice.js?v=20261109"></script>
 <script src="/toc.js?v=20261109b"></script>
-<script src="/quotes.js?v=20261114b"></script>
+<script src="/solucoes.js?v=20261122"></script>
+<script src="/quotes.js?v=20261122"></script>
+<script src="/empresa.js?v=20261122"></script>
 <script src="/quote-ai.js?v=20261114"></script>
 <script src="/leads.js?v=20261109"></script>
 <script src="/push.js?v=20261109"></script>
@@ -487,6 +489,7 @@ function vDef(){
  return`${backHome}<h1>Definições</h1>
  <h2>Sincronização</h2><div class="grp">${kv('Estado',syncText(),'wrap')}</div><button class="btn alt" data-a="syncnow">Sincronizar agora</button><p class="note">Pode usar a app no telemóvel e no computador ao mesmo tempo: as alterações feitas nos dois juntam-se, obra a obra e movimento a movimento.</p>
  <h2>Cópias de segurança</h2><p class="note" style="margin:-4px 6px 10px">Todos os dias, na primeira alteração, o servidor guarda uma cópia de todos os dados. Ficam guardadas as cópias dos últimos 30 dias.</p><div class="grp">${COPIAS===null?'<div class="empty">A carregar cópias…</div>':COPIAS_ERR?`<div class="empty">${esc(COPIAS_ERR)}</div>`:COPIAS.length?COPIAS.map(c=>`<div class="row kv"><div class="rt"><b>${esc(copiaLabel(c.id))}</b><span>${esc(c.obras||0)} obras · ${esc(c.tx||0)} movimentos · ${esc(c.inv||0)} faturas</span></div><div class="rr"><button class="mini" style="color:var(--blue)" data-a="restore" data-id="${esc(c.id)}">Restaurar</button></div></div>`).join(''):'<div class="empty">Ainda não há cópias. A primeira é feita na próxima alteração.</div>'}</div><button class="btn alt" data-a="copianow">Fazer uma cópia agora</button>
+ <h2>Proposta ao cliente</h2><div class="grp"><button class="row invoice-row" data-a="tab" data-id="emp"><div class="av">${ic('user')}</div><div class="rt"><b>Empresa, credenciais e disponibilidade</b><span>O que o cliente vê antes do preço</span></div><div class="rr">${ic('chev')}</div></button></div>
  <h2>Notificações no telemóvel</h2><div id="pushbox">${pushHtml()}</div>
  <h2>Excel</h2><p class="note" style="margin:-4px 6px 0">O Excel ligado atualiza-se sozinho com os dados da app. A cópia é um ficheiro com todos os dados, sem ligação.</p><a class="link" href="/excel.html">Excel ligado à app — configurar</a><button class="link" data-a="xlsx">Descarregar cópia Excel</button>
  <h2>Acesso</h2><div class="grp"><button class="row invoice-row" data-a="novodisp"><div class="av">${ic('user')}</div><div class="rt"><b>Registar outro dispositivo</b><span>Face ID / Touch ID</span></div></button><button class="row invoice-row" data-a="sair"><div class="av">${ic('back')}</div><div class="rt"><b>Terminar sessão</b><span>Volta a pedir Face ID / Touch ID</span></div></button></div>
@@ -589,8 +592,8 @@ const num=v=>{const n=parseFloat(String(v).replace(/\s/g,'').replace(',','.'));r
 /* ---------- render ---------- */
 function render(){
  trackNavigation();
- $('#app').innerHTML=V.obra?vObra():({home:vHome,obras:vObras,mov:vMov,iva:vIva,mat:vMat,man:vMan,orc:vQuotes,leads:vLeads,cal:vCal,cli:vClientes,rel:vRel,def:vDef}[V.tab]||vHome)();syncPill();leadRemind();
- $('#nav').innerHTML=[['home','Início','home'],['leads','Leads','lead'],['obras','Obras','obras'],['mat','Pesquisa','search'],['orc','Orçamentos','fatura'],['man','Manutenção','manut'],['iva','IVA','iva']].map(([k,l,i])=>`<button class="${(V.obra?k==='obras':({cli:'home',rel:'home',def:'home',mov:'home',cal:'home'}[V.tab]||V.tab)===k)?'on':''}" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('');
+ $('#app').innerHTML=V.obra?vObra():({home:vHome,obras:vObras,mov:vMov,iva:vIva,mat:vMat,man:vMan,orc:vQuotes,leads:vLeads,cal:vCal,cli:vClientes,rel:vRel,def:vDef,emp:vEmp}[V.tab]||vHome)();syncPill();leadRemind();
+ $('#nav').innerHTML=[['home','Início','home'],['leads','Leads','lead'],['obras','Obras','obras'],['mat','Pesquisa','search'],['orc','Orçamentos','fatura'],['man','Manutenção','manut'],['iva','IVA','iva']].map(([k,l,i])=>`<button class="${(V.obra?k==='obras':({cli:'home',rel:'home',def:'home',emp:'home',mov:'home',cal:'home'}[V.tab]||V.tab)===k)?'on':''}" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('');
 }
 document.addEventListener('click',async e=>{
  if(D?.saving)return;

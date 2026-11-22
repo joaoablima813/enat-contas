@@ -29,7 +29,7 @@ function server(){
  // Each server module runs in its own context, sharing the same database and blob store.
  const ctx=()=>vm.createContext({...f,Response,URL,Buffer,Headers,console,structuredClone,randomBytes:k=>Buffer.alloc(k,++n),process:{env:{}},store});
  const c=ctx(),w=ctx(),q=ctx();
- for(const p of ['public/quote-math.js','public/gestao.js','public/quote-obra.js'])vm.runInContext(read(p),c);
+ for(const p of ['public/quote-math.js','public/gestao.js','public/quote-obra.js','public/solucoes.js'])vm.runInContext(read(p),c);
  vm.runInContext(ts('netlify/lib/proposta.ts'),c);vm.runInContext(ts('netlify/lib/whatsapp.ts'),w);vm.runInContext(ts('netlify/lib/quotes.ts'),q);
  const ua='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1';
  const call=(token,method='GET',body,agent=ua)=>{c.req={method,url:'https://enat.example/proposta/'+token,headers:new Headers({'user-agent':agent}),text:async()=>JSON.stringify(body)};c.token=token;return vm.runInContext('handleProposta(req,token,store)',c)};
@@ -39,15 +39,18 @@ function server(){
 }
 let n=0;
 
-test('the link opens a branded quote page with the PDF and the five answers, and stays private',async()=>{
+test('the link opens a branded quote page with the PDF and the four choices, and stays private',async()=>{
  const s=server();s.f.tables.quotes.push({id:42,document:sample,createdAt:new Date(),updatedAt:new Date()});
  const token=await s.send(42);
  const r=await s.call(token);assert.equal(r.status,200);assert.match(r.headers.get('x-robots-tag'),/noindex/);
  const html=await r.text();
  assert.match(html,/enat-logo\.png/);assert.match(html,/Enat - Ponte de Lima/);assert.match(html,/ORC \d{4}\/0042/);assert.match(html,/Olá, Família Araújo/);
  assert.match(html,new RegExp('/proposta/'+token+'/pdf'));
- for(const k of ['adjudicar','revisao','pensar','mais_tarde','rejeitar'])assert.match(html,new RegExp('data-kind="'+k+'"'));
+ for(const k of ['adjudicar','duvida','revisao','nao'])assert.match(html,new RegExp('data-kind="'+k+'"'));
  assert.match(html,/1771,20 €/,'total with VAT and margin');assert.match(html,/885,60 €/,'50% due on award');
+ assert.doesNotMatch(html,/PT50/,'no bank details before the client awards');
+ // Trust and value come before the price.
+ assert.ok(html.indexOf('Porque escolher a Enat')<html.indexOf('O seu investimento'));assert.ok(html.indexOf('O que vai ganhar')<html.indexOf('1771,20 €'));
  assert.equal((await s.call('x'.repeat(24))).status,404);
  assert.deepEqual(s.f.tables.quote_events.map(e=>[e.kind,e.note]),[['enviado','WhatsApp']]);
 });
@@ -96,4 +99,47 @@ test('saving a quote that was open in the app keeps the client\'s newer answer',
  s.f.tables.quote_events.push({id:1,quoteId:3,kind:'adjudicar',note:'',createdAt:new Date(),readAt:null});
  r=await vm.runInContext("handleQuotes({method:'GET'},'orcamentos')",s.q);const [row]=await r.json();assert.equal(row.events[0].kind,'adjudicar');assert.equal(row.events[0].read,false);
  await vm.runInContext("handleQuotes({method:'POST'},'orcamentos/3/lido')",s.q);assert.ok(s.f.tables.quote_events[0].readAt);
+});
+
+test('the company profile shows the contact person, credentials with a number and real free weeks',async()=>{
+ const s=server();s.f.tables.quotes.push({id:5,document:sample});
+ await s.store.setJSON('empresa',{contacto:{nome:'João Lima',cargo:'Responsável comercial',telefone:'912 000 111',foto:'abcdefgh12'},credenciais:[{nome:'Técnico certificado em gases fluorados',numero:'Cert. n.º 123'},{nome:'Sem número',numero:''}],anos:'12',semanas:['2099-03-02','2000-01-03'],incluido:['Testes e arranque do sistema']});
+ const token=await s.send(5);const html=await (await s.call(token)).text();
+ assert.match(html,/João Lima/);assert.match(html,/wa\.me\/351912000111/);assert.match(html,/\/proposta\/[^/]+\/img\/abcdefgh12/);
+ assert.match(html,/gases fluorados[\s\S]*Cert\. n\.º 123/);assert.doesNotMatch(html,/Sem número/,'a credential without its number is not shown');
+ assert.match(html,/12<\/b><small>anos de experiência/);assert.match(html,/semana de 2 de março/);assert.doesNotMatch(html,/semana de 3 de janeiro/,'past weeks are hidden');
+ assert.match(html,/Testes e arranque do sistema/);assert.match(html,/Conforto o ano inteiro/);
+ // The chosen week is kept with the answer; a week that is not offered is ignored.
+ let r=await s.call(token,'POST',{kind:'adjudicar',semana:'semana de 2 de março',note:'De manhã'});const j=await r.json();
+ assert.match(j.pay,/PT50/,'bank details only after awarding');
+ assert.equal(s.f.tables.quote_events.at(-1).note,'Semana preferida: semana de 2 de março · De manhã');
+ await s.call(token,'POST',{kind:'adjudicar',semana:'semana de 9 de março'});assert.equal(s.f.tables.quote_events.at(-1).note,'');
+ assert.match(await (await s.call(token)).text(),/PT50/,'the awarded client sees the payment details again');
+});
+
+test('not going ahead needs a reason, which keeps the answer codes the app already knows',async()=>{
+ const s=server();s.f.tables.quotes.push({id:6,document:sample});const token=await s.send(6);
+ assert.equal((await s.call(token,'POST',{kind:'nao'})).status,400);
+ assert.equal((await s.call(token,'POST',{kind:'nao',motivo:'outro'})).status,400,'other reason needs a comment');
+ await s.call(token,'POST',{kind:'nao',motivo:'preco'});
+ await s.call(token,'POST',{kind:'nao',motivo:'outra',note:'Mais perto de casa'});
+ assert.deepEqual(s.f.tables.quote_events.slice(1).map(e=>[e.kind,e.note]),[['pensar','Motivo: O valor ficou acima do que esperava'],['rejeitar','Motivo: Escolhi outra empresa · Mais perto de casa']]);
+ assert.equal(s.f.tables.quotes[0].document.status,'recusado');
+});
+
+test('a question is recorded once per 10 minutes and does not change the answer',async()=>{
+ const s=server();s.f.tables.quotes.push({id:8,document:sample});const token=await s.send(8);
+ await s.call(token,'POST',{kind:'duvida',note:'whatsapp'});await s.call(token,'POST',{kind:'duvida',note:'chamada'});
+ await s.call(token,'POST',{kind:'duvida',note:'x'},'WhatsApp/2.23');
+ assert.deepEqual(s.f.tables.quote_events.slice(1).map(e=>[e.kind,e.note]),[['duvida','WhatsApp']]);
+ assert.equal(s.f.tables.quotes[0].document.status,'enviado');
+});
+
+test('a returning client without an answer is asked again, first thing on the page',async()=>{
+ const s=server();s.f.tables.quotes.push({id:9,document:sample});const token=await s.send(9);
+ assert.doesNotMatch(await (await s.call(token)).text(),/id="welcome"/);
+ await s.call(token,'POST',{kind:'visto'});
+ assert.match(await (await s.call(token)).text(),/id="welcome"/);
+ await s.call(token,'POST',{kind:'pensar'});
+ assert.doesNotMatch(await (await s.call(token)).text(),/id="welcome"/);
 });

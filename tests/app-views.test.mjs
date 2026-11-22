@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','quotes.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -205,4 +205,15 @@ test('a lead keeps every call with its day, result and notes, newest first, and 
  assert.match(ed,/Chamadas \(3\)/);assert.match(ed,/Quer orçamento para AC/);assert.match(ed,/data-ci="c2" open/);
  assert.ok(ed.indexOf('data-ci="c2"')<ed.indexOf('data-ci="c3"')&&ed.indexOf('data-ci="c3"')<ed.indexOf('data-ci="c0"'),'newest call first');
  assert.match(run("leadRow(S.leads.find(x=>x.id==='h1'))"),/3 chamadas/);
+});
+
+test('company screen: blank profile suggests credentials to fill, and the quote terms use it without the IBAN',()=>{
+ const {run}=app(state);
+ run("V.tab='emp'");const html=run('vEmp()');
+ assert.match(html,/Técnico certificado em gases fluorados/);assert.match(html,/Semanas livres para instalação/);assert.match(html,/1 obra concluída/);
+ assert.doesNotMatch(run("quoteTerms({validity:30}).join('|')"),/IBAN/);
+ run("globalThis.ENAT_EMPRESA={garantiaEquip:'5 anos',semanas:['2099-03-04'],credenciais:[{nome:'DGEG',numero:'n.º 77'},{nome:'Sem n.º',numero:''}],contacto:{nome:'Ana Reis'}}");
+ const t=run("quoteTerms({validity:30}).join('|')");
+ assert.match(t,/Garantia dos equipamentos: 5 anos/);assert.match(t,/disponível a partir da semana de 2 de março/);assert.match(t,/DGEG: n\.º 77/);assert.doesNotMatch(t,/Sem n\.º/);
+ assert.match(run("quoteWaText([{client:'Rui',id:1,date:'2026-11-22',topics:['VMC'],brand:'',lines:[],validity:15}],['https://x/1'])"),/Sou Ana Reis, da Enat[\s\S]*Ana Reis\nEnat/);
 });

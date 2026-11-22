@@ -141,6 +141,10 @@ export default async (req) => {
     const { handleToc } = await import('../lib/toconline.ts');
     return handleToc(req, path, store);
   }
+  if (path === 'empresa' || path.startsWith('empresa/')) {
+    const { handleEmpresa } = await import('../lib/empresa.mjs');
+    return handleEmpresa(req, path, store);
+  }
   if (path.startsWith('pv/')) {
     const { handlePv } = await import('../lib/pv.mjs');
     return handlePv(req, path);

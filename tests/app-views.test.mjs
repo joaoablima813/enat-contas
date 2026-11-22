@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -227,4 +227,16 @@ test('job photos screen: prefilled town and postcode, and only finished jobs wit
  const pub=JSON.parse(run('JSON.stringify(pfPublic())'));
  assert.deepEqual(pub.map(w=>[w.id,w.ok]),[['o1',false],['o3',true]],'a job still in progress is not shown yet');
  assert.ok(!JSON.stringify(pub).includes('Rui')&&!JSON.stringify(pub).includes('Rua Nova'),'no client name or address');
+});
+
+test('lead questionnaire: link buttons on the lead, and answers fill empty fields without overwriting',()=>{
+ const {run}=app({...state,leads:[{id:'L1',name:'Maria Silva',contact:'912345678',email:'m@x.pt',stage:'nova',solutions:['VMC'],address:'',timing:'Já escrito',calls:[]}]});
+ run("V.tab='leads';leadOpen('L1')");const html=run('leadEditor()');
+ assert.match(html,/Pedir detalhes ao cliente/);assert.match(html,/Enviar por WhatsApp/);assert.match(html,/Enviar por email/);
+ assert.match(run("pedText(S.leads[0],'https://x/pedido/abc')"),/Olá Maria, sou João Lima, da Enat[\s\S]*2 minutos[\s\S]*https:\/\/x\/pedido\/abc/);
+ run("pedApply(S.leads[0],{sol:['Ar condicionado'],a:{ac_div:'3',ac_area:'30 a 60 m²',casa:'Moradia',prazo:'Dentro de 1 mês'},gama:'media',morada:'Rua 1',cp:'4990-062',local:'Ponte de Lima',notas:'',fotos:[],at:1})");
+ const l=JSON.parse(run('JSON.stringify(S.leads[0])'));
+ assert.equal(l.address,'Rua 1, 4990-062 Ponte de Lima');assert.deepEqual(l.solutions,['VMC','Ar condicionado']);assert.equal(l.house,'Moradia');
+ assert.equal(l.timing,'Já escrito','does not overwrite what was typed');assert.equal(l.area,'30 a 60 m²');assert.equal(l.stage,'triagem');
+ run("leadOpen('L1')");const after=run('leadEditor()');assert.match(after,/Respondeu a/);assert.match(after,/Gama preferida/);assert.match(after,/Equilíbrio/);
 });

@@ -99,6 +99,8 @@ nav button.on{color:var(--blue)}
 <script src="/quotes.js?v=20261123"></script>
 <script src="/empresa.js?v=20261123"></script>
 <script src="/portfolio.js?v=20261123"></script>
+<script src="/pedido-perguntas.js?v=20261123"></script>
+<script src="/pedido.js?v=20261123"></script>
 <script src="/quote-ai.js?v=20261114"></script>
 <script src="/leads.js?v=20261109"></script>
 <script src="/push.js?v=20261109"></script>
@@ -724,7 +726,7 @@ async function sendState(tries=3){
 }
 const push=()=>{clearTimeout(pt);setSync('saving');pt=setTimeout(()=>sendState().catch(()=>setSync('off')),900)};
 async function pull(){if(OFFLINE)return;try{const r=await API('estado');if(r.status===401)return setSync('off');const d=await r.json();
- try{pullState(d)}finally{if(leadInbox(d.inbox)){save();if(idle())render()}}
+ try{pullState(d)}finally{if(leadInbox(d.inbox)){save();if(idle())render()}if(typeof pedidosPull==='function')pedidosPull().catch(()=>{})}
 }catch(e){setSync('off')}}
 function pullState(d){
  if(!d.state){if(S.obras.length||S.tx.length)push();else{SYNCAT=Date.now();setSync('ok')}return}

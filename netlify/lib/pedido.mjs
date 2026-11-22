@@ -154,7 +154,8 @@ const question = (q, a, sol) => {
   const field = q.rooms ? `<div class="rooms" data-rooms="${q.id}" data-for="${q.rooms}"></div>`
     : q.n ? `<input type="number" inputmode="numeric" data-n="${q.id}" min="${q.n[0]}" max="${q.n[1]}" value="${esc(a[q.id] ?? '')}" placeholder="${esc(q.ph || '')}">`
     : q.t ? `<input data-t="${q.id}" value="${esc(a[q.id] || '')}" placeholder="${esc(q.t)}" maxlength="200">` : chips(q.id, q.o, a[q.id] || '');
-  const forSol = q.for && sol ? ` data-sols="${esc(q.for.join('|'))}"${q.for.some((t) => sol.includes(t)) ? '' : ' hidden'}` : '';
+  const on = q.for && sol && (q.for.some((t) => sol.includes(t)) || (q.also && sol.includes('Bomba de calor climatização') && a[q.also[0]] === q.also[1]));
+  const forSol = q.for && sol ? ` data-sols="${esc(q.for.join('|'))}"${q.also ? ` data-also="${esc(q.also.join('|'))}"` : ''}${on ? '' : ' hidden'}` : '';
   return `<div class="q"${q.if ? ` data-if="${esc(q.if.join('|'))}"${shown ? '' : ' hidden'}` : ''}${forSol}><label>${esc(q.q)}</label>${q.help ? `<p class="help">${esc(q.help)}</p>` : ''}${field}</div>`;
 };
 
@@ -184,7 +185,7 @@ const T=${JSON.stringify(token)},st={a:${JSON.stringify(r.a)},sol:${JSON.stringi
 const $=s=>document.querySelector(s);
 document.addEventListener('click',e=>{
  const b=e.target.closest('[data-v]');if(!b)return;const box=b.parentElement,q=box.dataset.q;
- if(q==='sol'){const v=b.dataset.v,i=st.sol.indexOf(v);i<0?st.sol.push(v):st.sol.splice(i,1);b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',i<0);document.querySelectorAll('[data-tech]').forEach(s=>s.hidden=!st.sol.includes(s.dataset.tech));document.querySelectorAll('[data-sols]').forEach(q=>q.hidden=!q.dataset.sols.split('|').some(t=>st.sol.includes(t)));return}
+ if(q==='sol'){const v=b.dataset.v,i=st.sol.indexOf(v);i<0?st.sol.push(v):st.sol.splice(i,1);b.classList.toggle('on',i<0);b.setAttribute('aria-pressed',i<0);document.querySelectorAll('[data-tech]').forEach(s=>s.hidden=!st.sol.includes(s.dataset.tech));sols();return}
  box.querySelectorAll('[data-v]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});
  if(q==='gama')st.gama=b.dataset.v;else st.a[q]=b.dataset.v;
  refresh();
@@ -197,7 +198,9 @@ function drawRooms(){document.querySelectorAll('[data-rooms]').forEach(box=>{
  box.innerHTML=n?list.map((r,i)=>'<div class="room"><select data-room-t="'+i+'" aria-label="Tipo de divisão">'+ROOMS.map(t=>'<option'+(t===r.t?' selected':'')+'>'+t+'</option>').join('')+'</select><input type="number" inputmode="numeric" min="3" max="500" data-room-m="'+i+'" value="'+(r.m2||'')+'" placeholder="Área"><span>m²</span></div>').join('')+(n>=6&&list.length<12?'<button type="button" class="more" data-more-room>+ Mais uma divisão</button>':'')+'<p class="help">Se não souber a área exata, um valor aproximado chega.</p>':'<p class="help">Escolha primeiro quantas divisões.</p>';
  box.dataset.n=n;
 })}
+const sols=()=>document.querySelectorAll('[data-sols]').forEach(q=>{const al=q.dataset.also?q.dataset.also.split('|'):null;q.hidden=!(q.dataset.sols.split('|').some(t=>st.sol.includes(t))||(al&&st.sol.includes('Bomba de calor climatização')&&st.a[al[0]]===al[1]))});
 function refresh(){
+ sols();
  document.querySelectorAll('[data-if]').forEach(el=>{const [k,v]=el.dataset.if.split('|');el.hidden=st.a[k]!==v});
  document.querySelectorAll('[data-rooms]').forEach(box=>{if(String(parseInt(st.a[box.dataset.for])||0)!==box.dataset.n)drawRooms()});
 }

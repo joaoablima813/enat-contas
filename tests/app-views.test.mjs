@@ -246,3 +246,12 @@ test('lead shows the suggested equipment calculated from the client answers',()=
  run("V.tab='leads';leadOpen('L2')");const html=run('leadEditor()');
  assert.match(html,/Equipamentos sugeridos/);assert.match(html,/12 000 BTU/);assert.match(html,/primeira estimativa/);
 });
+
+test('a quote made from a lead with answers fills the AI box with the answers and the calculated sizes, and keeps the tier',()=>{
+ const {run}=app({...state,leads:[{id:'L3',name:'Rita',contact:'912',stage:'triagem',solutions:['Ar condicionado'],calls:[],pedido:{resp:{sol:['Ar condicionado'],a:{ac_div:'2',ac_rooms:[{t:'Sala',m2:30},{t:'Quarto',m2:12}],ano:'Depois de 2015'},gama:'qualidade',morada:'Rua 1',cp:'4990-062',local:'Ponte de Lima',notas:'',fotos:[],at:1},sug:[{titulo:'Ar condicionado',linhas:['Sala (30 m²): 3,5 kW · 12 000 BTU']}]}}]});
+ run("V.tab='leads';leadOpen('L3');leadQuote()");
+ assert.equal(run('quoteDraft.gama'),'qualidade');
+ const t=run('quoteAiLeadText(quoteDraft)');
+ assert.match(t,/Que divisões e com que área\?: Sala 30 m², Quarto 12 m²/);assert.match(t,/EQUIPAMENTOS CALCULADOS[\s\S]*12 000 BTU/);assert.match(t,/Ano aproximado da casa: Depois de 2015/);
+ assert.match(run('aiSection()'),/<option value="qualidade" selected>Máxima qualidade/);
+});

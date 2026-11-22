@@ -49,8 +49,8 @@ export function sugestoes(resp) {
       const emis = { Radiadores: 'radiadores', 'Piso radiante': 'piso', Ventiloconvectores: 'ventiloconvectores' }[a.bcc_emis] || 'ventiloconvectores';
       const b = bombaCalorHabitacao({ area_m2: area, isolamento: iso, emissores: emis, pessoas_aqs: a.bcc_aqs === 'Sim' ? 4 : 0 });
       const linhas = [`Bomba de calor de ${kwTxt(b.potencia_nominal_kw)} (necessidade estimada ${kwTxt(b.necessidade_aquecimento_kw)})`];
-      if (a.bcc_aqs === 'Sim') linhas.push('Com produção de água quente: depósito de 200 a 300 L');
-      if (b.inercia_recomendada_l) linhas.push(`Depósito de inércia de ${b.inercia_recomendada_l} L`);
+      if (a.bcc_aqs === 'Sim') { const q = aqs({ pessoas: PESSOAS[a.pessoas] || 4 }); linhas.push(`Depósito de água quente (AQS) de ${q.volume_l} L${PESSOAS[a.pessoas] ? ' para ' + a.pessoas + ' pessoas' : ' (pessoas em casa por confirmar)'}`); }
+      if (b.inercia_recomendada_l) linhas.push(`Depósito de inércia de ${b.inercia_recomendada_l} L (circuito de aquecimento, ≈10 L por kW)`);
       let nota = `${fmt(area, 0)} m² com ${ISO_TXT[iso]}${a.ano ? ' (casa ' + a.ano.toLowerCase() + (a.jan ? ', ' + a.jan.toLowerCase() : '') + ')' : ''}.`;
       if (emis === 'radiadores' && a.bcc_rad && a.bcc_elem) {
         const elems = a.bcc_rad * a.bcc_elem, need = b.necessidade_aquecimento_kw;
@@ -73,7 +73,7 @@ export function sugestoes(resp) {
   const pess = PESSOAS[a.pessoas];
   if (sol.includes('Bomba de calor AQS') && pess) {
     const q = aqs({ pessoas: pess });
-    out.push({ sol: 'Bomba de calor AQS', titulo: 'Bomba de calor AQS', linhas: [`Depósito de ${q.volume_l} L`], nota: q.nota + ' Com banhos seguidos ou banheira grande, escolher o tamanho acima.' });
+    out.push({ sol: 'Bomba de calor AQS', titulo: 'Bomba de calor AQS', linhas: [`Depósito de ${q.volume_l} L`], nota: `${a.pessoas} pessoas: 40 a 50 L de água quente por pessoa e por dia; como a bomba de calor aquece devagar, o depósito deve guardar o consumo de um dia (≈ 50 L por pessoa). Com banhos seguidos ou banheira grande, escolher o tamanho acima.` });
   }
   if (sol.includes('Painéis solares térmicos') && PESSOAS[a.pessoas]) {
     const p = PESSOAS[a.pessoas], col = p <= 2 ? 1 : p <= 4 ? 2 : 3, dep = p <= 2 ? 150 : p <= 4 ? 200 : 300;

@@ -103,3 +103,14 @@ test('heat pumps and AC are wired by electrical, not thermal, power',()=>{
  const c=caboEletrico({potencia_termica_kw:9,distancia_m:15});
  assert.ok(c.corrente_a<20);assert.equal(c.seccao_mm2,2.5);assert.match(c.disjuntor,/^20 A/);
 });
+
+test('price tier from the client questionnaire: cheapest, middle or most expensive product that meets the specification',()=>{
+ const run=app();
+ const f='[{s:1,ok:true},{s:1,ok:true},{s:1,ok:true},{s:1,ok:false}]',prices='[500,300,900,100]';
+ assert.equal(run(`quoteAiAutoPick({id:'e',categoria:'Equipamento'},${f},'preco',${prices}).candidato`),1,'cheapest that fits, never the one that does not fit');
+ assert.equal(run(`quoteAiAutoPick({id:'e',categoria:'Equipamento'},${f},'media',${prices}).candidato`),0);
+ assert.equal(run(`quoteAiAutoPick({id:'e',categoria:'Equipamento'},${f},'qualidade',${prices}).candidato`),2);
+ assert.equal(run(`quoteAiAutoPick({id:'e',categoria:'Equipamento'},${f}).candidato`),0,'no tier: best match');
+ assert.equal(readPickInput({gama:'qualidade',itens:[{id:'i1',candidatos:[{nome:'x'}]}]}).gama,'qualidade');
+ assert.equal(readPickInput({gama:'hack',itens:[{id:'i1',candidatos:[{nome:'x'}]}]}).gama,'');
+});

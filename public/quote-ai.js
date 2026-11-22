@@ -36,6 +36,13 @@
  // Texto inicial a partir da lead: divisões, área, notas e o que o cliente pediu.
  function leadText(q){
   const l=q?.lead&&(S.leads||[]).find(x=>x.id===q.lead);if(!l)return '';
+  // Com o questionário respondido: as respostas do cliente e as potências já calculadas.
+  const r=l.pedido?.resp;
+  if(r&&root.EnatPedido){
+   const ans=EnatPedido.summary(r).filter(([k])=>k!=='Soluções'&&k!=='Gama preferida').map(([k,v])=>k+': '+v);
+   const sug=(l.pedido.sug||[]).flatMap(x=>[x.titulo+':',...x.linhas.map(y=>'- '+y)]);
+   return ['Soluções pedidas: '+r.sol.join(', '),...ans,sug.length&&'\nEQUIPAMENTOS CALCULADOS (usar estas potências):\n'+sug.join('\n'),l.notes&&'Notas: '+l.notes].filter(Boolean).join('\n').slice(0,7800);
+  }
   return [l.rooms&&'Divisões: '+l.rooms,l.area&&'Área: '+l.area,Array.isArray(l.solutions)&&l.solutions.length&&'Soluções pedidas: '+l.solutions.join(', '),l.heating&&'Aquecimento de água atual: '+l.heating,l.bill&&'Fatura elétrica: '+l.bill,l.notes].filter(Boolean).join('\n');
  }
  const text=q=>q.ai?.texto??leadText(q);
@@ -94,9 +101,13 @@
   finally{clearTimeout(t)}
  }
  // Escolha local (sem IA): o melhor candidato que cumpre as medidas pedidas. Equipamento só com medidas confirmadas.
- function autoPick(it,f){
-  const c=(f||[]).findIndex(x=>x.ok===true||(x.ok===null&&it.categoria!=='Equipamento'&&x.s>=0.85));
-  return c<0?null:{id:it.id,candidato:c,quantidade:null,unidade:null};
+ // Com uma gama escolhida, entre os candidatos que cumprem as medidas: o mais barato (preço), o do meio (equilíbrio) ou o mais caro (qualidade).
+ function autoPick(it,f,gama='',prices=[]){
+  const fits=(f||[]).map((x,i)=>[x,i]).filter(([x])=>x.ok===true||(x.ok===null&&it.categoria!=='Equipamento'&&x.s>=0.85));
+  if(!fits.length)return null;
+  let c=fits[0][1];
+  if(gama&&fits.length>1&&prices.length){const s=fits.filter(([,i])=>prices[i]>0).sort((a,b)=>prices[a[1]]-prices[b[1]]);if(s.length)c=(gama==='preco'?s[0]:gama==='qualidade'?s[s.length-1]:s[Math.floor((s.length-1)/2)])[1]}
+  return {id:it.id,candidato:c,quantidade:null,unidade:null};
  }
  const paint=()=>{const el=document.querySelector('#qai-status');if(el)el.innerHTML=statusHtml();else if(typeof render==='function')render()};
  const statusHtml=()=>st.busy?`<p class="note qai-busy"><span class="qai-spin"></span>${esc(st.phase||'A trabalhar…')}</p>`:st.error?`<p class="note neg">${esc(st.error)}</p>`:'';
@@ -126,14 +137,15 @@
   try{
    const rates=labour();
    const plan=await post('rapido',{texto,tipologias:q.topics,marca:q.brand,morada:q.address,maoObra:rates,regras:S.iaRegras||''},45000);
+   const gama=q.gama||'';
    if(quoteDraft!==q)return;
    st.phase='A procurar os produtos nas tabelas de preços…';paint();
    const found={},items=[],picks={};
-   for(const it of plan.itens){if(it.categoria==='Mão de obra')continue;await new Promise(r=>setTimeout(r,0));const f=search(it,q.brand||plan.marca);found[it.id]=f;const a=autoPick(it,f);if(a)picks[it.id]=a;if(f.length)items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
+   for(const it of plan.itens){if(it.categoria==='Mão de obra')continue;await new Promise(r=>setTimeout(r,0));const f=search(it,q.brand||plan.marca);found[it.id]=f;const a=autoPick(it,f,gama,f.map(c=>{const t=quoteTables()[c.ti];return priceNet(t,t.products[c.pi])}));if(a)picks[it.id]=a;if(f.length)items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
    if(items.length){
     st.phase='A escolher os produtos certos…';paint();
     // Se a IA falhar ou demorar, ficam as escolhas locais.
-    try{const r=await post('escolher',{marca:q.brand||plan.marca,itens:items},30000);const got=new Map((r.escolhas||[]).map(e=>[e.id,e]));for(const it of items){const e=got.get(it.id);if(e)picks[it.id]=e}}
+    try{const r=await post('escolher',{marca:q.brand||plan.marca,gama,itens:items},30000);const got=new Map((r.escolhas||[]).map(e=>[e.id,e]));for(const it of items){const e=got.get(it.id);if(e)picks[it.id]=e}}
     catch(e){console.warn('escolha local',e.message)}
    }
    if(quoteDraft!==q)return;
@@ -171,7 +183,7 @@
  }
  root.aiSection=()=>{
   const q=quoteDraft;if(!q)return '';
-  return `<h2>Orçamento automático com IA</h2><div class="q-card qai" id="qai-card"><p class="note">Descreva a obra como a explicaria a um técnico: divisões e áreas, onde fica a unidade exterior, distâncias, distância ao quadro elétrico, o que o cliente quer. A IA dimensiona, escolhe os equipamentos e junta todo o material, acessórios e mão de obra com os preços das suas tabelas.</p><label class="q-field"><span>Pedido / notas da visita</span><textarea data-qi="texto" rows="6" maxlength="8000" placeholder="Ex.: Moradia T3 em Ponte de Lima, LG. Ar condicionado na sala (30 m², virada a sul) e nos 3 quartos (12, 12 e 10 m²). Multisplit com a exterior na varanda; linhas de 4, 7, 9 e 11 m. Quadro elétrico a 12 m. Sem esgoto nos quartos." ${st.busy?'disabled':''}>${esc(text(q))}</textarea></label>${labourHtml()}<button type="button" class="btn" data-qi="gerar" ${st.busy||quoteBusy?'disabled':''}>${st.busy?'A preparar o orçamento…':q.ai?.at?'Gerar de novo com a IA':'Gerar orçamento com IA'}</button><div id="qai-status" aria-live="polite">${statusHtml()}</div>${st.busy?'':result(q.ai)}</div>`;
+  return `<h2>Orçamento automático com IA</h2><div class="q-card qai" id="qai-card"><p class="note">Descreva a obra como a explicaria a um técnico: divisões e áreas, onde fica a unidade exterior, distâncias, distância ao quadro elétrico, o que o cliente quer. A IA dimensiona, escolhe os equipamentos e junta todo o material, acessórios e mão de obra com os preços das suas tabelas.</p><label class="q-field"><span>Pedido / notas da visita</span><textarea data-qi="texto" rows="6" maxlength="8000" placeholder="Ex.: Moradia T3 em Ponte de Lima, LG. Ar condicionado na sala (30 m², virada a sul) e nos 3 quartos (12, 12 e 10 m²). Multisplit com a exterior na varanda; linhas de 4, 7, 9 e 11 m. Quadro elétrico a 12 m. Sem esgoto nos quartos." ${st.busy?'disabled':''}>${esc(text(q))}</textarea></label><label class="q-field"><span>Gama dos equipamentos e materiais</span><select data-qi="gama">${[['','Sem preferência (o produto que melhor corresponde)'],['preco','Melhor preço (os mais baratos que cumprem)'],['media','Equilíbrio (gama média)'],['qualidade','Máxima qualidade (os melhores e mais caros)']].map(([k,t])=>`<option value="${k}" ${(q.gama||'')===k?'selected':''}>${t}</option>`).join('')}</select></label>${labourHtml()}<button type="button" class="btn" data-qi="gerar" ${st.busy||quoteBusy?'disabled':''}>${st.busy?'A preparar o orçamento…':q.ai?.at?'Gerar de novo com a IA':'Gerar orçamento com IA'}</button><div id="qai-status" aria-live="polite">${statusHtml()}</div>${st.busy?'':result(q.ai)}</div>`;
  };
 
  let saveT=null;const keep=()=>{clearTimeout(saveT);saveT=setTimeout(()=>{if(typeof save==='function')save()},600)};
@@ -179,13 +191,14 @@
  document.addEventListener('input',e=>{
   const t=e.target,k=t.dataset?.qi;if(!k||!quoteDraft)return;
   if(k==='texto'){quoteDraft.ai={...(quoteDraft.ai||{}),texto:t.value};return}
+  if(k==='gama'){quoteDraft.gama=t.value;return}
   if(k==='regras'){S.iaRegras=t.value;keep();return}
   const i=Number(t.dataset.i);
   if(k==='rate-nome')setRates(L=>{L[i].nome=t.value});
   if(k==='rate-preco')setRates(L=>{L[i].preco=Number(t.value)||0});
   if(k==='rate-unidade')setRates(L=>{L[i].unidade=t.value});
  });
- document.addEventListener('change',e=>{const t=e.target;if(t.dataset?.qi==='rate-unidade'&&quoteDraft)setRates(L=>{L[Number(t.dataset.i)].unidade=t.value})});
+ document.addEventListener('change',e=>{const t=e.target;if(t.dataset?.qi==='gama'&&quoteDraft){quoteDraft.gama=t.value;return}if(t.dataset?.qi==='rate-unidade'&&quoteDraft)setRates(L=>{L[Number(t.dataset.i)].unidade=t.value})});
  document.addEventListener('toggle',e=>{if(e.target.dataset?.qiToggle==='labour')st.labour=e.target.open},true);
  document.addEventListener('click',e=>{
   const b=e.target.closest?.('button[data-qi]');if(!b||!quoteDraft)return;

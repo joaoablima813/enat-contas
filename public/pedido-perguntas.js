@@ -12,8 +12,8 @@
   {id:'jan',q:'Janelas',o:['Vidro simples','Vidro duplo','Não sei'],for:[AC,BCC]},
   {id:'m2',q:'Área útil da casa (m²)',n:[20,2000],ph:'Ex.: 140',for:[BCC,PR,VMC]},
   {id:'obra',q:'Situação da casa',o:['Obra nova','Remodelação','Casa habitada, sem obras'],for:[PR,VMC]},
-  {id:'pessoas',q:'Quantas pessoas vivem na casa?',o:['1 a 2','3 a 4','5 ou mais'],for:[AQS,ST]},
-  {id:'agua',q:'Como aquece a água hoje?',o:['Esquentador a gás','Termoacumulador elétrico','Caldeira','Painel solar térmico','Outro'],for:[AQS,ST]},
+  {id:'pessoas',q:'Quantas pessoas vivem na casa?',o:['1 a 2','3 a 4','5 ou mais'],for:[AQS,ST],also:['bcc_aqs','Sim']},
+  {id:'agua',q:'Como aquece a água hoje?',o:['Esquentador a gás','Termoacumulador elétrico','Caldeira','Painel solar térmico','Outro'],for:[AQS,ST],also:['bcc_aqs','Sim']},
   {id:'telhado',q:'Onde ficariam os painéis?',o:['Telhado de telha','Telhado de chapa','Terraço / laje','No chão / jardim','Não sei'],for:[ST,PV]},
   {id:'fase',q:'A instalação elétrica é…',o:['Monofásica','Trifásica','Não sei'],for:[PV,CAR]},
  ];
@@ -59,14 +59,15 @@
   {id:'prazo',q:'Quando pretende fazer a instalação?',o:['O mais rápido possível','Dentro de 1 mês','Dentro de 3 meses','Dentro de 6 meses','Ainda só a pedir valores']},
   {id:'hora',q:'Melhor altura para lhe ligarmos',o:['Manhã (9h–13h)','Tarde (14h–18h)','Fim do dia (18h–20h)','Qualquer hora']},
  ];
- const houseFor=sol=>HOUSE.filter(q=>!q.for||q.for.some(t=>sol.includes(t)));
+ // «also»: pergunta também feita com outra resposta (ex.: pessoas em casa quando a bomba de calor também faz água quente).
+ const houseFor=(sol,a={})=>HOUSE.filter(q=>!q.for||q.for.some(t=>sol.includes(t))||(q.also&&sol.includes(BCC)&&a[q.also[0]]===q.also[1]));
  const TECHS=Object.keys(TECH);
  const ALL=[...HOUSE,...Object.values(TECH).flat(),...COMMON];
  // Respostas limpas: só soluções e opções conhecidas; textos curtos.
  function clean(b){
   b=b&&typeof b==='object'?b:{};const s=(v,n)=>typeof v==='string'?v.replace(/\s+/g,' ').trim().slice(0,n):'';
   const sol=(Array.isArray(b.sol)?b.sol:[]).filter(x=>TECHS.includes(x));
-  const a={};const ids=new Set([...houseFor(sol),...sol.flatMap(t=>TECH[t]),...COMMON].map(q=>q.id)),raw=b.a||{};
+  const a={};const ids=new Set([...houseFor(sol,{bcc_aqs:b.a?.bcc_aqs}),...sol.flatMap(t=>TECH[t]),...COMMON].map(q=>q.id)),raw=b.a||{};
   for(const q of ALL){
    if(!ids.has(q.id)||(q.if&&a[q.if[0]]!==q.if[1]))continue;
    const v=raw[q.id];
@@ -81,7 +82,7 @@
  // Linhas para mostrar na app: [pergunta, resposta].
  function summary(r){
   const out=[['Soluções',r.sol.join(', ')]];const g=GAMA.find(x=>x[0]===r.gama);if(g)out.push(['Gama preferida',g[1]+' ('+g[2].toLowerCase()+')']);
-  for(const q of houseFor(r.sol))if(r.a[q.id]!=null&&r.a[q.id]!=='')out.push([q.q,value(q,r.a[q.id])]);
+  for(const q of houseFor(r.sol,r.a))if(r.a[q.id]!=null&&r.a[q.id]!=='')out.push([q.q,value(q,r.a[q.id])]);
   for(const t of r.sol)for(const q of TECH[t])if(r.a[q.id]!=null&&r.a[q.id]!=='')out.push([q.q.replace(/ \(opcional\)$/,''),value(q,r.a[q.id])]);
   for(const q of COMMON)if(r.a[q.id])out.push([q.q,r.a[q.id]]);
   if(r.morada||r.cp)out.push(['Morada',[r.morada,[r.cp,r.local].filter(Boolean).join(' ')].filter(Boolean).join(', ')]);

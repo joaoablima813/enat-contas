@@ -347,8 +347,8 @@ async function quoteWaSend(docs,channel='whatsapp'){
  }catch(e){status(e.message||'Não foi possível preparar o envio.')}
 }
 async function downloadQuotePdf(q,detailed=true){const {doc,filename}=await buildQuotePdf(q,detailed);doc.save(filename)}
-// A4 quote in a sober, traditional layout: company letterhead, client and document details, the lines,
-// totals, numbered conditions, a short closing and the signatures. Only thin rules, no coloured panels.
+// A4 quote in the Enat brand colours (green and orange from the logo): letterhead, a green band with the
+// document details, client and company blocks, the lines, a highlighted total, short conditions and signatures.
 async function buildQuotePdf(q,detailed=true){
  if(!window.jspdf||!window.jspdf.jsPDF)throw Error('O gerador de PDF não carregou. Recarregue a página e tente novamente.');
  const {jsPDF}=window.jspdf,doc=new jsPDF();
@@ -356,78 +356,68 @@ async function buildQuotePdf(q,detailed=true){
  const e=globalThis.ENAT_EMPRESA||{},c=e.contacto||{},sol=globalThis.EnatSolucoes,totals=quoteTotals(q);
  // Thousands separated by a space, as usual in Portugal (pt-PT does not group 4-digit numbers).
  const money=n=>{const v=Number(n)||0,[i,d]=Math.abs(v).toFixed(2).split('.');return (v<0?'-':'')+i.replace(/\B(?=(\d{3})+(?!\d))/g,' ')+','+d+' €'};
- const ink=[28,36,44],navy=[18,44,59],grey=[112,118,124],rule=[205,210,214],number=quoteNumber(q.id,q.date);
+ const green=[42,114,58],orange=[244,160,12],ink=[33,37,41],grey=[108,117,125],tint=[241,247,242],rule=[214,222,216],white=[255,255,255],number=quoteNumber(q.id,q.date);
  const day=d=>d.toISOString().slice(0,10).split('-').reverse().join('/'),issued=new Date(q.date+'T00:00:00Z'),valid=new Date(issued.getTime()+quoteValidity(q)*864e5);
  const company='Enat - Ponte de Lima',person=quoteContact(),role=c.cargo||'Responsável comercial',email=e.email||'pontedelima@enat.pt';
  const phone=String(c.telefone||'').trim().replace(/^(\d{3})(\d{3})(\d{3})$/,'$1 $2 $3');
- const logoW=40,logoH=Math.min(20,logoW*logo.height/logo.width),L=18,R=192,W=R-L,BOTTOM=268;
+ const logoW=50,logoH=Math.min(22,logoW*logo.height/logo.width),L=15,R=195,W=R-L,BOTTOM=270;
  const font=(size,style='normal',color=ink)=>{doc.setFont('helvetica',style);doc.setFontSize(size);doc.setTextColor(...color)};
- const hr=(y,color=rule,w=.2,x1=L,x2=R)=>{doc.setDrawColor(...color);doc.setLineWidth(w);doc.line(x1,y,x2,y)};
+ const heading=(t,x,y)=>{font(9,'bold',green);doc.text(t.toUpperCase(),x,y)};
  const wrap=(t,w,size)=>{doc.setFontSize(size);return doc.splitTextToSize(String(t||''),w)};
  const header=first=>{
-  if(!first){doc.addImage(logo,'PNG',L,12,24,24*logoH/logoW);font(8.5,'normal',grey);doc.text('Orçamento '+number+'  ·  '+String(q.client||''),R,17,{align:'right'});hr(24);return}
-  doc.addImage(logo,'PNG',L,14,logoW,logoH);
-  // Letterhead: company details aligned right, in small grey type.
-  const lines=[e.morada,e.nif&&'NIF '+e.nif,[phone,email].filter(Boolean).join('  ·  '),e.site].filter(Boolean);
-  font(9,'bold');doc.text(company,R,17,{align:'right'});font(8,'normal',grey);lines.forEach((t,i)=>doc.text(t,R,21.5+i*4,{align:'right'}));
-  hr(Math.max(14+logoH,21.5+lines.length*4)+4,navy,.4);
+  if(!first){doc.addImage(logo,'PNG',L,9,30,30*logoH/logoW);font(9,'bold',green);doc.text('ORÇAMENTO '+number.replace(/^ORC\s*/,''),R,15,{align:'right'});font(8.5,'normal',grey);doc.text(String(q.client||''),R,20,{align:'right'});doc.setFillColor(...green);doc.rect(0,25,210,1.2,'F');return}
+  doc.addImage(logo,'PNG',L,10,logoW,logoH);
+  font(26,'bold',green);doc.text('ORÇAMENTO',R,24,{align:'right'});
+  // Green band with the document details.
+  doc.setFillColor(...green);doc.rect(0,36,210,13,'F');doc.setFillColor(...orange);doc.rect(0,49,210,1.2,'F');
+  [['N.º',number.replace(/^ORC\s*/,'')],['Data',day(issued)],['Válido até',day(valid)]].forEach(([k,v],i)=>{const x=L+i*62;font(8,'normal',[214,236,219]);doc.text(k,x,41);font(11,'bold',white);doc.text(v,x,46.5)});
  };
  header(true);
- let y=50;
+ let y=60;
  const ensure=h=>{if(y+h>BOTTOM){doc.addPage();header(false);y=34}};
- // Title, then the client on the left and the document details on the right.
- font(18,'normal',navy);doc.text('Orçamento',L,y);font(10,'normal',grey);doc.text(number,R,y,{align:'right'});y+=11;
- font(7.5,'bold',grey);doc.text('CLIENTE',L,y);
- const client=[[q.client,'bold'],...wrap(q.address,90,9.5).map(t=>[t]),q.contact&&['Tel. '+q.contact],q.email&&[q.email]].filter(x=>x&&x[0]);
- client.forEach(([t,s],i)=>{font(9.5,s||'normal');doc.text(String(t),L,y+5.5+i*4.6)});
- const meta=[['Data',day(issued)],['Válido até',day(valid)],['Responsável',person],phone&&['Contacto',phone]].filter(Boolean);
- meta.forEach(([k,v],i)=>{font(8.5,'normal',grey);doc.text(k,132,y+5.5+i*4.6);font(8.5,'normal');doc.text(v,R,y+5.5+i*4.6,{align:'right'})});
- y+=5.5+Math.max(client.length,meta.length)*4.6+6;
- font(9.5,'bold');doc.text('Assunto:',L,y);font(9.5);doc.text(wrap(quoteTitle(q).replace(/^Orçamento para /,''),W-18,9.5),L+16,y);y+=7;
+ // Client on the left, company and contact on the right.
+ const half=(W-10)/2,rx=L+half+10;
+ const client=[[q.client,'bold',11],...wrap(q.address,half,10).map(t=>[t]),q.contact&&['Tel. '+q.contact],q.email&&[q.email]].filter(x=>x&&x[0]);
+ const firm=[[company,'bold',11],e.morada&&[e.morada],e.nif&&['NIF '+e.nif],[person+' · '+role],[[phone,email].filter(Boolean).join(' · ')]].filter(Boolean);
+ for(const [x,t,rows] of [[L,'Cliente',client],[rx,'De',firm]]){heading(t,x,y);rows.forEach(([v,s,z],i)=>{font(z||10,s||'normal');doc.text(wrap(v,half,z||10)[0],x,y+7+i*5.2)})}
+ y+=7+Math.max(client.length,firm.length)*5.2+5;
+ doc.setFillColor(...tint);doc.rect(L,y,W,10,'F');doc.setFillColor(...green);doc.rect(L,y,1.5,10,'F');
+ font(10,'bold',green);doc.text('Assunto',L+5,y+6.6);font(10.5,'bold');doc.text(wrap(quoteTitle(q).replace(/^Orçamento para /,''),W-32,10.5)[0],L+27,y+6.6);y+=15;
  // Allocate rounded sale prices so the published line values add up to the exact net total.
  let remaining=Math.round(totals.net*100);
  const cents=q.lines.map(l=>Math.floor((totals.cost?(l.value*(l.quantity??1))/totals.cost*totals.net:0)*100));
  remaining-=cents.reduce((s,n)=>s+n,0);for(let i=0;remaining>0;i=(i+1)%cents.length,remaining--)cents[i]++;
  const quantity=n=>Number(n).toLocaleString('pt-PT',{maximumFractionDigits:3}).replace(/ | /g,' ');
- const margin={left:L,right:210-R,top:32,bottom:30},later=()=>{if(doc.internal.getCurrentPageInfo().pageNumber>1)header(false)};
+ const margin={left:L,right:210-R,top:32,bottom:31},later=()=>{if(doc.internal.getCurrentPageInfo().pageNumber>1)header(false)};
  doc.autoTable({startY:y,margin,theme:'plain',
   // The summary version lists what is included without revealing line prices.
   ...(detailed?{head:[['Descrição','Qtd.','Un.','Preço unit.','Total']],body:q.lines.map((l,i)=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.',money(cents[i]/100/(l.quantity??1)),money(cents[i]/100)])}:{head:[['Descrição','Qtd.','Un.']],body:q.lines.map(l=>[quoteClientText(l.description),quantity(l.quantity??1),l.unit||'un.'])}),
-  styles:{font:'helvetica',fontSize:9,cellPadding:{top:2.4,right:2,bottom:2.4,left:2},overflow:'linebreak',textColor:ink,lineColor:rule,lineWidth:{bottom:.15}},
-  headStyles:{textColor:navy,fontStyle:'bold',fontSize:8,lineColor:navy,lineWidth:{top:.4,bottom:.4}},
-  columnStyles:detailed?{0:{cellWidth:84},1:{cellWidth:14,halign:'right'},2:{cellWidth:14},3:{cellWidth:31,halign:'right'},4:{cellWidth:31,halign:'right'}}:{0:{cellWidth:146},1:{cellWidth:14,halign:'right'},2:{cellWidth:14}},
+  styles:{font:'helvetica',fontSize:9.5,cellPadding:{top:2.7,right:2.5,bottom:2.7,left:2.5},overflow:'linebreak',textColor:ink,lineColor:rule,lineWidth:{bottom:.2}},
+  headStyles:{fillColor:green,textColor:255,fontStyle:'bold',fontSize:9,lineWidth:0},alternateRowStyles:{fillColor:[248,251,248]},
+  columnStyles:detailed?{0:{cellWidth:86},1:{cellWidth:14,halign:'right'},2:{cellWidth:14},3:{cellWidth:33,halign:'right'},4:{cellWidth:33,halign:'right',fontStyle:'bold'}}:{0:{cellWidth:152},1:{cellWidth:14,halign:'right'},2:{cellWidth:14}},
   didParseCell:d=>{if(d.section==='head'&&d.column.index>0&&d.column.index!==2)d.cell.styles.halign='right'},rowPageBreak:'avoid',didDrawPage:later});
  y=doc.lastAutoTable.finalY+6;
- // Totals, right-aligned.
- ensure(24);const tx=130;
- [['Total sem IVA',money(totals.net)],['IVA ('+q.vat+'%)',money(totals.vat)]].forEach(([k,v],i)=>{font(9,'normal',grey);doc.text(k,tx,y+i*5.2);font(9);doc.text(v,R-2,y+i*5.2,{align:'right'})});
- hr(y+8,navy,.4,tx,R);font(10.5,'bold',navy);doc.text('Total com IVA',tx,y+14);doc.text(money(totals.total),R-2,y+14,{align:'right'});
- y+=26;
- // Numbered conditions, written as sentences.
- const weeks=sol?sol.nextWeeks(e.semanas):[],half=Math.round(totals.total*50)/100,inc=e.incluido&&e.incluido.length?e.incluido:sol?sol.INCLUDED:[];
- const lc=s=>s.charAt(0).toLowerCase()+s.slice(1);
- const cond=[
-  'Proposta válida até '+day(valid)+'.',
-  inc.length&&'O preço inclui: '+inc.map(lc).join('; ')+'.',
-  'Pagamento: 50% na adjudicação ('+money(half)+') e 50% na conclusão da obra ('+money(totals.total-half)+'), por transferência bancária.',
-  'Prazo de execução: '+(weeks.length?'a partir da '+sol.weekLabel(weeks[0])+', a confirmar na adjudicação.':'a combinar na adjudicação.'),
-  'Garantia: '+(e.garantiaEquip||'3 anos')+' nos equipamentos e '+(e.garantiaInst||'2 anos')+' na instalação.',
-  'Trabalhos não descritos neste orçamento serão orçamentados à parte.',
- ].filter(Boolean);
- const cl=cond.map(t=>wrap(t,W-7,8.8)),ch=7+cl.reduce((s,l)=>s+l.length*4+1.4,0);
- ensure(ch);font(7.5,'bold',grey);doc.text('CONDIÇÕES',L,y);y+=5.5;
- cl.forEach((l,i)=>{font(8.8,'normal',grey);doc.text((i+1)+'.',L,y);font(8.8);doc.text(l,L+6,y);y+=l.length*4+1.4});
- // Closing and signatures.
- y+=5;ensure(36);font(9);
- doc.text(wrap('Para adjudicar, basta responder no link da proposta ou contactar-nos'+(phone?' pelo '+phone:'')+'. Ficamos ao dispor para qualquer esclarecimento.',W,9),L,y);
- y+=22;const sw=74;
- for(const [x,a,b] of [[L,person,role+', '+company],[R-sw,'Aceitação do cliente','Data: ____ / ____ / ________']]){hr(y,ink,.25,x,x+sw);font(8.5,'bold');doc.text(a,x,y+4.5);font(8,'normal',grey);doc.text(b,x,y+8.5)}
+ // Totals: net and VAT, then the total in a green bar.
+ ensure(30);const tx=115;
+ [['Total sem IVA',money(totals.net)],['IVA ('+q.vat+'%)',money(totals.vat)]].forEach(([k,v],i)=>{font(10,'normal',grey);doc.text(k,tx+4,y+i*6);font(10);doc.text(v,R-4,y+i*6,{align:'right'})});
+ doc.setFillColor(...green);doc.rect(tx,y+9,R-tx,13,'F');doc.setFillColor(...orange);doc.rect(tx,y+9,1.5,13,'F');
+ font(11,'bold',white);doc.text('Total com IVA',tx+6,y+17.4);font(16,'bold',white);doc.text(money(totals.total),R-4,y+17.8,{align:'right'});
+ y+=30;
+ // Short conditions in a 2 × 2 grid.
+ const weeks=sol?sol.nextWeeks(e.semanas):[];
+ const cond=[['Validade','Até '+day(valid)],['Pagamento','50% na adjudicação e 50% no fim da obra'],['Prazo',weeks.length?'A partir da '+sol.weekLabel(weeks[0]):'A combinar na adjudicação'],['Garantia',(e.garantiaEquip||'3 anos')+' equipamentos · '+(e.garantiaInst||'2 anos')+' instalação']];
+ ensure(30);heading('Condições',L,y);y+=3;doc.setDrawColor(...rule);doc.setLineWidth(.2);
+ cond.forEach(([k,v],i)=>{const x=L+(i%2)*(half+10),cy=y+Math.floor(i/2)*12;doc.line(x,cy+11,x+half,cy+11);font(8.5,'bold',grey);doc.text(k,x,cy+4.5);font(10);doc.text(wrap(v,half,10)[0],x,cy+9.3)});
+ y+=27;
+ // Signatures.
+ ensure(22);y+=11;
+ for(const [x,a,b] of [[L,company,person+' · '+role],[rx,'O cliente',String(q.client||'')+' · Data ___/___/______']]){doc.setDrawColor(...ink);doc.setLineWidth(.3);doc.line(x,y,x+half,y);font(10,'bold');doc.text(a,x,y+5.5);font(9,'normal',grey);doc.text(b,x,y+10.5)}
  // Quotes with a PV sizing get one more page with the study and the monthly chart.
- if(q.pv?.result?.panels&&typeof pvPdfSection==='function'){doc.addPage();header(false);pvPdfSection(doc,q.pv.result,{navy,grey,soft:[244,246,247],money})}
- // Footer: company identification, credentials and page number.
+ if(q.pv?.result?.panels&&typeof pvPdfSection==='function'){doc.addPage();header(false);pvPdfSection(doc,q.pv.result,{navy:green,grey,soft:tint,money})}
+ // Footer: green rule, company identification, credentials and page number.
  const creds=(e.credenciais||[]).filter(x=>x.nome&&x.numero).map(x=>x.nome+' n.º '+x.numero).join('  ·  ');
- const foot=[company,e.nif&&'NIF '+e.nif,email,e.site].filter(Boolean).join('  ·  ');
- const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);hr(279);font(7,'normal',grey);doc.text(foot,L,283.5);if(creds)doc.text(wrap(creds,W-30,7)[0],L,287);doc.text(p+' / '+pages,R,283.5,{align:'right'})}
+ const foot=[company,e.nif&&'NIF '+e.nif,phone,email,e.site].filter(Boolean).join('  ·  ');
+ const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFillColor(...green);doc.rect(L,278,W,.6,'F');font(7.5,'normal',grey);doc.text(foot,L,283);if(creds)doc.text(wrap(creds,W-20,7.5)[0],L,287);font(7.5,'bold',green);doc.text(p+' / '+pages,R,283,{align:'right'})}
  // File names cannot contain slashes, so 2026/0042 becomes 2026-0042.
  const clean=v=>String(v||'').replace(/[\\/:*?"<>|\x00-\x1f]+/g,'-').replace(/\s+/g,' ').trim();
  return {doc,filename:clean('ORC Nº '+number.replace(/^ORC\s*/,'')+' '+q.client)+'.pdf'};

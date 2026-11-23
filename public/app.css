@@ -33,6 +33,7 @@ a.mini,button.mini{display:inline-block;margin-top:4px;font-size:13px;font-weigh
 /* Leads: cada fase tem a sua cor (nova a roxo, proposta enviada e adjudicado a verde, perdido a vermelho). */
 .lead-nova{--lc:#8b5cf6}.lead-contacto{--lc:var(--blue)}.lead-triagem{--lc:var(--amber)}.lead-orcamento{--lc:#f97316}.lead-enviada{--lc:#34c77b}.lead-ganho{--lc:#0e8a45}.lead-visita{--lc:#0ea5e9}.lead-perdido{--lc:var(--red)}
 .lead-badge{display:inline-block;padding:3px 9px;border-radius:10px;font-size:12px;font-weight:700;color:var(--lc);background:color-mix(in srgb,var(--lc) 15%,transparent)}
+.lead-src,.rt span.lead-src{display:inline-block;overflow:visible;padding:1px 7px;margin-right:6px;border-radius:8px;font-size:11.5px;font-weight:700;color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);vertical-align:1px}.lead-src-site{--sc:#0a7cc4}.lead-src-ads{--sc:#d97706}.lead-src-email{--sc:#7c3aed}.lead-src-app{--sc:#6b7280}.rt span.lead-src{font-size:11.5px;color:var(--sc)}.lead-origem{margin:-4px 0 8px}
 .lead-row{box-shadow:inset 4px 0 0 var(--lc)}.lead-row .av{background:color-mix(in srgb,var(--lc) 18%,transparent);color:var(--lc)}
 .lead-row.lead-perdido{background:color-mix(in srgb,var(--red) 8%,var(--card))}
 .lead-call{display:inline-block;margin-left:6px;font-weight:600}.lead-call::before{content:"· "}.lead-call:first-child{margin-left:0}.lead-call:first-child::before{content:""}

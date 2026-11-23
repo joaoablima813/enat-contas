@@ -42,10 +42,13 @@ const leadCall=c=>c==='atendeu'?'<span class="lead-call pos">Atendeu</span>':c==
 // Têm cor própria e ficam separadas das leads criadas na app. Saem ao marcar como recebida, ao marcar a chamada ou ao mudar a fase.
 const leadIsNew=l=>l.src==='meta'&&!l.seen&&(l.stage||'nova')==='nova'&&!l.call&&!leadCallsCount(l);
 const leadNews=()=>leadList().filter(leadIsNew);
+// Origem da lead: site (e de onde veio a visita, ex.: Google Ads), email da campanha ou criada na app.
+const leadOrigem=l=>l.src==='site'?'Site'+(l.via&&l.via!=='Direto'?' · '+l.via:''):l.src==='meta'?'Email':'Criada na app';
+const leadOrigemTag=l=>`<span class="lead-src lead-src-${l.src==='site'?(l.via==='Google Ads'?'ads':'site'):l.src==='meta'?'email':'app'}">${esc(leadOrigem(l))}</span>`;
 const LEAD_PAGE=10,LEAD_COL=20;
 function leadRow(l){
  const nova=leadIsNew(l),info=[(l.solutions||[]).join(', '),l.contact].filter(v=>String(v||'').trim()).map(esc).join(' · ');
- return`<button class="row invoice-row lead-row ${nova?'lead-email':'lead-'+esc(l.stage||'nova')}" data-la="open" data-id="${esc(l.id)}"><div class="av">${esc(leadName(l)[0])}</div><div class="rt"><b>${esc(leadName(l))}</b><span>${info||'Sem soluções indicadas'}</span><span>${nova?(l.src==='site'?'Pedido pelo site · ':'Sincronizada do Outlook · '):''}${l.date?esc(fd(l.date)):''}${leadCallsCount(l)?` · ${leadCallsCount(l)} chamada${leadCallsCount(l)>1?'s':''}`:''}${leadCall(l.call)}</span></div><div class="rr">${nova?'<span class="lead-badge lead-email">Lead nova</span>':leadBadge(l.stage)}</div></button>`;
+ return`<button class="row invoice-row lead-row ${nova?'lead-email':'lead-'+esc(l.stage||'nova')}" data-la="open" data-id="${esc(l.id)}"><div class="av">${esc(leadName(l)[0])}</div><div class="rt"><b>${esc(leadName(l))}</b><span>${info||'Sem soluções indicadas'}</span><span>${leadOrigemTag(l)}${l.date?esc(fd(l.date)):''}${leadCallsCount(l)?` · ${leadCallsCount(l)} chamada${leadCallsCount(l)>1?'s':''}`:''}${leadCall(l.call)}</span></div><div class="rr">${nova?'<span class="lead-badge lead-email">Lead nova</span>':leadBadge(l.stage)}</div></button>`;
 }
 // Junta as leads recebidas por email que este dispositivo ainda não tem (nem foram eliminadas).
 function leadInbox(list){
@@ -127,7 +130,7 @@ function leadCallsHtml(l){
 }
 function leadEditor(){
  const l=leadDraft,maps=String(l.coords||'').trim()||String(l.address||'').trim(),saved=(S.leads||[]).find(x=>x.id===l.id),nova=!!saved&&leadIsNew(saved);
- return`<button class="back" data-la="close">${ic('back')} Leads</button><h1>${l.id?esc(leadName(l)):'Nova lead'}</h1><p class="sub">Nenhum campo é obrigatório. Pode guardar e completar mais tarde.</p>
+ return`<button class="back" data-la="close">${ic('back')} Leads</button><h1>${l.id?esc(leadName(l)):'Nova lead'}</h1>${l.id?`<p class="lead-origem">Origem: ${leadOrigemTag(l)}${l.campanha?' <span class="note">campanha «'+esc(l.campanha)+'»</span>':''}</p>`:''}<p class="sub">Nenhum campo é obrigatório. Pode guardar e completar mais tarde.</p>
  ${nova?`<div class="lead-ed lead-email lead-inbox"><h2>Lead nova · ${l.src==='site'?'pedido feito no site':'sincronizada do Outlook'}</h2><p class="note">${l.src==='site'?'Chegou pelo formulário «Pedir orçamento» do site.':'Chegou por email da campanha.'} Ao marcar como recebida, passa para as Leads com a cor normal.</p><button class="btn" data-la="seen">Marcar como recebida</button></div>`:''}
  <div class="lead-ed lead-${esc(l.stage)}"><h2>Fase da lead</h2><div class="lead-opts lead-stages">${Object.entries(LEAD_STAGES).map(([k,t])=>leadChoice('stage',k,t,'lead-'+k)).join('')}</div>${l.stage==='visita'||l.visitAt?`<div class="q-card lead-visit">${leadField('Data e hora da visita','visitAt','datetime-local')}<p class="note">A visita aparece no Calendário.</p></div>`:''}</div>
  <h2>Cliente</h2><div class="q-card">${leadField('Nome do cliente','name','text','maxlength="2000" autocomplete="off"')}${leadField('Morada','address','text','maxlength="4000" autocomplete="off"')}${leadField('Contacto','contact','tel','maxlength="2000" inputmode="tel" autocomplete="off"')}${leadField('Email','email','email','maxlength="320" autocomplete="off" placeholder="cliente@exemplo.pt"')}${leadField('Coordenadas (opcional)','coords','text','maxlength="200" autocomplete="off" placeholder="Ex.: 41.7672, -8.5836"')}${maps?`<a class="link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(maps)}" target="_blank" rel="noopener">Abrir no mapa</a>`:''}${leadField('Data','date','date')}</div>

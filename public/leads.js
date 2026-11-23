@@ -102,7 +102,12 @@ function vLeads(){
  const all=S.leads||[],count=s=>all.filter(l=>l.stage===s&&!leadIsNew(l)).length;
  const chips=`<div class="chips">${[['','Todas'],...Object.entries(LEAD_STAGES)].map(([k,l])=>`<button class="${(V.ls||'')===k?'on':''}" data-la="filter" data-id="${k}">${l}${k&&count(k)?' · '+count(k):''}</button>`).join('')}</div>`;
  if(V.lall)return`<div class="lead-wide"><button class="back" data-la="less">${ic('back')} Leads</button><h1>${V.lall==='novas'?'Leads novas':'Todas as leads'}</h1>${leadSearchBar()}${V.lall==='novas'?'':chips}<div id="llist">${leadsList()}</div></div>`;
- return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1><p class="sub">Contactos de clientes, da primeira chamada à adjudicação.</p><button class="btn" data-la="new">Nova lead</button>${leadSearchBar()}${chips}</div>${leadSplit()}</div>`;
+  // Separadores: as leads, as conversas com os clientes (página do cliente) e as leads por voltar a ligar.
+  const chats=typeof pedChats==='function'?pedChats():[],nMsg=chats.filter(l=>{const n=pedNovo(l.pedido);return n.msg||n.ax}).length,nNo=leadNoFiltered().length,lt=V.lt||'';
+  const seg=`<div class="lead-seg" role="tablist">${[['','Leads',0],['msg','Mensagens',nMsg],['no','Não atendeu',nNo]].map(([k,t,n])=>`<button type="button" role="tab" aria-selected="${lt===k}" class="${lt===k?'on':''}${k==='no'?' seg-no':''}" data-la="lt" data-id="${k}">${t}${n?` <span class="lead-seg-n">${n}</span>`:''}</button>`).join('')}</div>`;
+  if(lt==='msg')return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1>${seg}</div>${typeof pedChatsHtml==='function'?pedChatsHtml():''}</div>`;
+  if(lt==='no')return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1>${seg}${leadSearchBar()}</div><div id="lno" class="lead-no lead-no-tab">${leadsNoHtml()}</div></div>`;
+  return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1>${seg}<button class="btn" data-la="new">Nova lead</button>${leadSearchBar()}${chips}</div><div id="llist">${leadsList()}</div></div>`;
 }
 
 const leadField=(label,k,type='text',extra='')=>`<label class="q-field"><span>${label}</span><input type="${type}" data-lf="${k}" value="${esc(leadDraft[k])}" ${extra}></label>`;
@@ -193,6 +198,7 @@ document.addEventListener('click',async e=>{
  if(a==='new'){leadDraft=leadNew();leadOrig=JSON.stringify(leadDraft);leadMsg='';window.scrollTo?.(0,0)}
  else if(a==='open'){if(!leadOpen(id)){alert('Lead não encontrada.');return}V.tab='leads';V.obra=null;window.scrollTo?.(0,0)}
  else if(a==='filter')V.ls=id;
+ else if(a==='lt'){V.lt=id;V.lchat='';window.scrollTo?.(0,0)}
  else if(a==='all'){V.tab='leads';V.obra=null;V.lall=id;leadDraft=null;window.scrollTo?.(0,0)}
  else if(a==='less'){V.lall='';window.scrollTo?.(0,0)}
  else if(a==='seen'){leadDraft.seen=true;leadSave();leadMsg='Lead marcada como recebida. Passou para as Leads.'}

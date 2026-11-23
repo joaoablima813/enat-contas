@@ -38,7 +38,7 @@ test('the app creates one link per lead; the client answers on the page with pho
   assert.equal(r2.token, r1.token, 'asking again reuses the same link');
 
   const page = await (await pub(store, r1.token)).text();
-  assert.match(page, /Olá Maria/);assert.match(page, /Quantas divisões quer climatizar/);assert.match(page, /Máxima qualidade/);assert.match(page, /Código postal/);
+  assert.match(page, /Olá, Maria/);assert.match(page, /Quantas divisões quer climatizar/);assert.match(page, /Máxima qualidade/);assert.match(page, /Código postal/);
   assert.match(page, /data-tech="Ar condicionado">/, 'the chosen solution is open');assert.match(page, /data-tech="VMC" hidden/);
 
   const photo = await (await pub(store, r1.token, 'POST', new Uint8Array([1, 2, 3]).buffer, 'foto', { 'content-type': 'image/jpeg' })).json();
@@ -79,6 +79,9 @@ test('client page: messages both ways, quotes from other companies, sent quotes 
   assert.equal(await addProposta(store, 'L1', 'Maria Silva', { token: 'Q'.repeat(24), quote: 7, numero: 'ORC 2026/0007', titulo: 'VMC' }), token, 'a quote sent from the lead goes to the same page');
   const page = await (await pub(store, token)).text();
   assert.match(page, /ORC 2026\/0007/);assert.match(page, /href="\/proposta\/QQQQ/);assert.match(page, /Pode sim\./);
+  assert.equal((await pub(store, token, 'POST', { sol: ['Inventada'] }, 'novo')).status, 400, 'only known solutions');
+  const nv = await (await pub(store, token, 'POST', { sol: ['Painéis fotovoltaicos', 'Inventada'], texto: 'Telhado a sul' }, 'novo')).json();
+  assert.equal(nv.msgs.at(-1).texto, 'Pedido de novo orçamento: Painéis fotovoltaicos\nTelhado a sul', 'a new request reaches the ENAT as a message');
   const nl = await (await api(store, 'POST', 'pedido/novo-link', { lead: 'L1' })).json();
   assert.notEqual(nl.token, token);
   assert.equal((await pub(store, token)).status, 404, 'the old link stops working');

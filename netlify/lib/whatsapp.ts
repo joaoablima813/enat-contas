@@ -9,6 +9,8 @@ const fail = (status: number, error: string) => Response.json({ error }, { statu
 // The PDF link in messages sent before the quote page existed, and the quote page link.
 const linkToken = (link: unknown) => String(link).match(/\/(?:api\/pdf|proposta)\/([A-Za-z0-9_-]{24})\/?$/)?.[1] || '';
 const sent = (quoteId: number, note: string) => db.insert(quoteEvents).values({ quoteId, kind: 'enviado', note }).catch((e: any) => console.error('quote sent', e?.message));
+// Valor total (IVA incluído), como na proposta.
+const quoteTotal = async (q: any) => { try { await import('../../public/quote-math.js'); return Number((globalThis as any).quoteTotals(q).total); } catch { return undefined; } };
 const quoteNumber = (id: number, date: string) => 'ORC ' + (String(date || '').slice(0, 4) || new Date().getFullYear()) + '/' + String(id).padStart(4, '0');
 
 export async function handleWhatsapp(req: Request, path: string, store: any) {
@@ -27,7 +29,7 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
   const token = randomBytes(18).toString('base64url');
   let portal = '';
   if (q.lead) {
-    try { const { addProposta } = await import('./pedido.mjs'); portal = await addProposta(store, q.lead, q.client, { token, quote: row.id, numero: number, titulo: (q.topics || []).join(', ') || 'Orçamento' }); }
+    try { const { addProposta } = await import('./pedido.mjs'); portal = await addProposta(store, q.lead, q.client, { token, quote: row.id, numero: number, titulo: (q.topics || []).join(', ') || 'Orçamento', total: await quoteTotal(q) }); }
     catch (e: any) { console.error('página do cliente', e?.message); }
   }
   await store.set('pdf-' + token, Buffer.from(b.pdf, 'base64'), { metadata: { filename, quote: row.id, ...(group ? { group } : {}), ...(portal ? { portal } : {}) } });

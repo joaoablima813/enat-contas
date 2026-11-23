@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import * as portfolio from '../netlify/lib/portfolio.mjs';
+import * as pageStyle from '../netlify/lib/page-style.mjs';
 const read=f=>readFileSync(new URL('../'+f,import.meta.url),'utf8');
 const ts=f=>stripTypeScriptTypes(read(f).replace(/^import .*;\n/gm,'').replace(/^export /gm,''));
 const sample={client:'Família Araújo',address:'Rua da Instalação, 12',contact:'912 345 678',email:'a@b.pt',date:new Date().toISOString().slice(0,10),topics:['Ar condicionado'],brand:'LG',margin:20,vat:23,warranty:'3 anos',status:'enviado',validity:30,lines:[{kind:'Equipamento',description:'Unidade',value:1000,quantity:1,unit:'un.'},{kind:'Mão de obra',description:'Montagem',value:200,quantity:1,unit:'un.'}]};
@@ -28,7 +29,7 @@ function blobs(){const m=new Map();return {m,set:async(k,v,o)=>m.set(k,{data:v,m
 function server(){
  const f=fakeDb(),store=blobs();
  // Each server module runs in its own context, sharing the same database and blob store.
- const ctx=()=>vm.createContext({...f,...portfolio,Response,URL,Buffer,Headers,console,structuredClone,randomBytes:k=>Buffer.alloc(k,++n),process:{env:{}},store});
+ const ctx=()=>vm.createContext({...f,...portfolio,...pageStyle,Response,URL,Buffer,Headers,console,structuredClone,randomBytes:k=>Buffer.alloc(k,++n),process:{env:{}},store});
  const c=ctx(),w=ctx(),q=ctx();
  for(const p of ['public/quote-math.js','public/gestao.js','public/quote-obra.js','public/solucoes.js'])vm.runInContext(read(p),c);
  vm.runInContext(ts('netlify/lib/proposta.ts'),c);vm.runInContext(ts('netlify/lib/whatsapp.ts'),w);vm.runInContext(ts('netlify/lib/quotes.ts'),q);

@@ -85,3 +85,14 @@ test('the scheduled run emails the link once, during the day, and the app learns
   await store.setJSON('empresa', { autoPedido: false });await store.setJSON('pedido-auto-ultimo', { t: 0 });
   assert.deepEqual(await runAutoPedidos(store, now + 20 * 60e3, send), { skipped: 'off' });
 });
+
+test('links sent to clients use LINK_URL when set (own address), otherwise the app address', async () => {
+  const store = blobs();
+  process.env.LINK_URL = 'https://propostas.exemplo.pt/';
+  try {
+    const r = await (await api(store, 'POST', 'pedido', { lead: 'L9', nome: 'Rui', sol: [] })).json();
+    assert.match(r.url, /^https:\/\/propostas\.exemplo\.pt\/pedido\/[A-Za-z0-9_-]{24}$/);
+  } finally { delete process.env.LINK_URL; }
+  const r2 = await (await api(store, 'POST', 'pedido', { lead: 'L9', nome: 'Rui', sol: [] })).json();
+  assert.match(r2.url, /^https:\/\/enat\.example\/pedido\//);
+});

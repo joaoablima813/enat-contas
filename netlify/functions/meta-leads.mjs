@@ -1,10 +1,17 @@
 import { getStore } from '@netlify/blobs';
 import { checkMetaLeads } from '../lib/meta-leads.mjs';
+import { runAutoPedidos } from '../lib/pedido.mjs';
 
-// A cada 5 minutos procura leads novas da Meta no email.
+// A cada minuto procura leads novas da Meta no email; quando há, envia logo o questionário por email (se estiver ligado).
 export default async () => {
-  try { console.log('meta-leads', await checkMetaLeads(getStore({ name: 'enat', consistency: 'strong' }))); }
+  const store = getStore({ name: 'enat', consistency: 'strong' });
+  let r = {};
+  try { r = await checkMetaLeads(store); console.log('meta-leads', r); }
   catch (e) { console.error('meta-leads falhou', e?.message || e); }
+  if (r.imported) {
+    try { console.log('pedido automático', await runAutoPedidos(store, Date.now(), undefined, { force: true })); }
+    catch (e) { console.error('pedido automático falhou', e?.message || e); }
+  }
 };
 
-export const config = { schedule: '*/5 * * * *' };
+export const config = { schedule: '* * * * *' };

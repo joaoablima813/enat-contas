@@ -33,7 +33,7 @@ function pedApply(l,resp){
 }
 // Lê as respostas novas no servidor (no máximo a cada minuto, ao sincronizar).
 async function pedidosPull(force){
- if(!force&&Date.now()-PED_AT<6e4)return;PED_AT=Date.now();
+ if(!force&&Date.now()-PED_AT<2e4)return;PED_AT=Date.now();
  const r=await API('pedidos').catch(()=>null);if(!r?.ok)return;
  const {pedidos,auto}=await r.json().catch(()=>({}));let changed=false;
  for(const p of pedidos||[]){
@@ -47,7 +47,8 @@ async function pedidosPull(force){
  }
  // Links enviados automaticamente por email pelo servidor.
  for(const x of auto||[]){const l=(S.leads||[]).find(y=>y.id===x.lead);if(!l||l.pedido?.sent)continue;l.pedido={...(l.pedido||{}),token:x.token,sent:x.sent,auto:true,failed:x.failed};changed=true;if(leadDraft?.id===l.id){leadDraft.pedido=l.pedido;leadOrig=JSON.stringify({...JSON.parse(leadOrig),pedido:l.pedido})}}
- if(changed){save();if(idle())render()}
+ // Volta a desenhar também com uma lead aberta (desde que não esteja a escrever num campo).
+ if(changed){save();const typing=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);if(idle()||(!typing&&!D&&!quoteDraft&&V.tab==='leads'))render()}
 }
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-ped]');if(!b||!leadDraft)return;const ch=b.dataset.ped;
@@ -68,3 +69,15 @@ document.addEventListener('click',async e=>{
  }catch(x){win?.close();PED_MSG=x.message}
  PED_BUSY=false;render();
 });
+
+// Leads que responderam ao questionário e ainda não foram abertas: secção própria no topo das Leads.
+const pedNovas=()=>(S.leads||[]).filter(l=>l.pedido?.resp&&!l.pedido.visto).sort((a,b)=>(b.pedido.resp.at||0)-(a.pedido.resp.at||0));
+function pedidosNovosHtml(){
+ const l=pedNovas();if(!l.length)return '';
+ const when=t=>new Date(t).toLocaleString('pt-PT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+ return `<h2 class="lead-new-h">Responderam ao questionário (${l.length})</h2><p class="note">O cliente enviou os dados pelo link. Abra a lead para ver as respostas e os equipamentos sugeridos.</p><div class="grp lead-new">${l.map(x=>`<button class="row invoice-row lead-row lead-triagem" data-la="open" data-id="${esc(x.id)}"><div class="av">${esc(leadName(x)[0])}</div><div class="rt"><b>${esc(leadName(x))}</b><span>${esc((x.pedido.resp.sol||[]).join(', '))}${x.pedido.resp.local?' · '+esc(x.pedido.resp.local):''}</span><span>Respondeu a ${esc(when(x.pedido.resp.at))}${(x.pedido.resp.fotos||[]).length?' · '+x.pedido.resp.fotos.length+' foto'+(x.pedido.resp.fotos.length>1?'s':''):''}</span></div><div class="rr"><b>Novo</b><span>respostas</span></div></button>`).join('')}</div>`;
+}
+// Ao abrir a lead, as respostas passam a vistas.
+function pedVisto(id){const l=(S.leads||[]).find(x=>x.id===id);if(l?.pedido?.resp&&!l.pedido.visto){l.pedido={...l.pedido,visto:Date.now()};save()}}
+// A app pede para sincronizar quando chega uma notificação com a app aberta.
+if(typeof navigator!=='undefined')navigator.serviceWorker?.addEventListener?.('message',e=>{if(e.data?.refresh&&typeof pull==='function'&&SESS()){PED_AT=0;pull()}});

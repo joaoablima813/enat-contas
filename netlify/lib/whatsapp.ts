@@ -32,7 +32,9 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
   }
   // Automatic emails are recorded once the mail server accepts them.
   if (b.channel === 'whatsapp' || b.channel === 'mailto') await sent(row.id, b.channel === 'whatsapp' ? 'WhatsApp' : 'Email');
-  return Response.json({ url: new URL(req.url).origin + '/proposta/' + token, number });
+  // Endereço dos links enviados aos clientes: LINK_URL (ex.: https://propostas.enat.pt) ou, sem ele, o endereço da app.
+  const base = String(process.env.LINK_URL || '').replace(/\/+$/, '') || new URL(req.url).origin;
+  return Response.json({ url: base + '/proposta/' + token, number });
 }
 
 // Public link opened by the client; only someone with the link can read the PDF.

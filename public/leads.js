@@ -79,7 +79,7 @@ const leadNewHome=()=>{const l=leadNews();return l.length?`<h2 class="lead-new-h
 function leadsList(){
  if(V.lall)return leadsAllList();
  const l=leadOldFiltered();
- return leadsNewHtml()+`<h2>Leads${l.length?' ('+l.length+')':''}</h2>`+(l.length?`<div class="grp">${l.slice(0,LEAD_PAGE).map(leadRow).join('')}</div>${leadMore(l.length,'todas')}`:`<div class="grp"><div class="empty">${(S.leads||[]).some(x=>!leadIsNew(x))?'Nenhuma lead com estes filtros.':'Ainda sem leads. Toque em «Nova lead» para registar o primeiro contacto.'}</div></div>`);
+ return (typeof pedidosNovosHtml==='function'?pedidosNovosHtml():'')+leadsNewHtml()+`<h2>Leads${l.length?' ('+l.length+')':''}</h2>`+(l.length?`<div class="grp">${l.slice(0,LEAD_PAGE).map(leadRow).join('')}</div>${leadMore(l.length,'todas')}`:`<div class="grp"><div class="empty">${(S.leads||[]).some(x=>!leadIsNew(x))?'Nenhuma lead com estes filtros.':'Ainda sem leads. Toque em «Nova lead» para registar o primeiro contacto.'}</div></div>`);
 }
 // Página «Mostrar mais»: todas as leads em colunas de 20, lado a lado (no telemóvel desliza-se para o lado).
 function leadsAllList(){
@@ -141,7 +141,7 @@ function leadEditor(){
  ${leadQuotesHtml(l)}${l.id?'<button class="btn del" data-la="delete">Eliminar lead</button>':''}`;
 }
 
-function leadOpen(id){const l=(S.leads||[]).find(x=>x.id===id);if(!l)return false;leadDraft={...leadNew(),...structuredClone(l)};delete leadDraft.u;
+function leadOpen(id){const l=(S.leads||[]).find(x=>x.id===id);if(!l)return false;if(typeof pedVisto==='function')pedVisto(id);leadDraft={...leadNew(),...structuredClone(l)};delete leadDraft.u;
  leadDraft.calls=structuredClone(leadCallsOf(leadDraft));
  leadOrig=JSON.stringify(leadDraft);leadMsg='';leadCallOpen.clear();return true}
 const leadDirty=()=>leadDraft&&JSON.stringify(leadDraft)!==leadOrig;

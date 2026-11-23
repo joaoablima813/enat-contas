@@ -40,6 +40,8 @@ Responde apenas com o objeto JSON.`;
   const nums = new Set((input.texto.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => Number(n.replace(',', '.'))));
   spec.precos_mao_obra = spec.precos_mao_obra.filter((m) => nums.has(m.preco));
   if (!spec.tipologias.length && input.tipologias.length) Object.assign(spec, cleanSpec({ ...spec, tipologias: input.tipologias }));
+  // «pré-instalação de ar condicionado?: Sim» no questionário do cliente: sem tubo de cobre, mesmo que a IA não o marque.
+  if (spec.ac && /pr[ée]-?instala[çc][ãa]o[^\n]*?[?:]\s*sim\b/i.test(input.texto)) spec.ac.pre_instalacao = true;
   return buildPlan(spec, input);
 }
 

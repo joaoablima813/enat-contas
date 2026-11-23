@@ -9,7 +9,7 @@ export const TOPICS = ['VMC', 'Bomba de calor AQS', 'Bomba de calor climatizaç�
 // Quantidades que o utilizador pode indicar no pedido ("30 m de cobre", "25 m de cabo") e que substituem as calculadas.
 export const QTY_KEYS = ['cobre', 'cabo_interligacao', 'cabo_alimentacao', 'calha', 'condensados', 'multicamada', 'isolamento', 'tubo_piso', 'conduta'];
 // Partes que o utilizador pode pedir para não incluir ("sem calha", "sem mão de obra").
-export const EXCLUDE_KEYS = ['calha', 'bomba_condensados', 'gas', 'suporte', 'eletrica', 'diferencial', 'consumiveis', 'desmontagem', 'deslocacao', 'mao_obra', 'equipamento'];
+export const EXCLUDE_KEYS = ['cobre', 'calha', 'bomba_condensados', 'gas', 'suporte', 'eletrica', 'diferencial', 'consumiveis', 'desmontagem', 'deslocacao', 'mao_obra', 'equipamento'];
 
 const num = (v, d = null, min = 0, max = 1e6) => { const n = Number(v); return v !== null && v !== '' && Number.isFinite(n) && n >= min && n <= max ? n : d; };
 const up = (n) => Math.ceil(n - 1e-9);
@@ -49,17 +49,15 @@ function kit(input) {
   const labour = (tipologia, id, descricao, quantidade, unidade, ck = 'Mão de obra', chave = null) => add({ tipologia, categoria: 'Mão de obra', mao_obra: id, descricao, quantidade, unidade, ck, chave });
   const quadro = (v) => num(v, null, 0.5, 300) ?? num(s.distancia_quadro_m, null, 0.5, 300);
   const quadroDefault = (tip, v) => { const d = quadro(v); if (d) return d; pres.push(`${tip}: 10 m de cabo do quadro elétrico ao equipamento (distância não indicada).`); return 10; };
-  // Circuito elétrico dedicado: cabo, disjuntor e ligação (o diferencial é comum à obra).
+  // Circuito elétrico dedicado: cabo e ligação ao quadro. Regra ENAT: o disjuntor e o diferencial nunca entram no orçamento.
   const electric = (tip, calc, label) => {
     if (ex.has('eletrica')) { na(tip, 'Circuito elétrico e proteção', 'excluído no pedido'); return; }
     calcs.push({ nome: 'cabo_eletrico', nota: `${label}: ${calc.nota}` });
     const sec = String(calc.seccao_mm2).replace('.', ',');
     add({ tipologia: tip, categoria: 'Material', chave: 'cabo_alimentacao', ck: 'Circuito elétrico e proteção', descricao: `Cabo de alimentação ${calc.cabo}`, especificacao: calc.tipo_cabo, quantidade: calc.metros, unidade: 'm', pesquisa: [`cabo ${calc.cabo.replace(' mm²', '')}`, `cabo h07rn-f ${calc.cabo.replace(' mm²', '')}`, `cabo xv ${calc.cabo.replace(' mm²', '').replace('G', 'x')}`], exige: [[`${calc.cabo[0]}\\s?[gx]\\s?${String(calc.seccao_mm2).replace('.', '[.,]')}(?![0-9])`]] });
-    const a = parseInt(calc.disjuntor, 10), tri = /tetrapolar/.test(calc.disjuntor);
-    add({ tipologia: tip, categoria: 'Material', tags: ['eletrica'], ck: 'Circuito elétrico e proteção', descricao: `Disjuntor ${a} A curva C ${tri ? '4P (3P+N)' : '1P+N'}`, quantidade: 1, unidade: 'un.', pesquisa: [`disjuntor ${tri ? '4p' : '1p+n'} ${a}a`, `disjuntor ${a}a curva c`, `disjuntor ${a} a`], exige: [[nRe(a) + '\\s?a']] });
     labour(tip, 'eletrica', 'Circuito elétrico dedicado e ligação ao quadro', 1, 'un.', 'Circuito elétrico e proteção');
     circuits++;
-    if (calc.diferencial && /DC 6 mA/.test(calc.diferencial)) add({ tipologia: tip, categoria: 'Material', tags: ['eletrica', 'diferencial'], ck: 'Circuito elétrico e proteção', descricao: 'Interruptor diferencial 40 A 30 mA tipo A com deteção DC 6 mA (ou tipo B)', quantidade: 1, pesquisa: ['diferencial tipo b 40a 30ma', 'diferencial tipo a 40a 30ma', 'interruptor diferencial 30ma'], exige: [['30\\s?ma']] });
+    if (calc.diferencial && /DC 6 mA/.test(calc.diferencial)) pres.push(`${tip}: confirmar no quadro se o diferencial existente é tipo A com deteção DC 6 mA (ou tipo B).`);
   };
   const eqTerms = (modelo, terms) => [modelo, ...terms].filter(Boolean).map((t) => clip(t, 80));
   const condensadosPump = (tip, ck, qty) => { if (ex.has('bomba_condensados')) return na(tip, ck, 'excluída no pedido'); add({ tipologia: tip, categoria: 'Acessórios', tags: ['bomba_condensados'], ck, descricao: 'Bomba de condensados', quantidade: qty, pesquisa: ['bomba condensados', 'bomba de condensados mini', 'bomba condensados ar condicionado'] }); };
@@ -101,11 +99,14 @@ function kit(input) {
     }
     // Uma linha frigorífica por interior.
     let gas = 0, calha = 0, calhaAc = 0;
+    // Com pré-instalação de ar condicionado a casa já tem o tubo de cobre: não entra no orçamento.
+    const semCobre = ac.pre_instalacao === true || ex.has('cobre');
+    if (semCobre) { na(T, 'Par de cobre pré-isolado por linha', ac.pre_instalacao ? 'pré-instalação existente' : 'excluído no pedido'); if (ac.pre_instalacao) pres.push('Pré-instalação de ar condicionado existente: tubo de cobre não incluído (confirmar o estado e os diâmetros da pré-instalação).'); }
     for (const u of units) {
       const l = linhaFrigorifica({ potencia_kw: u.kw, distancia_m: u.linha, percurso_a_vista_m: u.calha_m ?? undefined, carga_incluida_m: ac.carga_incluida_m ?? 7 });
       calcs.push({ nome: 'linha_frigorifica', nota: `${u.nome}: ${l.diametros}, ${l.nota}` });
       const [liq, gs] = l.diametros.match(/\d\/\d/g);
-      for (const d of [liq, gs]) add({ tipologia: T, categoria: 'Material', chave: 'cobre', ck: 'Par de cobre pré-isolado por linha', descricao: `Tubo de cobre isolado para refrigeração ${d}"`, especificacao: `tubo de cobre frigorífico isolado ${d}" (linha ${l.diametros})`, quantidade: l.par_cobre_isolado_m, unidade: 'm', pesquisa: [`tubo cobre refrigeracao isolado ${d}`, `tubo cobre isolado ${d}`, `cobre frigorifico isolado ${d}`, `tubo cobre isolado ${d} rolo`], exige: [[`(^|[^0-9/])${fr(d)}(?![0-9])`], ['isolad']], grupo: 'cobre', evita: [...FITTINGS, '\\d\\/\\d\\s?"?\\s?x\\s?\\d\\/\\d', 'nao isolado', 'sem isolamento'] });
+      if (!semCobre) for (const d of [liq, gs]) add({ tipologia: T, categoria: 'Material', chave: 'cobre', ck: 'Par de cobre pré-isolado por linha', descricao: `Tubo de cobre isolado para refrigeração ${d}"`, especificacao: `tubo de cobre frigorífico isolado ${d}" (linha ${l.diametros})`, quantidade: l.par_cobre_isolado_m, unidade: 'm', pesquisa: [`tubo cobre refrigeracao isolado ${d}`, `tubo cobre isolado ${d}`, `cobre frigorifico isolado ${d}`, `tubo cobre isolado ${d} rolo`], exige: [[`(^|[^0-9/])${fr(d)}(?![0-9])`], ['isolad']], grupo: 'cobre', evita: [...FITTINGS, '\\d\\/\\d\\s?"?\\s?x\\s?\\d\\/\\d', 'nao isolado', 'sem isolamento'] });
       add({ tipologia: T, categoria: 'Material', chave: 'cabo_interligacao', ck: 'Cabo de interligação', descricao: `Cabo de interligação ${l.cabo_interligacao.tipo.replace(/ \(.*/, '')}`, quantidade: l.cabo_interligacao.metros, unidade: 'm', grupo: 'cabo', evita: ['ebara', 'bomba'], pesquisa: [`cabo h07rn-f ${l.cabo_interligacao.tipo.match(/\dG1,5/)[0]}`, `cabo ${l.cabo_interligacao.tipo.match(/\dG1,5/)[0]}`, `cabo borracha ${l.cabo_interligacao.tipo.match(/\d/)[0]}x1,5`], exige: [[`${l.cabo_interligacao.tipo.match(/(\d)G/)[1]}\\s?[gx]\\s?1[.,]5(?![0-9])`]] });
       if (u.esgoto === false) {
         condensadosPump(T, 'Esgoto de condensados', 1);
@@ -115,15 +116,13 @@ function kit(input) {
         add({ tipologia: T, categoria: 'Material', chave: 'condensados', ck: 'Esgoto de condensados', descricao: 'Tubo de esgoto de condensados 16/20 mm com acessórios', quantidade: l.tubo_condensados_m, unidade: 'm', pesquisa: ['tubo pvc esgoto 32', 'tubo esgoto domestico 32', 'mangueira cristal 16', 'tubo condensados 16'], evita: ['drenagem', 'saneamento', 'piscina', 'terra', 'rega', 'seko', 'gas'] });
       }
       calha += l.calha_tecnica_m; calhaAc += l.acessorios_calha_un; gas += l.gas_adicional_g;
-      add({ tipologia: T, categoria: 'Acessórios', ck: 'Furação e passa-muros', descricao: 'Passa-muros para linha frigorífica', quantidade: 1, pesquisa: ['passa muros ar condicionado', 'passa muros calha', 'casquilho passa muros'], evita: ['roscar', 'pvc \\[', 'pp\\b', 'colar'] });
+      // Com pré-instalação a parede já está furada e com passa-muros.
+      if (!ac.pre_instalacao) add({ tipologia: T, categoria: 'Acessórios', ck: 'Furação e passa-muros', descricao: 'Passa-muros para linha frigorífica', quantidade: 1, pesquisa: ['passa muros ar condicionado', 'passa muros calha', 'casquilho passa muros'], evita: ['roscar', 'pvc \\[', 'pp\\b', 'colar'] });
       if (ac.wifi) add({ tipologia: T, categoria: 'Acessórios', ck: 'Comando / wifi', descricao: `Módulo wifi${marca ? ' ' + marca : ''}`, quantidade: 1, pesquisa: [`${marca} wifi`, `modulo wifi ar condicionado`, `${marca} kit wifi`] });
     }
     if (!ac.wifi) na(T, 'Comando / wifi', 'comando incluído com a unidade; wifi não pedido');
-    if (ex.has('calha')) na(T, 'Calha técnica e acessórios', 'excluída no pedido');
-    else {
-      add({ tipologia: T, categoria: 'Material', chave: 'calha', tags: ['calha'], ck: 'Calha técnica e acessórios', descricao: 'Calha técnica para ar condicionado', quantidade: calha, unidade: 'm', pesquisa: ['calha ar condicionado', 'calha tecnica ar condicionado', 'calha pelicula ar condicionado', 'calha tecnica 80x60'], grupo: 'calha', evita: ['suporte', 'tapa', 'angulo', 'curva', 'terminal', 'uniao', 'juncao', 'derivacao', 'tampa', 'bloqueio', 'acessorio', 'passa muros', 'te '] });
-      add({ tipologia: T, categoria: 'Acessórios', tags: ['calha'], ck: 'Calha técnica e acessórios', descricao: 'Acessórios de calha (curvas, uniões, terminais)', quantidade: calhaAc, pesquisa: ['curva plana calha ar condicionado', 'angulo calha ar condicionado', 'curva calha ar condicionado', 'tapa junta calha ar condicionado'], grupo: 'calha' });
-    }
+    // Regra ENAT: a calha técnica, a tampa e os acessórios de calha nunca entram no orçamento.
+    na(T, 'Calha técnica e acessórios', 'não incluída (regra da empresa)');
     if (gas > 0 && !ex.has('gas')) { const kg = Math.ceil(gas / 100) / 10; add({ tipologia: T, categoria: 'Material', tags: ['gas'], ck: 'Gás refrigerante adicional', descricao: `Gás refrigerante R32 adicional (${pt(kg)} kg)`, especificacao: `${gas} g de carga adicional`, quantidade: kg, unidade: 'un.', pesquisa: ['gas r32', 'garrafa r32', 'refrigerante r32'], exige: [['garrafa', 'botija', 'gas refrigerante', '\\bkg\\b']], evita: ['detetor', 'valvula', 'recupera', 'ferramenta', 'manometro', 'bomba', 'unidade', 'vrf', 'sifao', 'split'] }); }
     else na(T, 'Gás refrigerante adicional', ex.has('gas') ? 'excluído no pedido' : 'linhas dentro da carga de fábrica');
     const nExt = exts.length;
@@ -139,10 +138,10 @@ function kit(input) {
     const totalLinha = units.reduce((t, u) => t + linhaFrigorifica({ potencia_kw: u.kw, distancia_m: u.linha }).par_cobre_isolado_m, 0);
     if (multi) { labour(T, 'ac_ui', 'Instalação de unidade interior (multisplit)', units.length, 'un.'); labour(T, 'ac_ue', 'Instalação de unidade exterior (multisplit)', 1, 'un.'); }
     else labour(T, 'ac_mono', 'Instalação de ar condicionado monosplit (interior + exterior)', units.length, 'un.');
-    labour(T, 'linha', 'Execução de linha frigorífica', totalLinha, 'm', 'Mão de obra', 'cobre');
-    if (!ex.has('calha')) labour(T, 'calha', 'Montagem de calha técnica', calha, 'm', 'Mão de obra', 'calha');
+    if (!semCobre) labour(T, 'linha', 'Execução de linha frigorífica', totalLinha, 'm', 'Mão de obra', 'cobre');
     labour(T, 'vacuo', 'Vácuo, ensaio de estanquidade e arranque', nExt, 'un.');
-    labour(T, 'furo', 'Furação / caroteamento de parede', units.length, 'un.', 'Furação e passa-muros');
+    if (ac.pre_instalacao) na(T, 'Furação e passa-muros', 'pré-instalação existente');
+    else labour(T, 'furo', 'Furação / caroteamento de parede', units.length, 'un.', 'Furação e passa-muros');
   }
 
   // ---------- Bomba de calor AQS ----------
@@ -315,12 +314,7 @@ function kit(input) {
   // ---------- Itens indicados no pedido (outros materiais, UPAC, solar, trabalhos à parte) ----------
   for (const it of s.extras) add({ ...it, ck: null });
 
-  // Diferencial comum aos novos circuitos e deslocação.
-  if (circuits && !ex.has('eletrica') && !ex.has('diferencial') && !lines.some((l) => /diferencial/i.test(l.descricao))) {
-    const t = lines.find((l) => l.categoria === 'Material' && /disjuntor/i.test(l.descricao))?.tipologia || 'Geral / outros';
-    add({ tipologia: t, categoria: 'Material', ck: 'Circuito elétrico e proteção', descricao: 'Interruptor diferencial 40 A 30 mA tipo A', quantidade: 1, pesquisa: ['interruptor diferencial 40a 30ma tipo a', 'diferencial 2p 40a 30ma', 'diferencial 30ma'], exige: [['30\\s?ma']] });
-    pres.push('Um interruptor diferencial de 30 mA comum aos circuitos novos (confirmar no quadro existente).');
-  }
+  // Regra ENAT: o diferencial nunca entra no orçamento (usa-se o do quadro existente).
   if (lines.length && !ex.has('deslocacao')) labour(lines[0].tipologia, 'deslocacao', 'Deslocação', 1, 'serviço');
 
   // Quantidades indicadas pelo utilizador substituem as calculadas (repartidas pelas linhas da mesma família).
@@ -346,7 +340,7 @@ Formato:
 "tipologias": [das: ${TOPICS.join(' | ')}],
 "marca": "marca dos equipamentos ou ''",
 "isolamento": "bom|medio|fraco|null", "trifasico": "true se a instalação elétrica é trifásica, false se monofásica, null se não se sabe", "distancia_quadro_m": null, "area_total_m2": null,
-"ac": null ou {"sistema": "mono|multi|null", "divisoes": [{"nome": "Sala", "area_m2": 30, "uso": "sala|quarto|cozinha|escritorio|loja|outro", "exposicao": "sul|norte|nascente|poente|null", "potencia_kw": null, "tipo": "mural|consola|conduta|cassete|null", "modelo": "modelo exato se indicado ou null", "linha_m": null, "calha_m": null, "esgoto": true|false|null}], "exterior_kw": null, "modelo_exterior": null, "suporte": "parede|chao|null", "wifi": false, "distancia_quadro_m": null, "carga_incluida_m": null},
+"ac": null ou {"sistema": "mono|multi|null", "divisoes": [{"nome": "Sala", "area_m2": 30, "uso": "sala|quarto|cozinha|escritorio|loja|outro", "exposicao": "sul|norte|nascente|poente|null", "potencia_kw": null, "tipo": "mural|consola|conduta|cassete|null", "modelo": "modelo exato se indicado ou null", "linha_m": null, "calha_m": null, "esgoto": true|false|null}], "exterior_kw": null, "modelo_exterior": null, "suporte": "parede|chao|null", "wifi": false, "distancia_quadro_m": null, "carga_incluida_m": null, "pre_instalacao": true|false},
 "aqs": null ou {"pessoas": null, "volume_l": null, "modelo": null, "tubo_m": null, "espaco_fechado": null, "remover_antigo": null, "distancia_quadro_m": null},
 "bc": null ou {"area_m2": null, "emissores": "piso|ventiloconvectores|radiadores", "potencia_kw": null, "modelo": null, "monobloco": true|false|null, "aqs": false, "pessoas": null, "volume_aqs_l": null, "inercia_l": null, "distancia_m": null, "distancia_quadro_m": null},
 "ventilo": null ou {"divisoes": [{"nome": "", "area_m2": null, "uso": "sala|quarto|...", "potencia_kw": null, "modelo_tipo": "mural|consola|conduta|cassete", "modelo": null, "distancia_m": null, "esgoto": null}], "producao_existente": false},
@@ -365,6 +359,7 @@ Regras:
 - "extras": tudo o resto que o utilizador pede e que não é parte do kit das secções: UPAC (painéis, inversor, estrutura, bateria), solar térmico, depósitos ou máquinas avulsas, materiais com quantidades próprias, trabalhos especiais. Também os itens de "Geral / outros". Nunca repitas aqui o que o kit já leva.
 - "precos_mao_obra": SÓ valores em euros de mão de obra escritos explicitamente no pedido (ex.: «mão de obra do split 180 €»), com o id da tabela que corresponde. Sem valores escritos fica [].
 - "descricao" dos extras inclui sempre as medidas/potência/volume ditos (ex.: «Depósito de inércia 100 L», «Radiador elétrico 1000 W»).
+- "pre_instalacao": true só quando é dito que a casa já tem pré-instalação de ar condicionado (tubos já passados); caso contrário false.
 - Números com vírgula decimal portuguesa convertem-se para número (2,5 → 2.5).`;
 
 const quoteNormS = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
@@ -389,6 +384,7 @@ export function cleanSpec(p, labourIds = []) {
       divisoes: arr(ac.divisoes, 20).map((r, i) => room(r, i, { uso: oneOf(['quarto', 'sala', 'cozinha', 'escritorio', 'loja', 'outro']), exposicao: str, potencia_kw: N(1, 30), tipo: oneOf(['mural', 'consola', 'conduta', 'cassete']), modelo: str, linha_m: N(0.5, 100), calha_m: N(0, 100), esgoto: bool })),
       exterior_kw: num(ac.exterior_kw, null, 1, 50), modelo_exterior: str(ac.modelo_exterior), suporte: oneOf(['parede', 'chao'])(ac.suporte), wifi: ac.wifi === true,
       distancia_quadro_m: num(ac.distancia_quadro_m, null, 0.5, 300), carga_incluida_m: num(ac.carga_incluida_m, null, 0, 50),
+      pre_instalacao: ac.pre_instalacao === true || ac.pre_instalacao === 'true',
     },
     aqs: aq && { pessoas: num(aq.pessoas, null, 1, 50), volume_l: num(aq.volume_l, null, 50, 1000), modelo: str(aq.modelo), tubo_m: num(aq.tubo_m, null, 1, 200), espaco_fechado: bool(aq.espaco_fechado), remover_antigo: bool(aq.remover_antigo), distancia_quadro_m: num(aq.distancia_quadro_m, null, 0.5, 300) },
     bc: bc && { area_m2: num(bc.area_m2, null, 10, 5000), emissores: oneOf(['piso', 'ventiloconvectores', 'radiadores'])(bc.emissores), potencia_kw: num(bc.potencia_kw, null, 2, 100), modelo: str(bc.modelo), monobloco: bool(bc.monobloco), aqs: bc.aqs === true, pessoas: num(bc.pessoas, null, 1, 50), volume_aqs_l: num(bc.volume_aqs_l, null, 50, 1000), inercia_l: num(bc.inercia_l, null, 0, 2000), distancia_m: num(bc.distancia_m, null, 0.5, 100), distancia_quadro_m: num(bc.distancia_quadro_m, null, 0.5, 300) },
@@ -420,7 +416,7 @@ export function cleanSpec(p, labourIds = []) {
   spec.tipologias = TOPICS.filter((t) => tp.has(t));
   return spec;
 }
-cleanSpec.emptyAc = () => ({ sistema: null, divisoes: [], exterior_kw: null, modelo_exterior: null, suporte: null, wifi: false, distancia_quadro_m: null, carga_incluida_m: null });
+cleanSpec.emptyAc = () => ({ sistema: null, divisoes: [], exterior_kw: null, modelo_exterior: null, suporte: null, wifi: false, distancia_quadro_m: null, carga_incluida_m: null, pre_instalacao: false });
 
 // Plano final (mesmo formato que a app já mostra).
 export function buildPlan(spec, input = {}) {

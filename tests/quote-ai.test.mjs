@@ -180,3 +180,14 @@ test('real catalogue names: right family, right size, no fittings or look-alikes
  assert.equal(pick(it(/^Válvula de esfera 1"/)),'Proteu Válvula de Esfera Borboleta FF [1"]','not a garden tap');
  assert.equal(pick({id:'c',categoria:'Material',descricao:'Tubo de condensados (bomba até ao esgoto)',pesquisa:['mangueira cristal 16','tubo condensados 16'],evita:['drenagem','saneamento']}),'Mangueira Pressão Cristal [16mm]','never 160 mm ground drainage pipe');
 });
+
+test('ENAT rules: no inertia tank on AQS heat pumps, multilayer pipe on every heat pump, cables and pipes in metres',()=>{
+ const plan=s=>buildPlan(cleanSpec(s),{}).itens;
+ const aqs=plan({tipologias:['Bomba de calor AQS'],bc:{aqs:true,pessoas:4,inercia_l:100},extras:[{tipologia:'Bomba de calor AQS',categoria:'Equipamento',descricao:'Depósito de inércia 50 L',quantidade:1},{tipologia:'Bomba de calor AQS',categoria:'Material',descricao:'Cabo 3G2,5',quantidade:10,unidade:'un.'}]});
+ assert.ok(!aqs.some(l=>/in[ée]rcia/i.test(l.descricao)),'AQS never gets an inertia tank');
+ assert.ok(aqs.some(l=>l.categoria==='Material'&&/multicamada/.test(l.descricao)&&l.unidade==='m'));
+ assert.equal(aqs.find(l=>l.descricao==='Cabo 3G2,5').unidade,'m');
+ const clima=plan({tipologias:['Bomba de calor climatização'],bc:{area_m2:100,emissores:'ventiloconvectores'}});
+ assert.ok(clima.some(l=>/in[ée]rcia/i.test(l.descricao)),'climatização keeps the inertia tank when needed');
+ assert.ok(clima.some(l=>l.categoria==='Material'&&/multicamada/.test(l.descricao)));
+});

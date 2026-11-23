@@ -314,7 +314,20 @@ function kit(input) {
   }
 
   // ---------- Itens indicados no pedido (outros materiais, UPAC, solar, trabalhos à parte) ----------
-  for (const it of s.extras) add({ ...it, ck: null });
+  for (const it of s.extras) {
+    // Regra ENAT: o depósito de inércia só na bomba de calor de climatização.
+    if (/in[ée]rcia/i.test(it.descricao) && it.tipologia === 'Bomba de calor AQS') continue;
+    // Regra ENAT: cabos, tubos, condutas, calhas e isolamentos sempre em metros.
+    const metros = it.categoria === 'Material' && /^(cabo|tubo|conduta|calha|isolamento|mangueira|fita)\b/i.test(it.descricao);
+    add({ ...it, ...(metros ? { unidade: 'm' } : {}), ck: null });
+  }
+  // Regra ENAT: qualquer bomba de calor leva sempre tubo multicamada.
+  for (const [T, descricao, quantidade, d] of [['Bomba de calor AQS', 'Tubo multicamada 20×2 mm', 8, '20'], ['Bomba de calor climatização', 'Tubo multicamada 32×3 mm (ida e retorno)', 12, '32']]) {
+    if (!lines.some((l) => l.tipologia === T) || lines.some((l) => l.tipologia === T && l.categoria === 'Material' && /multicamada/i.test(l.descricao))) continue;
+    add({ tipologia: T, categoria: 'Material', chave: 'multicamada', ck: 'Tubagem e isolamento', descricao, quantidade, unidade: 'm', pesquisa: ['tubo multicamada ' + d, 'multicamada ' + d, 'tubo pex-al-pex ' + d] });
+  }
+  // Regra ENAT: sem depósito de inércia na bomba de calor AQS (venha de onde vier).
+  for (let i = lines.length - 1; i >= 0; i--) if (lines[i].tipologia === 'Bomba de calor AQS' && /in[ée]rcia/i.test(lines[i].descricao)) lines.splice(i, 1);
 
   // Regra ENAT: o diferencial nunca entra no orçamento (usa-se o do quadro existente).
   if (lines.length && !ex.has('deslocacao')) labour(lines[0].tipologia, 'deslocacao', 'Deslocação', 1, 'serviço');
@@ -362,6 +375,8 @@ Regras:
 - "precos_mao_obra": SÓ valores em euros de mão de obra escritos explicitamente no pedido (ex.: «mão de obra do split 180 €»), com o id da tabela que corresponde. Sem valores escritos fica [].
 - "descricao" dos extras inclui sempre as medidas/potência/volume ditos (ex.: «Depósito de inércia 100 L», «Radiador elétrico 1000 W»).
 - "pre_instalacao": true só quando é dito que a casa já tem pré-instalação de ar condicionado (tubos já passados); caso contrário false.
+- Bomba de calor só para águas quentes sanitárias (AQS, termoacumulador com bomba de calor) é a secção "aqs", nunca "bc". O depósito/tanque de inércia só existe na bomba de calor de climatização ("bc"): nunca o ponhas na bomba de calor AQS nem nos extras de AQS.
+- Cabos, tubos, condutas, calhas e isolamentos vão sempre em metros (unidade "m"), nunca em unidades.
 - Números com vírgula decimal portuguesa convertem-se para número (2,5 → 2.5).`;
 
 const quoteNormS = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
@@ -408,6 +423,10 @@ export function cleanSpec(p, labourIds = []) {
   };
   // Tipologia marcada com secção vazia: monta o kit com os valores típicos.
   const tp = new Set([...spec.tipologias]);
+  if (spec.bc && spec.bc.aqs && !tp.has('Bomba de calor climatização') && !spec.piso && !spec.ventilo && spec.bc.area_m2 == null && spec.bc.potencia_kw == null) {
+    spec.aqs = spec.aqs || { pessoas: spec.bc.pessoas, volume_l: spec.bc.volume_aqs_l, modelo: spec.bc.modelo, tubo_m: null, espaco_fechado: null, remover_antigo: null, distancia_quadro_m: spec.bc.distancia_quadro_m ?? null };
+    spec.bc = null;
+  }
   if (tp.has('Ar condicionado') && !spec.ac) spec.ac = cleanSpec.emptyAc();
   if (tp.has('Bomba de calor AQS') && !spec.aqs) spec.aqs = { pessoas: null, volume_l: null, modelo: null, tubo_m: null, espaco_fechado: null, remover_antigo: null, distancia_quadro_m: null };
   if (tp.has('Bomba de calor climatização') && !spec.bc && !spec.ventilo) spec.bc = { area_m2: spec.area_total_m2, emissores: spec.piso ? 'piso' : null, potencia_kw: null, modelo: null, monobloco: null, aqs: false, pessoas: null, volume_aqs_l: null, inercia_l: null, distancia_m: null, distancia_quadro_m: null };

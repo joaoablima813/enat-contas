@@ -81,8 +81,9 @@ function leadsNewHtml(){
 const leadNewHome=()=>{const l=leadNews();return l.length?`<h2 class="lead-new-h">Leads novas (${l.length})</h2><div class="grp lead-new">${l.slice(0,LEAD_PAGE).map(leadRow).join('')}</div>${leadMore(l.length,'novas')}`:''};
 function leadsList(){
  if(V.lall)return leadsAllList();
+ if(V.lt==='novas')return leadsNewHtml()||'<div class="grp"><div class="empty">Sem leads novas. As leads da campanha (email) e do site aparecem aqui até as marcar como recebidas.</div></div>';
  const l=leadOldFiltered();
- return (typeof pedidosNovosHtml==='function'?pedidosNovosHtml():'')+leadsNewHtml()+`<h2>Leads${l.length?' ('+l.length+')':''}</h2>`+(l.length?`<div class="grp">${l.slice(0,LEAD_PAGE).map(leadRow).join('')}</div>${leadMore(l.length,'todas')}`:`<div class="grp"><div class="empty">${(S.leads||[]).some(x=>!leadIsNew(x))?'Nenhuma lead com estes filtros.':'Ainda sem leads. Toque em «Nova lead» para registar o primeiro contacto.'}</div></div>`);
+ return (typeof pedidosNovosHtml==='function'?pedidosNovosHtml():'')+`<h2>Leads${l.length?' ('+l.length+')':''}</h2>`+(l.length?`<div class="grp">${l.slice(0,LEAD_PAGE).map(leadRow).join('')}</div>${leadMore(l.length,'todas')}`:`<div class="grp"><div class="empty">${(S.leads||[]).some(x=>!leadIsNew(x))?'Nenhuma lead com estes filtros.':'Ainda sem leads. Toque em «Nova lead» para registar o primeiro contacto.'}</div></div>`);
 }
 // Página «Mostrar mais»: todas as leads em colunas de 20, lado a lado (no telemóvel desliza-se para o lado).
 function leadsAllList(){
@@ -104,8 +105,9 @@ function vLeads(){
  if(V.lall)return`<div class="lead-wide"><button class="back" data-la="less">${ic('back')} Leads</button><h1>${V.lall==='novas'?'Leads novas':'Todas as leads'}</h1>${leadSearchBar()}${V.lall==='novas'?'':chips}<div id="llist">${leadsList()}</div></div>`;
   // Separadores: as leads, as conversas com os clientes (página do cliente) e as leads por voltar a ligar.
   const chats=typeof pedChats==='function'?pedChats():[],nMsg=chats.filter(l=>{const n=pedNovo(l.pedido);return n.msg||n.ax}).length,nNo=leadNoFiltered().length,lt=V.lt||'';
-  const seg=`<div class="lead-seg" role="tablist">${[['','Leads',0],['msg','Mensagens',nMsg],['no','Não atendeu',nNo]].map(([k,t,n])=>`<button type="button" role="tab" aria-selected="${lt===k}" class="${lt===k?'on':''}${k==='no'?' seg-no':''}" data-la="lt" data-id="${k}">${t}${n?` <span class="lead-seg-n">${n}</span>`:''}</button>`).join('')}</div>`;
+  const seg=`<div class="lead-seg" role="tablist">${[['','Leads',0],['novas','Novas',leadNews().length],['msg','Mensagens',nMsg],['no','Não atendeu',nNo]].map(([k,t,n])=>`<button type="button" role="tab" aria-selected="${lt===k}" class="${lt===k?'on':''}${k==='no'?' seg-no':''}" data-la="lt" data-id="${k}">${t}${n?` <span class="lead-seg-n">${n}</span>`:''}</button>`).join('')}</div>`;
   if(lt==='msg')return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1>${seg}</div>${typeof pedChatsHtml==='function'?pedChatsHtml():''}</div>`;
+  if(lt==='novas')return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1>${seg}${leadSearchBar()}</div><div id="llist">${leadsList()}</div></div>`;
   if(lt==='no')return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1>${seg}${leadSearchBar()}</div><div id="lno" class="lead-no lead-no-tab">${leadsNoHtml()}</div></div>`;
   return`<div class="lead-wide lead-main"><div class="lead-head"><h1>Leads</h1>${seg}<button class="btn" data-la="new">Nova lead</button>${leadSearchBar()}${chips}</div><div id="llist">${leadsList()}</div></div>`;
 }

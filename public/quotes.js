@@ -253,7 +253,9 @@ document.addEventListener('click',async e=>{
  if(a==='pick-product'){
   const bi=b.dataset.brand!==undefined?Number(b.dataset.brand):quotePick.brand,t=quoteTables()[bi],p=t.products[Number(b.dataset.index)];
   const at=quotePick.line;
-  const line={...quoteCatalogLine(t,p),...(at===undefined?{}:{quantity:quoteDraft.lines[at].quantity??1})};
+  const old=at===undefined?null:quoteDraft.lines[at];
+  const line={...quoteCatalogLine(t,p),...(at===undefined?{}:{quantity:old.quantity??1}),...(old?.aiKey?{aiKey:old.aiKey,kind:old.kind}:{})};
+  if(old?.aiKey&&typeof quoteAiLearn==='function')quoteAiLearn(old,t,p);
   if(at===undefined)quoteAddLine(line);else quoteDraft.lines[at]=line;
   quoteEnsureBlank();
   if(!quoteDraft.brand.trim())quoteDraft.brand=t.live?p.maker||'':t.brand;

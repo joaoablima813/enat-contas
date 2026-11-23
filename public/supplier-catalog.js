@@ -84,6 +84,13 @@
    const line=s.running?`A atualizar… ${esc(s.phase||'')}`:s.error?`Última tentativa falhou: ${esc(friendly(s.error))}`:s.finishedAt?`Atualizado ${esc(when(s.finishedAt))}`:'Ainda não sincronizado';
    return `<button class="row invoice-row" data-a="sug" data-id="${esc(s.name)}"><div class="av">${ic('mat')}</div><div class="rt"><b>${esc(s.name)}</b><span>${n?n.toLocaleString('pt-PT')+' produtos'+(est?` · ${est.toLocaleString('pt-PT')} com preço estimado, a ler o seu preço a cada 20 min`:''):'Sem produtos ainda'}</span><span>${line}</span></div><div class="rr"><b>${s.running?'…':s.error?'!':'online'}</b><span>preços</span></div></button>`}).join('');
   const busy=st.some(s=>s.running);
-  return `<h2>Fornecedores online</h2>${state.error?`<p class="note">${esc(state.error)}</p>`:''}<div class="grp">${rows}</div><button class="btn alt" data-a="sup-sync" ${busy?'disabled':''}>${busy?'A atualizar preços dos fornecedores…':'Atualizar preços dos fornecedores agora'}</button><p class="note">Os catálogos da Sanipower e da Sanitop são atualizados automaticamente a cada 3 horas, com o seu preço de cliente. Ao adicionar um produto a um orçamento, o preço é confirmado no site nesse momento.</p>`;
+  return `<h2>Fornecedores online</h2>${state.error?`<p class="note">${esc(state.error)}</p>`:''}<div class="grp">${rows}</div><button class="btn alt" data-a="sup-sync" ${busy?'disabled':''}>${busy?'A atualizar preços dos fornecedores…':'Atualizar preços dos fornecedores agora'}</button><p class="note">Os catálogos da Sanipower e da Sanitop são atualizados automaticamente a cada 3 horas, com o seu preço de cliente. Ao adicionar um produto a um orçamento, o preço é confirmado no site nesse momento.</p><button class="btn alt" data-sup-export>Descarregar a lista de produtos (para afinar o orçamento automático)</button>`;
  };
+ // Lista dos produtos dos catálogos online (nome, referência, marca, grupo e preço), para afinar a procura do orçamento automático.
+ if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('click',e=>{
+  if(!e.target.closest?.('[data-sup-export]'))return;
+  const data=(root.PRICE_TABLES||[]).filter(t=>t.live).map(t=>({fornecedor:t.brand,produtos:t.products.map(p=>({nome:p.name,ref:p.ref||'',modelo:p.model||'',marca:p.maker||'',grupo:(p.group||[]).join(' > '),preco:root.priceNet(t,p)}))}));
+  if(!data.length){alert('Os catálogos ainda não carregaram neste dispositivo. Aguarde um pouco e tente de novo.');return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));a.download='catalogos-fornecedores.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+ });
 })(globalThis);

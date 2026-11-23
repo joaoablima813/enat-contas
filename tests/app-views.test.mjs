@@ -78,7 +78,7 @@ test('leads: colored stages, optional fields, a quote prefilled from the lead an
   {id:'l2',name:'Rui',stage:'nova',solutions:[],date:'2026-10-21'}];
  const {run}=app({...state,leads});
  const list=run("V.tab='leads';vLeads()");
- assert.match(list,/lead-row lead-perdido/);assert.match(list,/lead-row lead-nova/);assert.match(list,/Não atendeu/);
+ assert.match(list,/lead-row lead-nova/);assert.match(list,/data-la="lt" data-id="no">Não atendeu/,'own tab for not answered');assert.match(run("V.lt='no';vLeads()"),/lead-row lead-perdido/);run("V.lt=''");
  run("V.ls='perdido'");assert.ok(!run('leadsList()').includes('Rui'));run("V.ls='';V.lq='costa'");assert.ok(!run('leadsList()').includes('Rui'));run("V.lq=''");
  // Nothing is required: an empty new lead saves with today's date.
  run("leadDraft=leadNew();leadDraft.name='  Teste ';leadDraft.date='';leadSave()");
@@ -119,7 +119,7 @@ test('leads received by email appear as Leads novas until marked as received, ca
  run("leadOpen('meta-x')");assert.match(run('vLeads()'),/Marcar como recebida/);
  run("leadDraft.seen=true;leadSave();leadDraft=null");const after=run('vLeads()');
  assert.ok(!after.includes('Leads novas'));assert.match(after,/lead-row lead-nova/);assert.ok(!after.includes('Sincronizada do Outlook'));
- run("S.leads[0].seen=false;S.leads[0].call='nao'");assert.ok(!run('vLeads()').includes('Leads novas'));assert.match(run('vLeads()'),/Nando Costa/);
+ run("S.leads[0].seen=false;S.leads[0].call='nao'");assert.ok(!run('vLeads()').includes('Leads novas'));assert.match(run("V.lt='no';vLeads()"),/Nando Costa/);run("V.lt=''");
  run("S.leads[0].call='';S.leads[0].stage='contacto'");assert.ok(!run('leadsNewHtml()'));
  run("S.leads=[];S.del={'leads:meta-x':Date.now()}");assert.equal(run(`leadInbox(${inbox})`),false,'deleted leads stay deleted');
 });
@@ -144,7 +144,7 @@ test('leads that did not answer move to their own column, with call day, contact
  assert.ok(!main.includes('Rita Nunes')&&!main.includes('Paulo Sá'),'not answered leads leave the main table');assert.match(main,/Luís Mota/);
  assert.match(side,/Não atendeu \(2\)/);assert.match(side,/data-ln="callDay" data-id="n1" value="2026-11-01"/);assert.match(side,/data-ln="callAt"/);
  assert.ok(side.indexOf('Rita Nunes')<side.indexOf('Paulo Sá'),'nearest contact time first');
- assert.match(run('vLeads()'),/lead-split/);
+ assert.match(run('vLeads()'),/Não atendeu <span class="lead-seg-n">2<\/span>/,'tab shows how many');assert.match(run("V.lt='no';vLeads()"),/id="lno"/);run("V.lt=''");
  assert.equal(run("leadDue().map(l=>l.id).join()"),'n1');
  run('leadRemind()');assert.match(els['lead-alert'].innerHTML,/Ligar a Rita Nunes/);assert.match(els['lead-alert'].innerHTML,/tel:915000000/);
  run("S.leads[0].callDone=S.leads[0].callAt;leadRemind()");assert.equal(els['lead-alert'].innerHTML,'');

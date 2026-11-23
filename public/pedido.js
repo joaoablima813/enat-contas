@@ -8,7 +8,7 @@ const pedWhen=t=>new Date(t).toLocaleString('pt-PT',{day:'numeric',month:'short'
 function pedConv(id,force){
  const c=PED_CONV[id];if(c&&!force&&(c.loading||Date.now()-c.at<6e4))return c;
  PED_CONV[id]={...(c||{}),loading:true,at:Date.now()};
- API('pedido/conversa/'+encodeURIComponent(id)).then(r=>r.ok?r.json():null).then(j=>{PED_CONV[id]={...(j||PED_CONV[id]),loading:false,at:Date.now(),err:!j};if(leadDraft?.id===id&&V.tab==='leads'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))render()}).catch(()=>{PED_CONV[id]={...PED_CONV[id],loading:false,err:true}});
+ API('pedido/conversa/'+encodeURIComponent(id)).then(r=>r.ok?r.json():null).then(j=>{PED_CONV[id]={...(j||PED_CONV[id]),loading:false,at:Date.now(),err:!j};if((leadDraft?.id===id||V.lt==='msg')&&V.tab==='leads'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))render()}).catch(()=>{PED_CONV[id]={...PED_CONV[id],loading:false,err:true}});
  return PED_CONV[id];
 }
 function pedPortal(l){
@@ -113,6 +113,46 @@ function pedidosNovosHtml(){
  const when=t=>new Date(t).toLocaleString('pt-PT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
  return `<h2 class="lead-new-h">Novidades dos clientes (${l.length})</h2><p class="note">Respostas ao questionário, mensagens e orçamentos de outras empresas enviados pela página do cliente.</p><div class="grp lead-new">${l.map(x=>{const p=x.pedido,n=pedNovo(p),what=[n.resp&&'respostas',n.msg&&'mensagem',n.ax&&'outro orçamento'].filter(Boolean);return `<button class="row invoice-row lead-row lead-triagem" data-la="open" data-id="${esc(x.id)}"><div class="av">${esc(leadName(x)[0])}</div><div class="rt"><b>${esc(leadName(x))}</b><span>${n.resp?esc((p.resp.sol||[]).join(', '))+(p.resp.local?' · '+esc(p.resp.local):''):n.msg?'Enviou uma mensagem':'Enviou um orçamento de outra empresa'}</span><span>${esc(when(pedLast(p)))} · ${esc(what.join(', '))}${n.resp&&(p.resp.fotos||[]).length?' · '+p.resp.fotos.length+' foto'+(p.resp.fotos.length>1?'s':''):''}</span></div><div class="rr"><b>Novo</b></div></button>`}).join('')}</div>`;
 }
+// ---- Mensagens: todas as conversas com os clientes (página do cliente), as mais recentes primeiro ----
+let CHAT_MSG='',CHAT_BUSY=false;
+const pedChatAt=p=>Math.max(p?.chatAt||0,p?.anexoAt||0,p?.enatAt||0);
+const pedChats=()=>(S.leads||[]).filter(l=>l.pedido&&(l.pedido.chatAt||l.pedido.anexoAt)).sort((a,b)=>pedChatAt(b.pedido)-pedChatAt(a.pedido));
+const chatBubbles=msgs=>msgs.map(m=>`<div class="chat-b ${m.de==='e'?'me':'cli'}"><div>${esc(m.texto)}</div><small>${m.de==='e'?'Você':'Cliente'} · ${esc(pedWhen(m.at))}</small></div>`).join('');
+function pedChatsHtml(){
+ const list=pedChats();
+ if(V.lchat){
+  const l=(S.leads||[]).find(x=>x.id===V.lchat);if(!l){V.lchat='';return pedChatsHtml()}
+  const c=pedConv(l.id),msgs=c.msgs||[],ax=c.anexos||[],mail=String(l.email||'').trim(),tel=waTel(l.contact);
+  return `<button class="back" data-lm="back">${ic('back')} Mensagens</button>
+  <div class="chat-top"><div class="av">${esc(leadName(l)[0])}</div><div><b>${esc(leadName(l))}</b><span>${esc([l.contact,(l.solutions||[]).join(', ')].filter(Boolean).join(' · '))}</span></div></div>
+  <div class="lead-call-add chat-acts"><button type="button" class="btn alt" data-la="open" data-id="${esc(l.id)}">Ver ficha da lead</button>${tel?`<a class="btn alt" href="https://wa.me/${tel}" target="_blank" rel="noopener">WhatsApp</a>`:''}</div>
+  <div class="grp tpad chat-thread">${c.loading&&!msgs.length?'<div class="empty">A carregar…</div>':msgs.length?chatBubbles(msgs):'<div class="empty">Ainda sem mensagens.</div>'}</div>
+  ${ax.length?`<h2>Orçamentos de outras empresas (${ax.length})</h2><div class="grp">${ax.map(a=>`<button class="row invoice-row" data-lm="anexo" data-id="${esc(a.id)}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${esc(a.nome)}</b><span>Enviado a ${esc(pedWhen(a.at))}</span></div><div class="rr">${ic('chev')}</div></button>`).join('')}</div>`:''}
+  <div class="chat-send"><label class="q-field" style="margin:0"><span>Responder a ${esc(leadName(l).split(' ')[0])}</span><textarea id="chat-msg" rows="3" maxlength="2000" placeholder="Escreva a resposta…"></textarea></label>
+  <button type="button" class="btn" data-lm="send" ${CHAT_BUSY?'disabled':''}>${CHAT_BUSY?'A enviar…':'Enviar mensagem'}</button>
+  <p class="note" role="status">${esc(CHAT_MSG)||(mail?'O cliente recebe a resposta na página dele e por email.':'Este cliente não tem email: depois de enviar, avise-o por WhatsApp.')}</p></div>`;
+ }
+ if(!list.length)return '<div class="grp"><div class="empty">Ainda não há conversas. Quando um cliente escrever na página dele (o link do questionário), a conversa aparece aqui.</div></div>';
+ return `<p class="note">Conversas da página do cliente, as mais recentes primeiro. Toque numa para ler e responder.</p><div class="grp">${list.map(l=>{
+  const p=l.pedido,n=pedNovo(p),c=pedConv(l.id),last=(c.msgs||[]).at(-1);
+  const prev=last?(last.de==='e'?'Você: ':'')+last.texto:p.anexoAt&&!p.chatAt?'Enviou um orçamento de outra empresa':c.loading?'A carregar…':'';
+  return `<button class="row invoice-row chat-row${n.msg||n.ax?' unread':''}" data-lm="open" data-id="${esc(l.id)}"><div class="av">${esc(leadName(l)[0])}</div><div class="rt"><b>${esc(leadName(l))}</b><span>${esc(String(prev).replace(/\s+/g,' ').slice(0,90))}</span></div><div class="rr"><small>${esc(pedWhen(pedChatAt(p)))}</small>${n.msg||n.ax?'<span class="lead-badge chat-new">Nova</span>':''}</div></button>`}).join('')}</div>`;
+}
+document.addEventListener('click',async e=>{
+ const b=e.target.closest('[data-lm]');if(!b)return;const a=b.dataset.lm;
+ if(a==='open'){V.lchat=b.dataset.id;CHAT_MSG='';pedVisto(b.dataset.id);pedConv(b.dataset.id,true);window.scrollTo?.(0,0);render();setTimeout(()=>{const t=document.querySelector('.chat-thread');if(t)t.scrollTop=t.scrollHeight},50);return}
+ if(a==='back'){V.lchat='';CHAT_MSG='';window.scrollTo?.(0,0);render();return}
+ if(a==='anexo'){const win=window.open('','_blank');try{const r=await API('pedido/anexo/'+b.dataset.id);if(!r.ok)throw 0;const u=URL.createObjectURL(await r.blob());win?win.location.href=u:window.open(u,'_blank')}catch{win?.close();alert('Não foi possível abrir o ficheiro. Verifique a ligação.')}return}
+ if(a==='send'){
+  const l=(S.leads||[]).find(x=>x.id===V.lchat),t=document.querySelector('#chat-msg'),texto=(t?.value||'').trim();if(!l)return;if(!texto){t?.focus();return}
+  CHAT_BUSY=true;CHAT_MSG='';render();
+  try{const r=await API('pedido/msg',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({lead:l.id,texto,email:String(l.email||'').trim()})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Não foi possível enviar. Verifique a ligação.');
+   PED_CONV[l.id]={...(PED_CONV[l.id]||{}),msgs:j.msgs,at:Date.now()};l.pedido={...l.pedido,enatAt:Date.now(),chatVisto:Date.now()};save();
+   CHAT_MSG=j.email==='enviado'?'Mensagem enviada. O cliente recebeu também um email.':j.email==='falhou'?'Mensagem guardada na página do cliente, mas o email falhou. Avise-o por WhatsApp.':'Mensagem guardada na página do cliente. Avise-o por WhatsApp.'}
+  catch(x){CHAT_MSG=x.message;CHAT_BUSY=false;render();const n=document.querySelector('#chat-msg');if(n)n.value=texto;return}
+  CHAT_BUSY=false;render();const th=document.querySelector('.chat-thread');if(th)th.scrollTop=th.scrollHeight;
+ }
+});
 // Ao abrir a lead, as respostas passam a vistas.
 function pedVisto(id){const l=(S.leads||[]).find(x=>x.id===id);const n=pedNovo(l?.pedido);if(n.resp||n.msg||n.ax){const t=Date.now();l.pedido={...l.pedido,...(l.pedido.resp?{visto:t}:{}),chatVisto:t};save()}}
 // A app pede para sincronizar quando chega uma notificação com a app aberta.

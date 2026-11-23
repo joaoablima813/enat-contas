@@ -25,7 +25,12 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
   // Quotes sent together share a group, so each page lists the other options.
   const group = typeof b.group === 'string' && /^[a-z0-9]{6,32}$/.test(b.group) ? b.group : '';
   const token = randomBytes(18).toString('base64url');
-  await store.set('pdf-' + token, Buffer.from(b.pdf, 'base64'), { metadata: { filename, quote: row.id, ...(group ? { group } : {}) } });
+  let portal = '';
+  if (q.lead) {
+    try { const { addProposta } = await import('./pedido.mjs'); portal = await addProposta(store, q.lead, q.client, { token, quote: row.id, numero: number, titulo: (q.topics || []).join(', ') || 'Orçamento' }); }
+    catch (e: any) { console.error('página do cliente', e?.message); }
+  }
+  await store.set('pdf-' + token, Buffer.from(b.pdf, 'base64'), { metadata: { filename, quote: row.id, ...(group ? { group } : {}), ...(portal ? { portal } : {}) } });
   if (group) {
     const list = (await store.get('grupo-' + group, { type: 'json' })) || [];
     await store.setJSON('grupo-' + group, [...list.filter((s: any) => s.quote !== row.id), { token, quote: row.id }].slice(-20));

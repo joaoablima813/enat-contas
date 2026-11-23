@@ -52,7 +52,7 @@ async function lookup(token: string, store: any) {
   const id = Number(meta?.quote);
   if (!Number.isInteger(id)) return null;
   const [row] = await db.select().from(quotes).where(eq(quotes.id, id));
-  return row ? { row, group: typeof meta.group === 'string' ? meta.group : '' } : null;
+  return row ? { row, group: typeof meta.group === 'string' ? meta.group : '', portal: typeof meta.portal === 'string' && /^[A-Za-z0-9_-]{24}$/.test(meta.portal) ? meta.portal : '' } : null;
 }
 const lastAnswer = async (quoteId: number) => (await db.select().from(quoteEvents).where(and(eq(quoteEvents.quoteId, quoteId), inArray(quoteEvents.kind, Object.keys(ANSWERS)))).orderBy(desc(quoteEvents.id)).limit(1))[0];
 const empresaOf = async (store: any) => (await store.get('empresa', { type: 'json' }).catch(() => null)) || {};
@@ -140,7 +140,7 @@ export async function handleProposta(req: Request, token: string, store: any) {
   if (req.method === 'POST') return found ? record(req, found, store).catch((e: any) => { console.error('proposta resposta', e?.message); return fail(503, 'Não foi possível registar a resposta. Tente novamente.'); }) : fail(404, 'Proposta não encontrada.');
   if (req.method !== 'GET') return fail(405, 'Método não permitido.');
   if (!found) return new Response(page('Proposta não encontrada', `<section class="card"><h1>Proposta não encontrada</h1><p>Este link já não está disponível. Contacte-nos para receber uma nova proposta.</p><p><a class="btn ghost" href="mailto:${COMPANY.email}">${COMPANY.email}</a></p></section>`), { status: 404, headers: HTML });
-  const { row, group } = found, q: any = row.document;
+  const { row, group, portal } = found as any, q: any = row.document;
   const [answer, siblings, empresa, views, works] = await Promise.all([
     lastAnswer(row.id),
     group ? store.get('grupo-' + group, { type: 'json' }) : null,
@@ -154,7 +154,7 @@ export async function handleProposta(req: Request, token: string, store: any) {
     const rows = await db.select().from(quotes).where(inArray(quotes.id, ids));
     others = ((siblings as any[]) || []).map(s => ({ ...s, row: rows.find((r: any) => r.id === s.quote) })).filter(s => s.row);
   }
-  return new Response(page('Proposta ' + quoteNumber(row.id, q.date) + ' · ' + COMPANY.name, body(token, row, answer, others, empresa, (views as any[]).length, works as any[])), { headers: HTML });
+  return new Response(page('Proposta ' + quoteNumber(row.id, q.date) + ' · ' + COMPANY.name, body(token, row, answer, others, empresa, (views as any[]).length, works as any[], portal)), { headers: HTML });
 }
 
 const HTML = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer' };
@@ -180,7 +180,7 @@ const OPTIONS: [string, string, string][] = [
   ['nao', 'Ainda não vou avançar', 'Diga-nos porquê, ajuda-nos a melhorar'],
 ];
 
-function body(token: string, row: any, answer: any, others: any[], e: any, views: number, works: any[] = []) {
+function body(token: string, row: any, answer: any, others: any[], e: any, views: number, works: any[] = [], portal = '') {
   const q = row.document, number = quoteNumber(row.id, q.date), total = G.quoteTotals(q).total, until = expires(q), half = Math.round(total * 50) / 100;
   const expired = new Date().toISOString().slice(0, 10) > until;
   const c = e.contacto || {}, person = c.nome || COMPANY.contact, role = c.cargo || COMPANY.role, tel = String(c.telefone || '').trim(), wa = waNumber(tel);
@@ -246,6 +246,7 @@ ${proof}
 ${value}
 ${price}
 ${list}
+${portal ? `<section class="card"><h2>A sua página ENAT</h2><p class="muted">Todos os seus orçamentos, as mensagens connosco e os seus dados, sempre no mesmo link.</p><a class="btn ghost" href="/pedido/${esc(portal)}">Abrir a minha página</a></section>` : ''}
 <section class="card" id="decide">
  <h2>A sua decisão</h2>
  <p class="muted">Leva 5 segundos e chega diretamente à nossa equipa. Pode mudar a resposta quando quiser.</p>

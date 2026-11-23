@@ -270,8 +270,8 @@ test('a quote made from a lead with answers fills the AI box with the answers an
 test('leads that answered the questionnaire get their own section until opened',()=>{
  const {run}=app({...state,leads:[{id:'L5',name:'Sofia',stage:'triagem',solutions:[],calls:[],pedido:{resp:{sol:['VMC'],a:{},local:'Arcozelo',fotos:['abcdefgh1'],at:Date.now()}}},{id:'L6',name:'Tiago',stage:'nova',solutions:[],calls:[]}]});
  run("V.tab='leads'");
- const html=run('vLeads()');assert.match(html,/Responderam ao questionário \(1\)/);assert.match(html,/Sofia[\s\S]*VMC · Arcozelo[\s\S]*1 foto/);
- assert.match(run('vHome()'),/Responderam ao questionário/);
+ const html=run('vLeads()');assert.match(html,/Novidades dos clientes \(1\)/);assert.match(html,/Sofia[\s\S]*VMC · Arcozelo[\s\S]*1 foto/);
+ assert.match(run('vHome()'),/Novidades dos clientes/);
  run("leadOpen('L5');leadDraft=null");
- assert.doesNotMatch(run('vLeads()'),/Responderam ao questionário/,'gone once opened');
+ assert.doesNotMatch(run('vLeads()'),/Novidades dos clientes/,'gone once opened');
 });

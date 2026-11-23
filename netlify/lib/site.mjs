@@ -25,6 +25,19 @@ export const SERVICES = {
   'Ventilação (VMC)': 'VMC', 'Carregador de carro elétrico': 'Carregador automóvel', 'Manutenção ou assistência': '',
 };
 
+// De onde veio a visita ao site: anúncio do Google, pesquisa no Google, Facebook/Instagram, outro site ou direto.
+export function viaOf(o) {
+  const x = o && typeof o === 'object' ? o : {}, s = (k) => str(x[k], 120).toLowerCase();
+  const src = s('utm_source'), med = s('utm_medium'), ref = s('ref');
+  if (s('gclid') || s('gbraid') || s('wbraid') || (/google/.test(src) && /cpc|ppc|paid|ads/.test(med))) return 'Google Ads';
+  if (s('fbclid') || /facebook|instagram|^fb$|^ig$|meta/.test(src) || /facebook|instagram/.test(ref)) return 'Facebook / Instagram';
+  if (/google\./.test(ref) || /google/.test(src)) return 'Pesquisa no Google';
+  if (/bing|duckduckgo|yahoo|ecosia/.test(ref)) return 'Pesquisa na internet';
+  if (src) return src.slice(0, 40);
+  if (ref) return ref.replace(/^www\./, '').slice(0, 60);
+  return 'Direto';
+}
+
 export function cleanSiteLead(b, now = new Date()) {
   const o = b && typeof b === 'object' ? b : {};
   const name = nameCase(str(o.nome, 120)), contact = str(o.telefone, 40).replace(/[^\d+ ]/g, ''), email = str(o.email, 160).toLowerCase();
@@ -37,7 +50,7 @@ export function cleanSiteLead(b, now = new Date()) {
   const solutions = [...new Set(services.map((s) => SERVICES[s]).filter(Boolean))];
   return {
     lead: {
-      id: 'site-' + randomBytes(6).toString('hex'), src: 'site', received: now.toISOString(),
+      id: 'site-' + randomBytes(6).toString('hex'), src: 'site', via: viaOf(o.origem), ...(str(o.origem?.utm_campaign, 80) ? { campanha: str(o.origem.utm_campaign, 80) } : {}), received: now.toISOString(),
       name, address: local, contact, email, coords: '', rooms: '', bill: '', area: '',
       notes: ['Pedido pelo site: ' + services.join(', '), msg].filter(Boolean).join('\n'),
       value: '', brand: '', timing: '', heating: '', stage: 'nova', solutions, call: '', house: '', date: lisbonDay(now),

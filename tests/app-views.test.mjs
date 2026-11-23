@@ -115,7 +115,7 @@ test('leads received by email appear as Leads novas until marked as received, ca
  const {run}=app(state);
  const inbox=JSON.stringify([{id:'meta-x',src:'meta',received:'2026-10-31T10:00:00Z',name:'Nando Costa',contact:'+351927386939',email:'n@x.pt',house:'Moradia',timing:'Já',stage:'nova',solutions:[],call:'',date:'2026-10-31'}]);
  assert.equal(run(`leadInbox(${inbox})`),true);assert.equal(run(`leadInbox(${inbox})`),false,'not added twice');
- const list=run('vLeads()');assert.match(list,/Leads novas \(1\)/);assert.match(list,/lead-row lead-email/);assert.match(list,/Sincronizada do Outlook/);assert.match(run('vHome()'),/Leads novas \(1\)/);
+ const list=run('vLeads()');assert.match(list,/Leads novas \(1\)/);assert.match(list,/lead-row lead-email/);assert.match(list,/lead-src-email">Email</);assert.match(run('vHome()'),/Leads novas \(1\)/);
  run("leadOpen('meta-x')");assert.match(run('vLeads()'),/Marcar como recebida/);
  run("leadDraft.seen=true;leadSave();leadDraft=null");const after=run('vLeads()');
  assert.ok(!after.includes('Leads novas'));assert.match(after,/lead-row lead-nova/);assert.ok(!after.includes('Sincronizada do Outlook'));

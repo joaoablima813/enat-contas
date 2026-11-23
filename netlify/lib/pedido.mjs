@@ -346,9 +346,8 @@ function page(title, body) {
 <style>
 ${BASE_CSS}
 html{scroll-behavior:smooth;scroll-padding-top:12px}body{padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
-.tabs{display:flex;gap:8px;overflow-x:auto;margin:16px -22px 0;padding:0 22px 2px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
 .tabs a{flex:none;text-decoration:none;color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);border-radius:20px;padding:8px 13px;font-weight:600;font-size:14px}
-@media (min-width:560px){.tabs{margin:18px -30px 0;padding:0 30px 2px}}
 .card>.btn,.card>label.btn{margin-top:14px}.card>.btn.ghost{margin-top:12px}form{margin:0}#send{margin-top:16px}
 .q{margin:18px 0 0}.q:first-of-type{margin-top:4px}.row .q{margin-top:18px}.q>label{display:block;font-weight:600;font-size:15px;margin-bottom:8px}
 .help{color:var(--mute);font-size:13.5px;margin:-4px 0 8px}.rooms .help{margin:4px 0 0}

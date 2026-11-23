@@ -1,4 +1,4 @@
-// Página pública «Pedir detalhes ao cliente»: questionário enviado à lead por WhatsApp ou email.
+// Página do cliente: questionário, orçamentos, mensagens e orçamentos de outras empresas (mesmo link para tudo).
 import { getStore } from '@netlify/blobs';
 
 export default async (req) => {
@@ -8,4 +8,4 @@ export default async (req) => {
   return handlePedidoPublic(req, String(token || ''), sub || '', store);
 };
 
-export const config = { path: ['/pedido/:token', '/pedido/:token/foto'] };
+export const config = { path: ['/pedido/:token', '/pedido/:token/:sub'] };

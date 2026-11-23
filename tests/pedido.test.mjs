@@ -11,6 +11,7 @@ function blobs() {
     setJSON: async (k, v) => m.set(k, { data: JSON.parse(JSON.stringify(v)) }),
     set: async (k, v, o) => m.set(k, { data: v, metadata: o?.metadata || {} }),
     getWithMetadata: async (k) => (m.has(k) ? { data: m.get(k).data, metadata: m.get(k).metadata } : null),
+    delete: async (k) => m.delete(k),
   };
 }
 const api = (store, method, path, body) => handlePedidoApi({ method, url: 'https://enat.example/api/' + path, json: async () => body }, path, store);
@@ -37,7 +38,7 @@ test('the app creates one link per lead; the client answers on the page with pho
   assert.equal(r2.token, r1.token, 'asking again reuses the same link');
 
   const page = await (await pub(store, r1.token)).text();
-  assert.match(page, /Olá Maria/);assert.match(page, /Quantas divisões quer climatizar/);assert.match(page, /Máxima qualidade/);assert.match(page, /Código postal/);
+  assert.match(page, /Olá, Maria/);assert.match(page, /Quantas divisões quer climatizar/);assert.match(page, /Máxima qualidade/);assert.match(page, /Código postal/);
   assert.match(page, /data-tech="Ar condicionado">/, 'the chosen solution is open');assert.match(page, /data-tech="VMC" hidden/);
 
   const photo = await (await pub(store, r1.token, 'POST', new Uint8Array([1, 2, 3]).buffer, 'foto', { 'content-type': 'image/jpeg' })).json();
@@ -51,8 +52,40 @@ test('the app creates one link per lead; the client answers on the page with pho
   assert.equal(pedidos.length, 1);assert.equal(pedidos[0].lead, 'L1');
   assert.deepEqual(pedidos[0].resp.fotos, [photo.id], 'only photos uploaded through this link');
   assert.equal(pedidos[0].resp.cp, '4990-062');
-  assert.match(await (await pub(store, r1.token)).text(), /Já recebemos as suas respostas/);
+  const after = await (await pub(store, r1.token)).text();
+  assert.match(after, /Os seus dados/);assert.match(after, /Ver ou alterar as respostas/);assert.match(after, /Mensagens/);assert.match(after, /orçamento de outra empresa/);
   assert.equal((await pub(store, 'x'.repeat(24))).status, 404);
+});
+
+test('client page: messages both ways, quotes from other companies, sent quotes listed, and a new link revokes the old one', async () => {
+  const store = blobs();
+  const { token } = await (await api(store, 'POST', 'pedido', { lead: 'L1', nome: 'Maria Silva', sol: ['VMC'] })).json();
+  const empty = await pub(store, token, 'POST', { texto: '   ' }, 'msg');
+  assert.equal(empty.status, 400);
+  const m = await (await pub(store, token, 'POST', { texto: 'A exterior pode ficar no telhado?' }, 'msg')).json();
+  assert.deepEqual(m.msgs.map((x) => [x.de, x.texto]), [['c', 'A exterior pode ficar no telhado?']]);
+  const pdf = await (await pub(store, token, 'POST', new Uint8Array([37, 80, 68, 70]).buffer, 'anexo', { 'content-type': 'application/pdf', 'x-nome': encodeURIComponent('Orçamento Clima/../x.pdf') })).json();
+  assert.equal(pdf.anexo.nome, 'Orçamento Clima .. x.pdf', 'file name cleaned');
+  assert.equal((await pub(store, token, 'POST', new Uint8Array([1]).buffer, 'anexo', { 'content-type': 'text/html' })).status, 400, 'only PDF or photos');
+  const { pedidos } = await (await api(store, 'GET', 'pedidos')).json();
+  assert.equal(pedidos[0].resp, null);assert.ok(pedidos[0].chatAt > 0 && pedidos[0].anexoAt > 0, 'the app learns there is something new');
+  const r = await (await api(store, 'POST', 'pedido/msg', { lead: 'L1', texto: 'Pode sim.' })).json();
+  assert.equal(r.email, 'sem email');assert.deepEqual(r.msgs.map((x) => x.de), ['c', 'e']);
+  const conv = await (await api(store, 'GET', 'pedido/conversa/L1')).json();
+  assert.equal(conv.token, token);assert.equal(conv.msgs.length, 2);assert.equal(conv.anexos.length, 1);
+  const file = await api(store, 'GET', 'pedido/anexo/' + conv.anexos[0].id);
+  assert.equal(file.headers.get('content-type'), 'application/pdf');
+  const { addProposta } = await import('../netlify/lib/pedido.mjs');
+  assert.equal(await addProposta(store, 'L1', 'Maria Silva', { token: 'Q'.repeat(24), quote: 7, numero: 'ORC 2026/0007', titulo: 'VMC' }), token, 'a quote sent from the lead goes to the same page');
+  const page = await (await pub(store, token)).text();
+  assert.match(page, /ORC 2026\/0007/);assert.match(page, /href="\/proposta\/QQQQ/);assert.match(page, /Pode sim\./);
+  assert.equal((await pub(store, token, 'POST', { sol: ['Inventada'] }, 'novo')).status, 400, 'only known solutions');
+  const nv = await (await pub(store, token, 'POST', { sol: ['Painéis fotovoltaicos', 'Inventada'], texto: 'Telhado a sul' }, 'novo')).json();
+  assert.equal(nv.msgs.at(-1).texto, 'Pedido de novo orçamento: Painéis fotovoltaicos\nTelhado a sul', 'a new request reaches the ENAT as a message');
+  const nl = await (await api(store, 'POST', 'pedido/novo-link', { lead: 'L1' })).json();
+  assert.notEqual(nl.token, token);
+  assert.equal((await pub(store, token)).status, 404, 'the old link stops working');
+  assert.match(await (await pub(store, nl.token)).text(), /Pode sim\./, 'messages move to the new link');
 });
 
 const now = Date.parse('2026-11-23T11:00:00Z'), today = '2026-11-23';

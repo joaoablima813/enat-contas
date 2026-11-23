@@ -71,7 +71,7 @@ export async function handleSite(req, path, store) {
       const { createLink, markSent } = await import('./pedido.mjs');
       const { token } = await createLink(store, r.lead.id, r.lead.name, r.lead.solutions);
       await markSent(store, r.lead.id, token, now);
-      pedido = new URL(req.url).origin + '/pedido/' + token;
+      pedido = (String(process.env.LINK_URL || '').replace(/\/+$/, '') || new URL(req.url).origin) + '/pedido/' + token;
     } catch (e) { console.error('site pedido', e?.message); }
     try {
       const { sendPush } = await import('./push.mjs');

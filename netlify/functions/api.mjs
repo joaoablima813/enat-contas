@@ -149,6 +149,10 @@ export default async (req) => {
     const { handlePedidoApi } = await import('../lib/pedido.mjs');
     return handlePedidoApi(req, path, store);
   }
+  if (path === 'promocoes' || path.startsWith('promocoes/')) {
+    const { handlePromocoes } = await import('../lib/promocoes.mjs');
+    return handlePromocoes(req, path, store);
+  }
   if (path === 'portfolio' || path.startsWith('portfolio/')) {
     const { handlePortfolio } = await import('../lib/portfolio.mjs');
     return handlePortfolio(req, path, store);

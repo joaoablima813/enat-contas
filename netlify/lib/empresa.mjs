@@ -61,12 +61,13 @@ export async function handleEmpresa(req, path, store) {
   return json(404, { error: 'Pedido inválido.' });
 }
 
-// Pedido público: só serve as fotos do perfil da empresa e as das obras autorizadas pelo cliente.
+// Pedido público: só serve as fotos do perfil da empresa, as das obras autorizadas pelo cliente e as dos anúncios visíveis.
 export async function servePublicImage(imageId, store) {
   if (!ID.test(imageId)) return new Response('Não encontrado', { status: 404 });
   const { getPortfolio, portfolioImages } = await import('./portfolio.mjs');
-  const [e, works] = await Promise.all([getEmpresa(store), getPortfolio(store)]);
-  if (!publicImages(e).includes(imageId) && !portfolioImages(works).includes(imageId)) return new Response('Não encontrado', { status: 404 });
+  const { getPromocoes, promoImages } = await import('./promocoes.mjs');
+  const [e, works, promos] = await Promise.all([getEmpresa(store), getPortfolio(store), getPromocoes(store)]);
+  if (!publicImages(e).includes(imageId) && !portfolioImages(works).includes(imageId) && !promoImages(promos).includes(imageId)) return new Response('Não encontrado', { status: 404 });
   const r = await store.getWithMetadata('pub-' + imageId, { type: 'arrayBuffer' });
   if (!r) return new Response('Não encontrado', { status: 404 });
   return new Response(r.data, { headers: { 'content-type': r.metadata?.mime || 'image/jpeg', 'cache-control': 'public, max-age=86400', 'x-robots-tag': 'noindex' } });

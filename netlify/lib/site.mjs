@@ -2,7 +2,8 @@
 // - POST /site-api/lead: o formulário «Pedir orçamento» do site cria uma lead nova na app (pasta Leads novas),
 //   com aviso no telemóvel, e devolve o link do questionário para o cliente responder logo;
 // - GET /site-api/obras: obras concluídas com fotos autorizadas pelo cliente e os dados públicos da empresa;
-// - GET /site-api/img/<id>: as fotos dessas obras.
+// - GET /site-api/promocoes: os anúncios em destaque (ativos e dentro da validade);
+// - GET /site-api/img/<id>: as fotos dessas obras e dos anúncios.
 // Só aceita pedidos vindos do site (CORS) e tem proteção contra spam (campo escondido, tempo mínimo, limite por IP).
 import { randomBytes } from 'node:crypto';
 import { getPortfolio, shown, monthLabel } from './portfolio.mjs';
@@ -100,6 +101,13 @@ export async function handleSite(req, path, store) {
     const obras = shown(works).sort((a, b) => b.mes.localeCompare(a.mes)).slice(0, 24).map((w) => ({ titulo: w.titulo, tipo: w.tipo, local: w.local, mes: monthLabel(w.mes), descricao: w.descricao, fotos: w.fotos.map((f) => base + f) }));
     const g = e?.google || {};
     return new Response(JSON.stringify({ obras, google: g.nota ? { nota: g.nota, total: g.total || '', link: g.link || '' } : null }), { headers: { 'content-type': 'application/json', ...cors(req), 'cache-control': 'public, max-age=300' } });
+  }
+  // Anúncios / promoções em destaque no site.
+  if (path === 'promocoes' && req.method === 'GET') {
+    const { getPromocoes, visiveis } = await import('./promocoes.mjs');
+    const base = new URL(req.url).origin + '/site-api/img/';
+    const promocoes = visiveis(await getPromocoes(store)).map((p) => ({ id: p.id, titulo: p.titulo, descricao: p.descricao, preco: p.preco, precoAntes: p.precoAntes, ate: p.ate, fotos: p.fotos.map((f) => base + f) }));
+    return new Response(JSON.stringify({ promocoes }), { headers: { 'content-type': 'application/json', ...cors(req), 'cache-control': 'public, max-age=60' } });
   }
   const m = path.match(/^img\/([a-z0-9]{8,40})$/);
   if (m && req.method === 'GET') {

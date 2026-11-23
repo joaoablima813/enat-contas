@@ -43,3 +43,11 @@ export async function atualizarOpinioes(store, now = Date.now(), fetcher = fetch
     return { error: e?.message };
   }
 }
+
+// Dados do Google a mostrar (site e propostas). Com a sincronização ativa, usa a nota, o número e as opiniões reais;
+// sem ela, o que foi escrito na app (Empresa → Google). Nunca mostra a opinião do próprio comercial.
+export function googleFor(e, op) {
+  const g = e?.google || {}, me = String(e?.contacto?.nome || 'João Lima').trim().toLowerCase();
+  if (op?.total) return { ...g, nota: Number(op.nota).toFixed(1), total: String(op.total), link: g.link || op.link, reviews: (op.reviews || []).filter((r) => r.autor.trim().toLowerCase() !== me) };
+  return g.nota ? { ...g, reviews: [] } : { ...g, reviews: [] };
+}

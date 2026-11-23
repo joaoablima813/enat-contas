@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import * as portfolio from '../netlify/lib/portfolio.mjs';
 import * as pageStyle from '../netlify/lib/page-style.mjs';
+import * as googleOp from '../netlify/lib/google-opinioes.mjs';
 const read=f=>readFileSync(new URL('../'+f,import.meta.url),'utf8');
 const ts=f=>stripTypeScriptTypes(read(f).replace(/^import .*;\n/gm,'').replace(/^export /gm,''));
 const sample={client:'Família Araújo',address:'Rua da Instalação, 12',contact:'912 345 678',email:'a@b.pt',date:new Date().toISOString().slice(0,10),topics:['Ar condicionado'],brand:'LG',margin:20,vat:23,warranty:'3 anos',status:'enviado',validity:30,lines:[{kind:'Equipamento',description:'Unidade',value:1000,quantity:1,unit:'un.'},{kind:'Mão de obra',description:'Montagem',value:200,quantity:1,unit:'un.'}]};
@@ -29,7 +30,7 @@ function blobs(){const m=new Map();return {m,set:async(k,v,o)=>m.set(k,{data:v,m
 function server(){
  const f=fakeDb(),store=blobs();
  // Each server module runs in its own context, sharing the same database and blob store.
- const ctx=()=>vm.createContext({...f,...portfolio,...pageStyle,Response,URL,Buffer,Headers,console,structuredClone,randomBytes:k=>Buffer.alloc(k,++n),process:{env:{}},store});
+ const ctx=()=>vm.createContext({...f,...portfolio,...pageStyle,...googleOp,Response,URL,Buffer,Headers,console,structuredClone,randomBytes:k=>Buffer.alloc(k,++n),process:{env:{}},store});
  const c=ctx(),w=ctx(),q=ctx();
  for(const p of ['public/quote-math.js','public/gestao.js','public/quote-obra.js','public/solucoes.js'])vm.runInContext(read(p),c);
  vm.runInContext(ts('netlify/lib/proposta.ts'),c);vm.runInContext(ts('netlify/lib/whatsapp.ts'),w);vm.runInContext(ts('netlify/lib/quotes.ts'),q);
@@ -111,6 +112,10 @@ test('the company profile shows the contact person, credentials with a number an
  assert.match(html,/gases fluorados[\s\S]*Cert\. n\.º 123/);assert.doesNotMatch(html,/Sem número/,'a credential without its number is not shown');
  assert.match(html,/12<\/b><small>anos de experiência/);assert.match(html,/semana de 2 de março/);assert.doesNotMatch(html,/semana de 3 de janeiro/,'past weeks are hidden');
  assert.match(html,/Testes e arranque do sistema/);assert.match(html,/Conforto o ano inteiro/);
+ // Google: the same rating and reviews as the site (synced), without the salesperson's own review.
+ await s.store.setJSON('google-opinioes',{at:1,nota:5,total:7,link:'https://maps.google.com/?cid=1',reviews:[{autor:'Sara F.',estrelas:5,texto:'Muito profissionais',quando:'há 1 semana'},{autor:'João Lima',estrelas:5,texto:'Própria',quando:''}]});
+ const g=await (await s.call(token)).text();
+ assert.match(g,/5,0 ★<\/b><small>no Google \(7 opiniões\)/);assert.match(g,/Muito profissionais/);assert.doesNotMatch(g,/Própria/);
  // The chosen week is kept with the answer; a week that is not offered is ignored.
  let r=await s.call(token,'POST',{kind:'adjudicar',semana:'semana de 2 de março',note:'De manhã'});const j=await r.json();
  assert.match(j.pay,/PT50/,'bank details only after awarding');

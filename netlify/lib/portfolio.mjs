@@ -1,6 +1,8 @@
 // Obras concluídas com fotos, mostradas na página da proposta a clientes da mesma zona («Obras perto de si»).
 // A app publica aqui uma lista curta (blob "portfolio"): tipo de trabalho, localidade, código postal (4 dígitos), mês e
 // fotos. Nunca o nome nem a morada do cliente. Só aparecem as obras concluídas com autorização do cliente (ok).
+// Uma obra com várias categorias (ex.: ar condicionado e UPAC) publica uma entrada por categoria, com o mesmo «grupo».
+// As obras só para o site (sem obra na app) ficam apenas aqui, marcadas com «solo».
 const json = (status, body) => Response.json(body, { status });
 const KEY = 'portfolio';
 const ID = /^[a-z0-9]{8,40}$/;
@@ -14,12 +16,15 @@ export function cleanPortfolio(list) {
     id: String(w.id),
     tipo: str(w.tipo, 60),
     titulo: str(w.titulo, 80),
+    descricao: str(w.descricao, 400),
+    grupo: OBRA.test(String(w.grupo || '')) ? String(w.grupo) : String(w.id),
+    solo: w.solo === true,
     local: str(w.local, 60),
     cp: /^\d{4}$/.test(String(w.cp || '')) ? String(w.cp) : '',
     mes: /^\d{4}-\d{2}$/.test(String(w.mes || '')) ? String(w.mes) : '',
-    fotos: (Array.isArray(w.fotos) ? w.fotos : []).filter((f) => typeof f === 'string' && ID.test(f)).slice(0, 4),
+    fotos: (Array.isArray(w.fotos) ? w.fotos : []).filter((f) => typeof f === 'string' && ID.test(f)).slice(0, 8),
     ok: w.ok === true,
-  })).filter((w) => w.fotos.length).slice(0, 60);
+  })).filter((w) => w.fotos.length).slice(0, 200);
 }
 export const getPortfolio = async (store) => cleanPortfolio(await store.get(KEY, { type: 'json' }).catch(() => null));
 // Fotos que a página pública pode servir: só de obras autorizadas e com título e localidade.
@@ -37,7 +42,9 @@ export function nearby(list, address, topics = [], n = 3) {
   if (!works.length) return { title: '', items: [] };
   const zone = (w) => (cp && w.cp === cp ? 2 : cp && w.cp && w.cp.slice(0, 2) === cp.slice(0, 2) ? 1 : 0);
   const score = (w) => zone(w) * 10 + (topics.includes(w.tipo) ? 5 : 0);
-  const items = [...works].sort((a, b) => score(b) - score(a) || b.mes.localeCompare(a.mes)).slice(0, n);
+  // Uma só categoria por obra, para mostrar obras diferentes.
+  const seen = new Set();
+  const items = [...works].sort((a, b) => score(b) - score(a) || b.mes.localeCompare(a.mes)).filter((w) => !seen.has(w.grupo) && seen.add(w.grupo)).slice(0, n);
   const best = Math.max(...items.map(zone));
   return { title: best === 2 ? 'Obras que fizemos perto de si' : best === 1 ? 'Obras que fizemos na sua região' : 'Algumas obras que fizemos', items };
 }

@@ -84,7 +84,7 @@ export async function handleSite(req, path, store) {
   if (path === 'obras' && req.method === 'GET') {
     const [works, e] = await Promise.all([getPortfolio(store), store.get('empresa', { type: 'json' }).catch(() => null)]);
     const base = new URL(req.url).origin + '/site-api/img/';
-    const obras = shown(works).sort((a, b) => b.mes.localeCompare(a.mes)).slice(0, 24).map((w) => ({ titulo: w.titulo, tipo: w.tipo, local: w.local, mes: monthLabel(w.mes), fotos: w.fotos.map((f) => base + f) }));
+    const obras = shown(works).sort((a, b) => b.mes.localeCompare(a.mes)).slice(0, 24).map((w) => ({ titulo: w.titulo, tipo: w.tipo, local: w.local, mes: monthLabel(w.mes), descricao: w.descricao, fotos: w.fotos.map((f) => base + f) }));
     const g = e?.google || {};
     return new Response(JSON.stringify({ obras, google: g.nota ? { nota: g.nota, total: g.total || '', link: g.link || '' } : null }), { headers: { 'content-type': 'application/json', ...cors(req), 'cache-control': 'public, max-age=300' } });
   }

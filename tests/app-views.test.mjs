@@ -218,15 +218,26 @@ test('company screen: blank profile suggests credentials to fill, and the quote 
  assert.match(run("quoteWaText([{client:'Rui',id:1,date:'2026-11-22',topics:['VMC'],brand:'',lines:[],validity:15}],['https://x/1'])"),/Sou Ana Reis, da Enat[\s\S]*Ana Reis\nEnat/);
 });
 
-test('job photos screen: prefilled town and postcode, and only finished jobs with consent are published as visible',()=>{
+test('job photos screen: several categories per job, legacy photos kept, and only finished jobs with consent are visible',()=>{
  const {run}=app({...state,obras:[...state.obras,{id:'o3',name:'AC',client:'Rui',status:'concluida',address:'Rua Nova 5, 4990-062 Ponte de Lima'}]});
  run("V.tab='obras';V.obra='o3';V.seg='fotos'");const html=run('vObra()');
- assert.match(html,/Fotos para as propostas/);assert.match(html,/O cliente autorizou/);
+ assert.match(html,/Categorias da obra/);assert.match(html,/O cliente autorizou/);assert.match(html,/Bomba de calor AQS/);
  run("pfStart(S.obras[2])");assert.equal(run('S.obras[2].port.local'),'Ponte de Lima');assert.equal(run('S.obras[2].port.cp'),'4990');
- run("Object.assign(S.obras[2].port,{fotos:['abcdefgh1'],titulo:'AC em moradia',ok:true});S.obras[0].port={fotos:['abcdefgh2'],titulo:'x',local:'y',ok:true}");
+ run("Object.assign(S.obras[2].port,{ok:true,descricao:'Multisplit e AQS',cats:[{tipo:'Ar condicionado',titulo:'',fotos:['abcdefgh1']},{tipo:'Bomba de calor AQS',titulo:'AQS 200 L',fotos:['abcdefgh3']},{tipo:'UPAC',titulo:'',fotos:[]}]});S.obras[0].port={fotos:['abcdefgh2'],tipo:'VMC',titulo:'x',local:'y',ok:true}");
  const pub=JSON.parse(run('JSON.stringify(pfPublic())'));
- assert.deepEqual(pub.map(w=>[w.id,w.ok]),[['o1',false],['o3',true]],'a job still in progress is not shown yet');
+ assert.deepEqual(pub.map(w=>[w.id,w.grupo,w.tipo,w.ok]),[['o1-0','o1','VMC',false],['o3-0','o3','Ar condicionado',true],['o3-1','o3','Bomba de calor AQS',true]],'one entry per category with photos; a job in progress is not shown yet; the old single-category format still works');
+ assert.equal(pub[1].titulo,'Ar condicionado em Ponte de Lima','a default title');assert.equal(pub[2].descricao,'Multisplit e AQS');
  assert.ok(!JSON.stringify(pub).includes('Rui')&&!JSON.stringify(pub).includes('Rua Nova'),'no client name or address');
+});
+
+test('photos for the site without a job in the app: kept on the server only and published as solo',()=>{
+ const {run}=app(state);
+ run("PF_SOLO=[{id:'sabc123',cats:[{tipo:'UPAC',titulo:'',fotos:['abcdefgh9']}],local:'Arcos de Valdevez',cp:'4970',mes:'2026-10',descricao:'12 painéis',ok:true}];V.tab='site'");
+ const html=run('vSite()');assert.match(html,/Fotos para o site/);assert.match(html,/Nova obra para o site/);assert.match(html,/UPAC em Arcos de Valdevez/);
+ run("V.pfs='sabc123'");assert.match(run('vSite()'),/Eliminar esta obra do site/);
+ const pub=JSON.parse(run('JSON.stringify(pfPublic())')).filter(w=>w.solo);
+ assert.deepEqual(pub.map(w=>[w.id,w.grupo,w.ok,w.descricao]),[['sabc123-0','sabc123',true,'12 painéis']]);
+ assert.ok(!JSON.parse(run('JSON.stringify(S)')).sabc123,'not stored in the app data');
 });
 
 test('lead questionnaire: link buttons on the lead, and answers fill empty fields without overwriting',()=>{

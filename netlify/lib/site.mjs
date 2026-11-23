@@ -100,7 +100,11 @@ export async function handleSite(req, path, store) {
     const base = new URL(req.url).origin + '/site-api/img/';
     const obras = shown(works).sort((a, b) => b.mes.localeCompare(a.mes)).slice(0, 24).map((w) => ({ titulo: w.titulo, tipo: w.tipo, local: w.local, mes: monthLabel(w.mes), descricao: w.descricao, fotos: w.fotos.map((f) => base + f) }));
     const g = e?.google || {};
-    return new Response(JSON.stringify({ obras, google: g.nota ? { nota: g.nota, total: g.total || '', link: g.link || '' } : null }), { headers: { 'content-type': 'application/json', ...cors(req), 'cache-control': 'public, max-age=300' } });
+    // Opiniões do Google sincronizadas (uma vez por dia); sem elas, os dados escritos na app (Empresa).
+    const { getOpinioes } = await import('./google-opinioes.mjs');
+    const op = await getOpinioes(store);
+    const google = op?.total ? { nota: op.nota, total: op.total, link: g.link || op.link, reviews: op.reviews.filter((r) => r.autor.trim().toLowerCase() !== String(e?.contacto?.nome || 'João Lima').trim().toLowerCase()).slice(0, 6) } : g.nota ? { nota: g.nota, total: g.total || '', link: g.link || '' } : null;
+    return new Response(JSON.stringify({ obras, google }), { headers: { 'content-type': 'application/json', ...cors(req), 'cache-control': 'public, max-age=300' } });
   }
   // Anúncios / promoções em destaque no site.
   if (path === 'promocoes' && req.method === 'GET') {

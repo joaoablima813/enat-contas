@@ -181,10 +181,11 @@ function kit(input) {
     const area = b.area_m2 ?? s.area_total_m2 ?? null;
     if (area == null && b.potencia_kw == null) pres.push(`${T}: 120 m² aquecidos (área não indicada).`);
     const c = bombaCalorHabitacao({ area_m2: area ?? 120, isolamento: s.isolamento, emissores: b.emissores || forced || 'piso', pessoas_aqs: b.aqs ? (b.pessoas ?? 4) : 0 });
-    const kw = b.potencia_kw ?? c.potencia_nominal_kw, mono = b.monobloco !== false;
+    const kw = b.potencia_kw ?? c.potencia_nominal_kw, mono = b.monobloco !== false, tri = s.trifasico ?? kw > 12;
+    if (s.trifasico == null) ask.push('A instalação elétrica é monofásica ou trifásica?');
     calcs.push({ nome: 'bomba_calor_habitacao', nota: c.nota });
     dim.push({ titulo: 'Bomba de calor', detalhe: b.potencia_kw ? `${pt(kw)} kW (indicado no pedido)` : c.nota });
-    add({ tipologia: T, categoria: 'Equipamento', ck: 'Bomba de calor', descricao: `Bomba de calor ar-água ${mono ? 'monobloco' : 'split (exterior + módulo hidráulico)'} ${pt(kw)} kW${marca ? ' ' + marca : ''}`, especificacao: `bomba de calor ar-água ${pt(kw)} kW, ida a ${c.temperatura_ida_c} °C`, quantidade: 1, pesquisa: eqTerms(b.modelo, [`${marca} bomba calor ${mono ? 'monobloco' : 'split'} ${pt(kw)} kW`, `${marca} bomba de calor ${pt(kw)} kw`, `bomba calor ar agua ${pt(kw)} kw`, `bomba calor ${mono ? 'monobloco' : 'split'} ${pt(kw)}kw`, `${marca} aquecimento ${pt(kw)} kw`]), potencia: kw, exige: [[nRe(kw) + '\\s?kw', nRe(kw)]], grupo: 'bomba de calor climatizacao|bombas de calor', evita: [...(mono ? ['unidade exterior', 'modulo hidraulico', '\\bsplit\\b'] : ['monobloco']), ...(kw > 12 ? [] : ['trifasic']), 'piscina', 'aqs', 'acumulador', 'deposito', 'ventilo', 'kit solar', 'kit fotovoltaico', 'anodo', 'comando', 'controlador', 'sonda', 'acessorio', 'consola', 'unidade interior', 'multi v'] });
+    add({ tipologia: T, categoria: 'Equipamento', ck: 'Bomba de calor', descricao: `Bomba de calor ar-água ${mono ? 'monobloco' : 'split (exterior + módulo hidráulico)'} ${pt(kw)} kW${marca ? ' ' + marca : ''}`, especificacao: `bomba de calor ar-água ${pt(kw)} kW, ida a ${c.temperatura_ida_c} °C`, quantidade: 1, pesquisa: eqTerms(b.modelo, [`${marca} bomba calor ${mono ? 'monobloco' : 'split'} ${pt(kw)} kW`, `${marca} bomba de calor ${pt(kw)} kw`, `bomba calor ar agua ${pt(kw)} kw`, `bomba calor ${mono ? 'monobloco' : 'split'} ${pt(kw)}kw`, `${marca} aquecimento ${pt(kw)} kw`]), potencia: kw, exige: [[nRe(kw) + '\\s?kw', nRe(kw)]], grupo: 'bomba de calor climatizacao|bombas de calor', evita: [...(mono ? ['unidade exterior', 'modulo hidraulico', '\\bsplit\\b'] : ['monobloco']), ...(tri ? ['monofasic'] : ['trifasic']), 'piscina', 'aqs', 'acumulador', 'deposito', 'ventilo', 'kit solar', 'kit fotovoltaico', 'anodo', 'comando', 'controlador', 'sonda', 'acessorio', 'consola', 'unidade interior', 'multi v'] });
     if (b.aqs) {
       const a = aqsCalc({ pessoas: b.pessoas ?? 4 }), V = b.volume_aqs_l ?? Math.max(a.volume_l, 150);
       add({ tipologia: T, categoria: 'Equipamento', ck: 'Depósito de AQS', descricao: `Depósito de AQS ${V} L para bomba de calor (serpentina de grande superfície)`, aux: true, quantidade: 1, pesquisa: [`${marca} deposito aqs ${V}`, `deposito bomba calor ${V} l`, `acumulador aqs ${V} litros`, `termoacumulador serpentina ${V}`], exige: [[nRe(V)]], evita: ['eletrico', 'resistencia', 'solar', 'anodo'] });
@@ -210,7 +211,7 @@ function kit(input) {
     add({ tipologia: T, categoria: 'Acessórios', ck: 'Controlo', descricao: 'Termóstato / controlador de ambiente', quantidade: 1, pesquisa: [`${marca} termostato ambiente`, 'termostato ambiente', 'controlador remoto bomba calor'] });
     add({ tipologia: T, categoria: 'Material', ck: 'Purga, enchimento e inibidor', descricao: 'Purgadores automáticos e aditivo inibidor para o circuito', quantidade: 1, pesquisa: ['inibidor aquecimento', 'purgador automatico 1/2', 'aditivo inibidor corrosao'] });
     const dq = quadroDefault(T, b.distancia_quadro_m);
-    electric(T, caboEletrico({ potencia_termica_kw: kw, distancia_m: dq, trifasico: kw > 12 }), 'Bomba de calor');
+    electric(T, caboEletrico({ potencia_termica_kw: kw, distancia_m: dq, trifasico: tri }), 'Bomba de calor');
     labour(T, 'bc_clima', 'Instalação de bomba de calor de climatização (enchimento, purga e arranque)', 1, 'un.');
     labour(T, 'hidraulica', 'Tubagem hidráulica', up(2 * (dist + 1)), 'm', 'Mão de obra', 'multicamada');
   };
@@ -300,7 +301,7 @@ function kit(input) {
   const ev = s.carregador;
   if (ev) {
     const T = 'Carregador automóvel';
-    const kw = ev.potencia_kw ?? 7.4, dq = quadroDefault(T, ev.distancia_m);
+    const kw = ev.potencia_kw ?? (s.trifasico ? 11 : 7.4), dq = quadroDefault(T, ev.distancia_m);
     const c = evCalc({ potencia_kw: kw, distancia_m: dq });
     dim.push({ titulo: 'Carregador', detalhe: `${pt(kw)} kW ${c.trifasico ? 'trifásico' : 'monofásico'}: ${c.nota}` });
     add({ tipologia: T, categoria: 'Equipamento', ck: 'Carregador', descricao: `Carregador de veículo elétrico (wallbox) ${pt(kw)} kW ${c.trifasico ? 'trifásico' : 'monofásico'}${marca ? ' ' + marca : ''}`, quantidade: 1, pesquisa: eqTerms(ev.modelo, [`${marca} wallbox ${pt(kw)} kw`, `carregador veiculo eletrico ${pt(kw)} kw`, `wallbox ${pt(kw)}`]), exige: [[nRe(kw) + '\\s?kw', nRe(kw)]] });
@@ -344,7 +345,7 @@ Formato:
 {"resumo": "1-2 frases com a solução pedida",
 "tipologias": [das: ${TOPICS.join(' | ')}],
 "marca": "marca dos equipamentos ou ''",
-"isolamento": "bom|medio|fraco|null", "distancia_quadro_m": null, "area_total_m2": null,
+"isolamento": "bom|medio|fraco|null", "trifasico": "true se a instalação elétrica é trifásica, false se monofásica, null se não se sabe", "distancia_quadro_m": null, "area_total_m2": null,
 "ac": null ou {"sistema": "mono|multi|null", "divisoes": [{"nome": "Sala", "area_m2": 30, "uso": "sala|quarto|cozinha|escritorio|loja|outro", "exposicao": "sul|norte|nascente|poente|null", "potencia_kw": null, "tipo": "mural|consola|conduta|cassete|null", "modelo": "modelo exato se indicado ou null", "linha_m": null, "calha_m": null, "esgoto": true|false|null}], "exterior_kw": null, "modelo_exterior": null, "suporte": "parede|chao|null", "wifi": false, "distancia_quadro_m": null, "carga_incluida_m": null},
 "aqs": null ou {"pessoas": null, "volume_l": null, "modelo": null, "tubo_m": null, "espaco_fechado": null, "remover_antigo": null, "distancia_quadro_m": null},
 "bc": null ou {"area_m2": null, "emissores": "piso|ventiloconvectores|radiadores", "potencia_kw": null, "modelo": null, "monobloco": true|false|null, "aqs": false, "pessoas": null, "volume_aqs_l": null, "inercia_l": null, "distancia_m": null, "distancia_quadro_m": null},
@@ -381,6 +382,7 @@ export function cleanSpec(p, labourIds = []) {
     resumo: clip(p.resumo, 800), marca: str(p.marca, 60) || '',
     tipologias: arr(p.tipologias, 10).filter((t) => TOPICS.includes(t)),
     isolamento: oneOf(['bom', 'medio', 'fraco'])(p.isolamento) || 'medio',
+    trifasico: p.trifasico === true || p.trifasico === 'true' ? true : p.trifasico === false || p.trifasico === 'false' ? false : null,
     distancia_quadro_m: num(p.distancia_quadro_m, null, 0.5, 300), area_total_m2: num(p.area_total_m2, null, 5, 10000),
     ac: ac && {
       sistema: oneOf(['mono', 'multi'])(ac.sistema),

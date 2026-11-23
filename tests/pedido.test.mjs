@@ -22,7 +22,7 @@ test('answers are cleaned: unknown solutions, options and fields are dropped', (
   assert.deepEqual(r.a, { ac_div: '3', ac_rooms: [{ t: 'Sala', m2: 30 }, { t: 'Outra', m2: 12 }], casa: 'Moradia' }, 'only questions of the chosen solutions, with valid options and room areas');
   const rad = P.clean({ sol: ['Bomba de calor climatização'], a: { m2: '150', bcc_emis: 'Piso radiante', bcc_rad: 10, pessoas: '3 a 4' } });
   assert.deepEqual(rad.a, { m2: 150, bcc_emis: 'Piso radiante' }, 'radiator count only with radiators; house questions only if a chosen solution needs them');
-  assert.deepEqual(P.houseFor(['Ar condicionado', 'Bomba de calor climatização']).map((q) => q.id), ['casa', 'ano', 'jan', 'm2'], 'shared questions appear once');
+  assert.deepEqual(P.houseFor(['Ar condicionado', 'Bomba de calor climatização']).map((q) => q.id), ['casa', 'fase', 'ano', 'jan', 'm2'], 'shared questions appear once; single/three-phase is always asked');
   assert.equal(P.clean({ sol: ['Bomba de calor climatização'], a: { bcc_aqs: 'Sim', pessoas: '3 a 4' } }).a.pessoas, '3 a 4', 'people at home also asked when the heat pump heats water');
   assert.equal(P.clean({ sol: ['Bomba de calor climatização'], a: { bcc_aqs: 'Não', pessoas: '3 a 4' } }).a.pessoas, undefined);
   assert.equal(r.gama, 'media');assert.equal(r.morada, 'Rua 1');

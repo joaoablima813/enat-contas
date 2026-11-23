@@ -13,6 +13,7 @@ import '../../public/quote-obra.js';
 import '../../public/solucoes.js';
 import { getPortfolio, nearby, monthLabel } from './portfolio.mjs';
 import { BASE_CSS, reviewCard } from './page-style.mjs';
+import { getOpinioes, googleFor } from './google-opinioes.mjs';
 
 const G: any = globalThis;
 export const ANSWERS: Record<string, string> = { adjudicar: 'Adjudicado', revisao: 'Pedido de revisão', pensar: 'Vai pensar', mais_tarde: 'Fica para mais tarde', rejeitar: 'Rejeitado' };
@@ -142,13 +143,16 @@ export async function handleProposta(req: Request, token: string, store: any) {
   if (req.method !== 'GET') return fail(405, 'Método não permitido.');
   if (!found) return new Response(page('Proposta não encontrada', `<section class="card"><h1>Proposta não encontrada</h1><p>Este link já não está disponível. Contacte-nos para receber uma nova proposta.</p><p><a class="btn ghost" href="mailto:${COMPANY.email}">${COMPANY.email}</a></p></section>`), { status: 404, headers: HTML });
   const { row, group, portal } = found as any, q: any = row.document;
-  const [answer, siblings, empresa, views, works] = await Promise.all([
+  const [answer, siblings, empresa0, views, works, opinioes] = await Promise.all([
     lastAnswer(row.id),
     group ? store.get('grupo-' + group, { type: 'json' }) : null,
     empresaOf(store),
     db.select().from(quoteEvents).where(and(eq(quoteEvents.quoteId, row.id), eq(quoteEvents.kind, 'visto'))),
     getPortfolio(store).catch(() => []),
+    getOpinioes(store).catch(() => null),
   ]);
+  // A nota, o número e as opiniões do Google são os mesmos do site (sincronizados uma vez por dia).
+  const empresa: any = { ...(empresa0 as any), google: googleFor(empresa0, opinioes) };
   let others: any[] = [];
   const ids = ((siblings as any[]) || []).filter(s => s.quote !== row.id).map(s => s.quote);
   if (ids.length) {
@@ -205,6 +209,7 @@ function body(token: string, row: any, answer: any, others: any[], e: any, views
  ${facts.length ? `<div class="facts">${facts.map(([v, l]) => `<div><b>${esc(v)}</b><small>${esc(l)}</small></div>`).join('')}</div>` : ''}
  <ul class="creds">${creds.map((x: any) => `<li>${icon('shield')}<span><b>${esc(x.nome)}</b><small>${esc(x.numero)}</small></span></li>`).join('')}<li>${icon('shield')}<span><b>Garantia de ${esc(gEquip)} nos equipamentos</b><small>e ${esc(gInst)} na instalação, por escrito na proposta</small></span></li></ul>
  ${e.equipaFoto ? `<img class="team" src="${img(e.equipaFoto)}" alt="A equipa da Enat" loading="lazy">` : ''}
+ ${(e.google?.reviews || []).length ? `<div class="greviews">${e.google.reviews.slice(0, 3).map((r: any) => `<figure><div class="gst" aria-label="${r.estrelas} estrelas">${'★'.repeat(r.estrelas)}${'☆'.repeat(5 - r.estrelas)}</div>${r.texto ? `<blockquote>${esc(r.texto)}</blockquote>` : `<blockquote class="none">Avaliou com ${r.estrelas} estrelas.</blockquote>`}<figcaption>${esc(r.autor)}${r.quando ? ' · ' + esc(r.quando) : ''}</figcaption></figure>`).join('')}</div>` : ''}
  ${e.google?.link ? `<a class="link" href="${esc(e.google.link)}" target="_blank" rel="noopener">${icon('star')}Ver as opiniões dos nossos clientes no Google</a>` : ''}</section>`;
 
   // 2b. Local proof: finished jobs near the client, with the client's consent (type of work, town and month only).

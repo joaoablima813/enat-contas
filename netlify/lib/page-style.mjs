@@ -72,4 +72,5 @@ footer{display:flex;gap:12px;align-items:center;margin:28px 4px 0;color:var(--mu
 @media (prefers-reduced-motion:reduce){.sheet-in{animation:none}.bar{transition:none}}
 @media (min-width:560px){.hero{padding:30px 30px 26px}.hero h1{font-size:32px}.card{padding:24px}}
 .review{text-align:center}.review .stars{display:flex;justify-content:center;gap:4px;margin:2px 0 8px}.review .stars svg{width:24px;height:24px;fill:#f5b301;stroke:none}.review .muted{margin:0 0 14px}
+.greviews{display:grid;gap:10px;margin-top:14px}.greviews figure{margin:0;background:var(--tint);border-radius:14px;padding:12px 14px}.gst{color:#f5b301;letter-spacing:2px;font-size:15px}.greviews blockquote{margin:4px 0 6px;font-size:14.5px;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}.greviews blockquote.none{color:var(--mute);font-style:italic}.greviews figcaption{color:var(--mute);font-size:13px}
 `;

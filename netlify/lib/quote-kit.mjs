@@ -101,7 +101,7 @@ function kit(input) {
     let gas = 0, calha = 0, calhaAc = 0;
     // Com pré-instalação de ar condicionado a casa já tem o tubo de cobre: não entra no orçamento.
     const semCobre = ac.pre_instalacao === true || ex.has('cobre');
-    if (semCobre) { na(T, 'Par de cobre pré-isolado por linha', ac.pre_instalacao ? 'pré-instalação existente' : 'excluído no pedido'); if (ac.pre_instalacao) pres.push('Pré-instalação de ar condicionado existente: tubo de cobre não incluído (confirmar o estado e os diâmetros da pré-instalação).'); }
+    if (semCobre) { na(T, 'Par de cobre pré-isolado por linha', ac.pre_instalacao ? 'pré-instalação existente' : 'excluído no pedido'); if (ac.pre_instalacao) pres.push('Pré-instalação de ar condicionado existente: tubo de cobre e tubo de esgoto de condensados não incluídos (confirmar o estado e os diâmetros da pré-instalação).'); }
     for (const u of units) {
       const l = linhaFrigorifica({ potencia_kw: u.kw, distancia_m: u.linha, percurso_a_vista_m: u.calha_m ?? undefined, carga_incluida_m: ac.carga_incluida_m ?? 7 });
       calcs.push({ nome: 'linha_frigorifica', nota: `${u.nome}: ${l.diametros}, ${l.nota}` });
@@ -110,8 +110,10 @@ function kit(input) {
       add({ tipologia: T, categoria: 'Material', chave: 'cabo_interligacao', ck: 'Cabo de interligação', descricao: `Cabo de interligação ${l.cabo_interligacao.tipo.replace(/ \(.*/, '')}`, quantidade: l.cabo_interligacao.metros, unidade: 'm', grupo: 'cabo', evita: ['ebara', 'bomba'], pesquisa: [`cabo h07rn-f ${l.cabo_interligacao.tipo.match(/\dG1,5/)[0]}`, `cabo ${l.cabo_interligacao.tipo.match(/\dG1,5/)[0]}`, `cabo borracha ${l.cabo_interligacao.tipo.match(/\d/)[0]}x1,5`], exige: [[`${l.cabo_interligacao.tipo.match(/(\d)G/)[1]}\\s?[gx]\\s?1[.,]5(?![0-9])`]] });
       if (u.esgoto === false) {
         condensadosPump(T, 'Esgoto de condensados', 1);
-        add({ tipologia: T, categoria: 'Material', chave: 'condensados', ck: 'Esgoto de condensados', descricao: 'Tubo de condensados (bomba até ao esgoto)', quantidade: l.tubo_condensados_m, unidade: 'm', pesquisa: ['mangueira cristal 16', 'tubo condensados 16', 'mangueira cristal', 'tubo pvc esgoto 32'], evita: ['drenagem', 'saneamento', 'piscina', 'terra', 'rega', 'seko', 'gas'] });
-      } else {
+        // Com pré-instalação o tubo de esgoto já está passado.
+        if (!ac.pre_instalacao) add({ tipologia: T, categoria: 'Material', chave: 'condensados', ck: 'Esgoto de condensados', descricao: 'Tubo de condensados (bomba até ao esgoto)', quantidade: l.tubo_condensados_m, unidade: 'm', pesquisa: ['mangueira cristal 16', 'tubo condensados 16', 'mangueira cristal', 'tubo pvc esgoto 32'], evita: ['drenagem', 'saneamento', 'piscina', 'terra', 'rega', 'seko', 'gas'] });
+      } else if (ac.pre_instalacao) na(T, 'Esgoto de condensados', 'pré-instalação existente');
+      else {
         if (u.esgoto == null && !ask.some((q) => /esgoto/i.test(q))) ask.push('Há esgoto por gravidade junto das unidades interiores? (sem esgoto leva bomba de condensados)');
         add({ tipologia: T, categoria: 'Material', chave: 'condensados', ck: 'Esgoto de condensados', descricao: 'Tubo de esgoto de condensados 16/20 mm com acessórios', quantidade: l.tubo_condensados_m, unidade: 'm', pesquisa: ['tubo pvc esgoto 32', 'tubo esgoto domestico 32', 'mangueira cristal 16', 'tubo condensados 16'], evita: ['drenagem', 'saneamento', 'piscina', 'terra', 'rega', 'seko', 'gas'] });
       }

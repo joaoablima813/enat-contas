@@ -62,7 +62,7 @@ test('the server builds the full kit from the request data, with no AI round tri
  const ev=buildPlan(cleanSpec({tipologias:['Carregador automóvel'],carregador:{potencia_kw:7.4,distancia_m:20}}));
  assert.equal(ev.itens.filter(i=>/disjuntor|diferencial/i.test(i.descricao)).length,0);assert.ok(ev.pressupostos.some(x=>/DC 6 mA/.test(x)),'the RCD type is left as a note to check');
  const pre=buildPlan(cleanSpec({tipologias:['Ar condicionado'],ac:{divisoes:[{nome:'Sala',area_m2:25}],pre_instalacao:true}}));
- assert.equal(pre.itens.filter(i=>/cobre|linha frigorífica|passa-muros|furação/i.test(i.descricao)).length,0,'pre-installation: no copper, no wall hole');assert.ok(pre.itens.some(i=>/Cabo de interligação/.test(i.descricao)));
+ assert.equal(pre.itens.filter(i=>/cobre|linha frigorífica|passa-muros|furação|esgoto|condensados/i.test(i.descricao)).length,0,'pre-installation: no copper, no wall hole');assert.ok(pre.itens.some(i=>/Cabo de interligação/.test(i.descricao)));
  assert.ok(pre.verificacao.some(c=>c.ponto==='Par de cobre pré-isolado por linha'&&c.estado==='nao_aplica'));
  const fc=buildPlan(cleanSpec({tipologias:['Ventiloconvectores'],ventilo:{divisoes:[{nome:'Sala',area_m2:25}]}}));
  assert.ok(fc.itens.some(i=>/^Ventiloconvector/.test(i.descricao))&&fc.itens.some(i=>/^Bomba de calor ar-água/.test(i.descricao)),'fan coils get a heat pump when there is no production');

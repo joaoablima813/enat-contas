@@ -64,7 +64,7 @@
   if(r&&root.EnatPedido){
    const ans=EnatPedido.summary(r).filter(([k])=>k!=='Soluções'&&k!=='Gama preferida').map(([k,v])=>k+': '+v);
    const sug=(l.pedido.sug||[]).flatMap(x=>[x.titulo+':',...x.linhas.map(y=>'- '+y)]);
-   return ['Soluções pedidas: '+r.sol.join(', '),...ans,sug.length&&'\nEQUIPAMENTOS CALCULADOS (usar estas potências):\n'+sug.join('\n'),l.notes&&'Notas: '+l.notes].filter(Boolean).join('\n').slice(0,7800);
+   return ['Soluções pedidas: '+r.sol.join(', '),r.a?.fase&&r.a.fase!=='Não sei'&&'Instalação elétrica '+r.a.fase.toLowerCase()+' (trifasico: '+(r.a.fase==='Trifásica')+')',...ans,sug.length&&'\nEQUIPAMENTOS CALCULADOS (usar estas potências):\n'+sug.join('\n'),l.notes&&'Notas: '+l.notes].filter(Boolean).join('\n').slice(0,7800);
   }
   return [l.rooms&&'Divisões: '+l.rooms,l.area&&'Área: '+l.area,Array.isArray(l.solutions)&&l.solutions.length&&'Soluções pedidas: '+l.solutions.join(', '),l.heating&&'Aquecimento de água atual: '+l.heating,l.bill&&'Fatura elétrica: '+l.bill,l.notes].filter(Boolean).join('\n');
  }

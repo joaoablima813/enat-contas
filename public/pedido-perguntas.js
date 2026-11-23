@@ -8,15 +8,15 @@
  // Perguntas sobre a casa: feitas uma só vez, numa secção própria, e só se alguma solução escolhida precisar delas («for»).
  const HOUSE=[
   {id:'casa',q:'Tipo de imóvel',o:['Moradia','Apartamento','Moradia antiga','Moradia geminada','Comércio / escritório']},
+  // Pedida sempre, seja qual for a solução (define a máquina, o cabo e a proteção).
+  {id:'fase',q:'A instalação elétrica da casa é…',o:['Monofásica','Trifásica','Não sei'],help:'Veja no quadro elétrico o disjuntor geral: se tem 2 polos (2 fios) é monofásica, se tem 4 polos é trifásica. Também aparece na fatura da luz.'},
   {id:'ano',q:'Ano aproximado da casa',o:YEARS,for:[AC,BCC,PR,VMC]},
   {id:'jan',q:'Janelas',o:['Vidro simples','Vidro duplo','Não sei'],for:[AC,BCC]},
   {id:'m2',q:'Área útil da casa (m²)',n:[20,2000],ph:'Ex.: 140',for:[BCC,PR,VMC]},
   {id:'obra',q:'Situação da casa',o:['Obra nova','Remodelação','Casa habitada, sem obras'],for:[PR,VMC]},
   {id:'pessoas',q:'Quantas pessoas vivem na casa?',o:['1 a 2','3 a 4','5 ou mais'],for:[AQS,ST],also:['bcc_aqs','Sim']},
   {id:'agua',q:'Como aquece a água hoje?',o:['Esquentador a gás','Termoacumulador elétrico','Caldeira','Painel solar térmico','Outro'],for:[AQS,ST],also:['bcc_aqs','Sim']},
-  {id:'telhado',q:'Onde ficariam os painéis?',o:['Telhado de telha','Telhado de chapa','Terraço / laje','No chão / jardim','Não sei'],for:[ST,PV]},
-  {id:'fase',q:'A instalação elétrica é…',o:['Monofásica','Trifásica','Não sei'],for:[PV,CAR]},
- ];
+  {id:'telhado',q:'Onde ficariam os painéis?',o:['Telhado de telha','Telhado de chapa','Terraço / laje','No chão / jardim','Não sei'],for:[ST,PV]}, ];
  const TECH={
   [AC]:[
    {id:'ac_div',q:'Quantas divisões quer climatizar?',o:['1','2','3','4','5','6 ou mais']},

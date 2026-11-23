@@ -1,6 +1,6 @@
 /* Funcionamento sem rede: a app abre a partir da cópia guardada quando não há ligação.
    Com rede, vai sempre buscar a versão mais recente (primeiro a rede, depois a cópia). Os dados (/api) nunca ficam em cache. */
-const CACHE = 'enat-app-v24';
+const CACHE = 'enat-app-v25';
 const SHELL = ['/', '/enat-logo.png', '/manifest.json', '/quotes.css', '/app.css', '/sync.js', '/gestao.js', '/contabilista.js', '/quote-math.js', '/quote-obra.js', '/toc-invoice.js', '/toc.js', '/price-tables.js', '/supplier-catalog.js', '/solucoes.js', '/quotes.js', '/empresa.js', '/portfolio.js', '/pedido-perguntas.js', '/pedido.js', '/quote-ai.js', '/leads.js', '/push.js', '/agenda.js', '/pv-sizing.js', '/pv.js', '/excel-export.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js', '/vendor/exceljs.min.js', '/apple-touch-icon.png', '/favicon-32x32.png', '/pwa-192x192.png'];
 
 self.addEventListener('install', (e) => {
@@ -24,6 +24,8 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
+  // Com a app aberta, avisa-a para ir buscar já os dados novos (respostas de clientes, leads).
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((l) => l.forEach((c) => c.postMessage({ refresh: true }))).catch(() => {}));
   e.waitUntil(self.registration.showNotification(d.title || 'Enat app', {
     body: d.body || '', tag: d.tag || undefined, data: d.data || {}, icon: '/pwa-192x192.png', badge: '/favicon-32x32.png',
     requireInteraction: !!(d.data && d.data.lead), renotify: !!d.tag,

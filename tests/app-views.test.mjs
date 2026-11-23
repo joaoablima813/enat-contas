@@ -255,3 +255,12 @@ test('a quote made from a lead with answers fills the AI box with the answers an
  assert.match(t,/Que divisões e com que área\?: Sala 30 m², Quarto 12 m²/);assert.match(t,/EQUIPAMENTOS CALCULADOS[\s\S]*12 000 BTU/);assert.match(t,/Ano aproximado da casa: Depois de 2015/);
  assert.match(run('aiSection()'),/<option value="qualidade" selected>Máxima qualidade/);
 });
+
+test('leads that answered the questionnaire get their own section until opened',()=>{
+ const {run}=app({...state,leads:[{id:'L5',name:'Sofia',stage:'triagem',solutions:[],calls:[],pedido:{resp:{sol:['VMC'],a:{},local:'Arcozelo',fotos:['abcdefgh1'],at:Date.now()}}},{id:'L6',name:'Tiago',stage:'nova',solutions:[],calls:[]}]});
+ run("V.tab='leads'");
+ const html=run('vLeads()');assert.match(html,/Responderam ao questionário \(1\)/);assert.match(html,/Sofia[\s\S]*VMC · Arcozelo[\s\S]*1 foto/);
+ assert.match(run('vHome()'),/Responderam ao questionário/);
+ run("leadOpen('L5');leadDraft=null");
+ assert.doesNotMatch(run('vLeads()'),/Responderam ao questionário/,'gone once opened');
+});

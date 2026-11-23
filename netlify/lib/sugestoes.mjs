@@ -48,7 +48,9 @@ export function sugestoes(resp) {
     if (area) {
       const emis = { Radiadores: 'radiadores', 'Piso radiante': 'piso', Ventiloconvectores: 'ventiloconvectores' }[a.bcc_emis] || 'ventiloconvectores';
       const b = bombaCalorHabitacao({ area_m2: area, isolamento: iso, emissores: emis, pessoas_aqs: a.bcc_aqs === 'Sim' ? 4 : 0 });
-      const linhas = [`Bomba de calor de ${kwTxt(b.potencia_nominal_kw)} (necessidade estimada ${kwTxt(b.necessidade_aquecimento_kw)})`];
+      const fase = a.fase === 'Trifásica' ? ' trifásica' : a.fase === 'Monofásica' ? ' monofásica' : '';
+      const linhas = [`Bomba de calor${fase} de ${kwTxt(b.potencia_nominal_kw)} (necessidade estimada ${kwTxt(b.necessidade_aquecimento_kw)})`];
+      if (!fase) linhas.push('Confirmar se a instalação é monofásica ou trifásica');
       if (a.bcc_aqs === 'Sim') { const q = aqs({ pessoas: PESSOAS[a.pessoas] || 4 }); linhas.push(`Depósito de água quente (AQS) de ${q.volume_l} L${PESSOAS[a.pessoas] ? ' para ' + a.pessoas + ' pessoas' : ' (pessoas em casa por confirmar)'}`); }
       if (b.inercia_recomendada_l) linhas.push(`Depósito de inércia de ${b.inercia_recomendada_l} L (circuito de aquecimento, ≈10 L por kW)`);
       let nota = `${fmt(area, 0)} m² com ${ISO_TXT[iso]}${a.ano ? ' (casa ' + a.ano.toLowerCase() + (a.jan ? ', ' + a.jan.toLowerCase() : '') + ')' : ''}.`;

@@ -75,7 +75,8 @@ export async function runAlerts(store, now = Date.now()) {
     store.get('leads-meta', { type: 'json' }).catch(() => null),
     store.get(SENT, { type: 'json' }).then((x) => x || {}),
   ]);
-  const due = dueAlerts(state, meta?.leads, now).filter((a) => !sent[a.key]);
+  const { siteInbox } = await import('./site.mjs');
+  const due = dueAlerts(state, [...(meta?.leads || []), ...(await siteInbox(store))], now).filter((a) => !sent[a.key]);
   if (!due.length) return { sent: 0 };
   for (const a of due) sent[a.key] = now;
   for (const k of Object.keys(sent)) if (now - sent[k] > 30 * 864e5) delete sent[k];

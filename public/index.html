@@ -99,10 +99,10 @@ nav button.on{color:var(--blue)}
 <script src="/quotes.js?v=20261127"></script>
 <script src="/empresa.js?v=20261124"></script>
 <script src="/portfolio.js?v=20261123"></script>
-<script src="/pedido-perguntas.js?v=20261126"></script>
-<script src="/pedido.js?v=20261125"></script>
-<script src="/quote-ai.js?v=20261129"></script>
-<script src="/leads.js?v=20261126"></script>
+<script src="/pedido-perguntas.js?v=20261130"></script>
+<script src="/pedido.js?v=20261130"></script>
+<script src="/quote-ai.js?v=20261130"></script>
+<script src="/leads.js?v=20261130"></script>
 <script src="/push.js?v=20261109"></script>
 <script src="/agenda.js?v=20261109"></script>
 <script src="/pv-sizing.js?v=20261114"></script>
@@ -257,7 +257,7 @@ function vHome(){
  ensureQuotes();const a=all(),c=sumC(a),late=lateList(),act=a.filter(x=>x.o.status==='em_curso'),ans=quoteUnread();
  return`<h1>Início</h1><div class="sbar">${ic('search')}<input id="gq" type="search" value="${esc(V.gq||'')}" aria-label="Pesquisar em toda a app" placeholder="Procurar leads, obras, clientes, faturas, orçamentos" autocomplete="off"></div><div id="gres">${globalRes()}</div>
  <div id="homebody" ${V.gq?'hidden':''}>${hero(c,'Lucro previsto em todas as obras')}<button class="btn quick" data-a="quickscan">${ic('cam')}Fotografar fatura</button>${acts()}
- ${leadNewHome()}${ans.length?`<h2>Respostas de clientes (${ans.length})</h2><div class="grp">${ans.map(quoteMiniRow).join('')}</div>`:''}
+  ${typeof pedidosNovosHtml==='function'?pedidosNovosHtml():''}${leadNewHome()}${ans.length?`<h2>Respostas de clientes (${ans.length})</h2><div class="grp">${ans.map(quoteMiniRow).join('')}</div>`:''}
  ${late.length?`<h2>Pagamentos em atraso · ${eur(late.reduce((s,x)=>s+x.p.overdue,0))}</h2><div class="grp">${late.map(lateRow).join('')}</div>`:''}
  <div class="tiles">${[['cal','Calendário','cal'],['cli','Clientes','user'],['rel','Relatórios','chart'],['mov','Movimentos','list'],['def','Definições','gear']].map(([k,l,i])=>`<button class="tile" data-a="tab" data-id="${k}">${ic(i)}${l}</button>`).join('')}</div>
  <h2>Obras em curso</h2><div class="grp">${act.length?act.map(obraRow).join(''):'<div class="empty">Sem obras em curso. Veja todas no separador Obras.</div>'}</div>

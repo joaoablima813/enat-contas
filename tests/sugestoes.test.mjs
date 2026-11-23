@@ -39,3 +39,13 @@ test('heat pump that also heats water: DHW tank from the people at home, separat
   assert.ok(s.linhas.some((l) => /Depósito de inércia de \d+ L \(circuito de aquecimento/.test(l)));
   assert.match(pick({ sol: ['Bomba de calor AQS'], a: { pessoas: '1 a 2' } }, 'Bomba de calor AQS').nota, /40 a 50 L de água quente por pessoa/);
 });
+
+test('single or three-phase is always asked and used: heat pump, charger and the kit', async () => {
+  const { cleanSpec, buildPlan } = await import('../netlify/lib/quote-kit.mjs');
+  assert.match(pick({ sol: ['Bomba de calor climatização'], a: { m2: 120, fase: 'Trifásica' } }, 'Bomba de calor (aquecimento)').linhas[0], /^Bomba de calor trifásica de/);
+  assert.ok(pick({ sol: ['Bomba de calor climatização'], a: { m2: 120 } }, 'Bomba de calor (aquecimento)').linhas.some((l) => /monofásica ou trifásica/.test(l)));
+  const tri = buildPlan(cleanSpec({ tipologias: ['Carregador automóvel'], trifasico: true, carregador: {} }));
+  assert.ok(tri.itens.some((i) => /11 kW trifásico/.test(i.descricao)));
+  const hp = buildPlan(cleanSpec({ tipologias: ['Bomba de calor climatização'], trifasico: true, bc: { area_m2: 100 } })).itens.find((i) => /^Bomba de calor ar-água/.test(i.descricao));
+  assert.ok(hp.evita.includes('monofasic') && !hp.evita.includes('trifasic'), 'a three-phase house gets a three-phase heat pump');
+});

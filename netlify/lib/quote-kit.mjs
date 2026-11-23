@@ -316,7 +316,7 @@ function kit(input) {
   // ---------- Itens indicados no pedido (outros materiais, UPAC, solar, trabalhos à parte) ----------
   for (const it of s.extras) {
     // Regra ENAT: o depósito de inércia só na bomba de calor de climatização.
-    if (/in[ée]rcia/i.test(it.descricao) && (it.tipologia === 'Bomba de calor AQS' || !s.bc)) continue;
+    if (/in[ée]rcia/i.test(it.descricao) && it.tipologia === 'Bomba de calor AQS') continue;
     // Regra ENAT: cabos, tubos, condutas, calhas e isolamentos sempre em metros.
     const metros = it.categoria === 'Material' && /^(cabo|tubo|conduta|calha|isolamento|mangueira|fita)\b/i.test(it.descricao);
     add({ ...it, ...(metros ? { unidade: 'm' } : {}), ck: null });

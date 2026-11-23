@@ -170,7 +170,9 @@
   for(const it of plan.itens){
    if(it.categoria==='Mão de obra'){works.push(it);continue}
    const e=picks[it.id],c=e&&e.candidato!=null?found[it.id]?.[e.candidato]:null;
-   if(c){const t=tables[c.ti],p=t.products[c.pi],l=quoteCatalogLine(t,p);l.kind=it.categoria;l.aiKey=learnKey(it,gama);l.quantity=e.quantidade||it.quantidade;if(e.unidade)l.unit=e.unidade;else if(l.unit==='un.'&&it.unidade!=='un.'&&/\b(ml|metro|ao metro|\/m)\b/i.test(p.name))l.unit=it.unidade;lines.push(l);if(t.live)live.push([t,p,l]);continue}
+   if(c){const t=tables[c.ti],p=t.products[c.pi],l=quoteCatalogLine(t,p);l.kind=it.categoria;l.aiKey=learnKey(it,gama);l.quantity=e.quantidade||it.quantidade;if(e.unidade)l.unit=e.unidade;else if(l.unit==='un.'&&it.unidade!=='un.'&&/\b(ml|metro|ao metro|\/m)\b/i.test(p.name))l.unit=it.unidade;
+   // Regra ENAT: cabos, tubos, etc. sempre em metros. Produto vendido em rolo (ex.: «rolo 100 m») passa a preço por metro.
+   if(it.unidade==='m'){const r=String(p.name).match(/(?:rolo|bobine|bobina|rl\.?)\D{0,8}(\d+(?:[.,]\d+)?)\s*m\b|(\d+(?:[.,]\d+)?)\s*m(?:etros)?\s*(?:\/\s*)?(?:rolo|bobine|bobina)/i),len=r?Number((r[1]||r[2]).replace(',','.')):0;if(len>1&&String(p.unit||'un.')!=='m')l.value=Math.round(l.value/len*10000)/10000;l.unit='m';l.quantity=it.quantidade}lines.push(l);if(t.live)live.push([t,p,l]);continue}
    lines.push({kind:it.categoria,description:it.descricao+(it.especificacao&&!it.descricao.includes(it.especificacao)?' – '+it.especificacao:''),quantity:it.quantidade,unit:it.unidade,value:it.preco_indicado||0,aiKey:learnKey(it,gama),...(it.preco_indicado?{}:{semPreco:true})});
   }
   // Uma única linha de mão de obra, a última, para o utilizador pôr o valor que entender.

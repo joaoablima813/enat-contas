@@ -46,8 +46,8 @@ Responde apenas com o objeto JSON.`;
 }
 
 const PICK = `Para cada linha do orçamento escolhe, entre os candidatos encontrados nas tabelas de preços, o produto que corresponde tecnicamente à especificação (potência, diâmetros, secção, volume, número de saídas, tipo, marca pedida). Se nenhum corresponder, usa null — é preferível uma linha sem preço a um produto errado.
-Se o produto é vendido em embalagem/rolo/caixa (ex.: "rolo 15 m", "caixa 100 un."), converte a quantidade em embalagens inteiras e põe a unidade "un.". Se é vendido ao metro e a linha está em metros, mantém os metros.
-Responde APENAS com JSON: {"escolhas": [{"id": "i1", "candidato": número ou null, "quantidade": n, "unidade": "un."}]}`;
+Linhas em metros (cabos, tubos, condutas, calhas, isolamentos) ficam SEMPRE em metros, com a mesma quantidade, mesmo que o produto seja vendido em rolo: unidade "m". Só para outras linhas: se o produto é vendido em embalagem/caixa (ex.: "caixa 100 un."), converte a quantidade em embalagens inteiras e põe a unidade "un.".
+Responde APENAS com JSON: {"escolhas": [{"id": "i1", "candidato": número ou null, "quantidade": n, "unidade": "m|un."}]}`;
 
 // Gama pedida pelo cliente no questionário: entre os candidatos que cumprem a especificação, escolher pelo preço.
 const GAMA = {
@@ -61,6 +61,8 @@ export async function runPick(input) {
   return {
     escolhas: safeArr(r.escolhas, 200).filter((e) => e && ids.has(e.id)).map((e) => {
       const it = input.itens.find((i) => i.id === e.id), c = Number(e.candidato), q = Number(e.quantidade);
+      // Regra ENAT: o que está em metros fica em metros (a quantidade da linha mantém-se).
+      if (it.unidade === 'm') return { id: e.id, candidato: e.corresponde !== false && e.candidato !== null && Number.isInteger(c) && c >= 0 && c < (it.candidatos || []).length ? c : null, quantidade: null, unidade: 'm' };
       return { id: e.id, candidato: e.corresponde !== false && e.candidato !== null && Number.isInteger(c) && c >= 0 && c < (it.candidatos || []).length ? c : null, quantidade: Number.isFinite(q) && q > 0 ? Math.round(q * 1000) / 1000 : null, unidade: UNITS.includes(e.unidade) ? e.unidade : null };
     }),
   };

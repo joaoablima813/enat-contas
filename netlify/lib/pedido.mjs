@@ -335,7 +335,7 @@ $('#f').addEventListener('submit',async e=>{
  if(!body.morada.trim()||!/^\\d{4}-\\d{3}$/.test(body.cp)){err.textContent='Indique a morada e o código postal (ex.: 4990-062).';$('#morada').focus();return}
  const b=$('#send');b.disabled=true;b.textContent='A enviar…';
  try{const r=await fetch(location.pathname,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw Error(j.error);
-  $('#f').hidden=true;$('#thanks').hidden=false;$('#thanks').scrollIntoView({behavior:'smooth'})}
+  location.replace(location.pathname+'?ok=1')}
  catch(x){err.textContent=x.message||'Não foi possível enviar. Verifique a ligação e tente de novo.';b.disabled=false;b.textContent='Enviar respostas'}
 });
 </script>`;

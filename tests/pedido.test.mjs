@@ -38,7 +38,7 @@ test('the app creates one link per lead; the client answers on the page with pho
   assert.equal(r2.token, r1.token, 'asking again reuses the same link');
 
   const page = await (await pub(store, r1.token)).text();
-  assert.match(page, /Olá, Maria/);assert.match(page, /Quantas divisões quer climatizar/);assert.match(page, /Máxima qualidade/);assert.match(page, /Código postal/);
+  assert.match(page, /Olá, Maria/);assert.match(page, /<div hidden><section class="card" id="orcamentos">/, 'before answering, only the questionnaire is shown');assert.doesNotMatch(page, /class="tabs"/);assert.match(page, /Quantas divisões quer climatizar/);assert.match(page, /Máxima qualidade/);assert.match(page, /Código postal/);
   assert.match(page, /data-tech="Ar condicionado">/, 'the chosen solution is open');assert.match(page, /data-tech="VMC" hidden/);
 
   const photo = await (await pub(store, r1.token, 'POST', new Uint8Array([1, 2, 3]).buffer, 'foto', { 'content-type': 'image/jpeg' })).json();

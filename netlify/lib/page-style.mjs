@@ -1,5 +1,10 @@
 // Visual comum das páginas que o cliente abre: a proposta (/proposta/…) e a página do cliente (/pedido/…).
 // Mudar aqui muda as duas.
+// Link para o cliente deixar uma avaliação da Enat no Google.
+export const REVIEW_URL = 'https://g.page/r/CXozASQ10Lr2EBI/review';
+const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9Z"/></svg>';
+// Pedido de avaliação no fim das páginas que o cliente abre.
+export const reviewCard = (url = REVIEW_URL) => `<section class="card review"><div class="stars" aria-label="5 estrelas">${STAR.repeat(5)}</div><h2>Já trabalhámos consigo?</h2><p class="muted">A sua opinião ajuda outras famílias da região a escolher com confiança. Leva menos de um minuto: toque no botão, escolha as estrelas e, se quiser, escreva duas palavras sobre o nosso trabalho.</p><a class="btn ghost" href="${url}" target="_blank" rel="noopener">Deixar a minha avaliação no Google</a></section>`;
 export const BASE_CSS = `#nl-badge-frame,[id^="nl-badge"]{display:none!important}
 :root{--bg:#f2f2f7;--card:#fff;--ink:#0b0d12;--mute:#6b7080;--line:#e6e7ec;--chip:#ececf1;--blue:#0666eb;--green:#13a05a;--red:#e5484d;--sun:#e8a317;--hero1:#0a0f1f;--hero2:#16307a;--tint:#f5f8ff;--warn:#fff6e0;--warnb:#f3d48a;--warnt:#6b4c00;--okbg:#eefaf3;--okb:#bfe6cf;--shadow:0 1px 2px rgba(10,15,31,.05),0 8px 24px rgba(10,15,31,.06)}
 @media (prefers-color-scheme:dark){:root{--bg:#000;--card:#16171b;--ink:#f5f6f8;--mute:#8d93a1;--line:#26282e;--chip:#26282e;--blue:#3d8bff;--green:#35c97f;--red:#ff6b70;--hero1:#10162b;--hero2:#1e3f9e;--tint:#1b2233;--warn:#2a2210;--warnb:#4d3c12;--warnt:#f3d48a;--okbg:#10231a;--okb:#1d4a33;--shadow:none;color-scheme:dark}}
@@ -65,4 +70,6 @@ footer{display:flex;gap:12px;align-items:center;margin:28px 4px 0;color:var(--mu
 @keyframes up{from{transform:translateY(30%);opacity:0}}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.sheet-in{animation:none}.bar{transition:none}}
-@media (min-width:560px){.hero{padding:30px 30px 26px}.hero h1{font-size:32px}.card{padding:24px}}`;
+@media (min-width:560px){.hero{padding:30px 30px 26px}.hero h1{font-size:32px}.card{padding:24px}}
+.review{text-align:center}.review .stars{display:flex;justify-content:center;gap:4px;margin:2px 0 8px}.review .stars svg{width:24px;height:24px;fill:#f5b301;stroke:none}.review .muted{margin:0 0 14px}
+`;

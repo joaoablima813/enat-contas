@@ -4,6 +4,7 @@
 // - mensagens entre o cliente e a ENAT (blob «chat-<token>»; o cliente recebe um email quando a ENAT responde);
 // - orçamentos de outras empresas, enviados pelo cliente (blob «pedanexo-<id>»), apagados ao fim de 12 meses.
 import { randomBytes } from 'node:crypto';
+import { reviewCard } from './page-style.mjs';
 
 const DAY = 864e5;
 export const MAX_ANEXOS = 10, KEEP_ANEXOS = 365 * DAY, MAX_MSGS_DIA = 30;
@@ -138,6 +139,7 @@ export function portalHtml(token, p, e, chat, formHtml, summary, techs = []) {
 </section>
 <section class="card" id="thanks" hidden><div class="thanks"><b>Obrigado${first ? ', ' + esc(first) : ''}!</b> Recebemos as suas respostas. ${esc(person)} vai preparar o seu orçamento e avisamos por email quando estiver pronto. Vai encontrá-lo nesta página.</div><a class="btn ghost" href="">Ver a minha página</a></section>
 ${answered ? orcamentos + mensagens + dados + outra + novo : dados + orcamentos + mensagens + outra}
+${reviewCard(e.google?.avaliar || undefined)}
 <footer><span class="logo sm"><img src="/enat-logo.png" alt="" width="84" height="30"></span><p><b>Enat - Ponte de Lima</b><br>${esc(person)}${tel ? ' · <a href="tel:+' + esc(wa) + '">' + esc(tel) + '</a>' : ''} · <a href="mailto:${esc(mail)}">${esc(mail)}</a><br>Os seus dados são usados apenas para preparar e acompanhar o seu orçamento.</p></footer>
 <script>
 (()=>{

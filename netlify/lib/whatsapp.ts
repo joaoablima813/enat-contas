@@ -62,24 +62,6 @@ const mail = () => ({
   imapPort: Number(process.env.IMAP_PORT || 993),
 });
 
-// Stores the sent message, marked as read, in the folder the server flags as Sent (or IMAP_SENT_FOLDER).
-async function saveSent(c: ReturnType<typeof mail>, raw: Buffer) {
-  const { ImapFlow } = await import('imapflow');
-  const client = new ImapFlow({ host: c.imapHost, port: c.imapPort, secure: c.imapPort === 993, auth: { user: c.user, pass: c.pass! }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
-  await client.connect();
-  try {
-    let folder = process.env.IMAP_SENT_FOLDER;
-    if (!folder) {
-      const list = await client.list();
-      folder = list.find(f => f.specialUse === '\\Sent')?.path
-        || list.find(f => /^(inbox[./])?(sent|sent items|sent messages|enviados|itens enviados|mensagens enviadas)$/i.test(f.path))?.path;
-    }
-    if (!folder) throw new Error('no Sent folder');
-    await client.append(folder, raw, ['\\Seen'], new Date());
-  } finally {
-    await client.logout().catch(() => client.close());
-  }
-}
 const htmlEsc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // Turns the WhatsApp-style text (*bold*, bare links) into a branded email with the logo and a button per quote.
 export const emailHtml = (text: string, origin = '') => '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#122c3b;max-width:600px">'
@@ -122,7 +104,8 @@ export async function handleEmail(req: Request, path: string, store: any) {
     }
     // Like Outlook would, the message is saved in the mailbox's Sent folder instead of mailing a copy to it.
     await Promise.all([...new Set(ids)].map(id => sent(id, 'Email')));
-    if (process.env.EMAIL_SAVE_SENT !== 'false') await saveSent(c, raw).catch((e: any) => console.error('email sent folder', e?.code || e?.message));
+    const { saveSent } = await import('./mail-sent.mjs');
+    await saveSent(c, raw).catch((e: any) => console.error('email sent folder', e?.code || e?.message));
     return Response.json({ ok: true, to });
   } catch (e: any) {
     console.error('email', e?.code, e?.responseCode);

@@ -124,8 +124,13 @@ async function sendEmail(to, subject, text, origin) {
   const t = createTransport({ host: c.host, port: c.port, secure: c.port === 465, auth: { user: c.user, pass: c.pass }, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 });
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#122c3b;max-width:600px"><div style="padding:4px 0 14px;border-bottom:3px solid #f3a51c;margin-bottom:18px"><img src="' + esc(origin) + '/enat-logo.png" alt="Enat - Ponte de Lima" width="131" height="47" style="display:block"></div>'
     + esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="display:inline-block;margin:6px 0;padding:12px 20px;background:#2f8f3a;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:bold">Responder às perguntas</a>').replace(/\n/g, '<br>') + '</div>';
-  const info = await t.sendMail({ from: { name: 'Enat - Ponte de Lima', address: c.from }, to, replyTo: c.from, subject, text, html });
+  const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
+  // Composta uma vez: o cliente e a pasta Enviados recebem a mesma mensagem.
+  const raw = await new MailComposer({ from: { name: 'Enat - Ponte de Lima', address: c.from }, to, replyTo: c.from, subject, text, html }).compile().build();
+  const info = await t.sendMail({ envelope: { from: c.from, to: [to] }, raw });
   if (!(info.accepted || []).map((a) => String(a?.address || a).toLowerCase()).includes(to.toLowerCase())) throw new Error('rejected');
+  const { saveSent } = await import('./mail-sent.mjs');
+  await saveSent(c, raw).catch((e) => console.error('pedido sent folder', e?.code || e?.message));
 }
 export async function runAutoPedidos(store, now = Date.now(), send = sendEmail, { force = false } = {}) {
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Lisbon', hour: '2-digit', hourCycle: 'h23' }).format(now));

@@ -28,6 +28,9 @@ test('jobs near the client come first: same postcode, then same region, preferri
   assert.equal(nearby(works, 'Lisboa').title, 'Algumas obras que fizemos');
   assert.deepEqual(nearby([], 'x').items, []);
   assert.equal(monthLabel('2026-05'), 'maio de 2026');
+  const two = cleanPortfolio([{ id: 'g-0', grupo: 'g', tipo: 'UPAC', titulo: 'UPAC', local: 'Ponte de Lima', cp: '4990', mes: '2026-10', fotos: [ph(6)], ok: true, descricao: 'x'.repeat(500) }, { id: 'g-1', grupo: 'g', tipo: 'Ar condicionado', titulo: 'AC', local: 'Ponte de Lima', cp: '4990', mes: '2026-10', fotos: [ph(7)], ok: true }, ...works]);
+  assert.equal(two[0].descricao.length, 400);assert.equal(works[0].grupo, 'a', 'without a group, the job is its own group');
+  assert.deepEqual(nearby(two, 'Rua X, 4990-062 Ponte de Lima', ['Ar condicionado']).items.map((w) => w.id), ['g-1', 'a', 'b'], 'one category per job, so different jobs are shown');
 });
 
 test('saving the list deletes photos that no job uses any more', async () => {

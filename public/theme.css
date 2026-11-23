@@ -43,3 +43,7 @@ a{color:var(--blue)}
 .an-form label{display:block;margin:0 0 12px}.an-form label:last-child{margin:0}.an-form span{display:block;font-size:13px;font-weight:600;color:var(--mute);margin:0 0 5px}
 .an-form input,.an-form textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;font-size:16px;background:var(--bg);color:var(--ink)}.an-form textarea{resize:vertical;line-height:1.45}
 .an-form input:focus,.an-form textarea:focus{outline:none;border-color:var(--blue)}
+
+/* Leads: filtros das fases em várias linhas (todos visíveis, sem deslizar para o lado) */
+.lead-head .chips{flex-wrap:wrap;overflow:visible;margin:0 0 14px;padding:0;gap:8px}
+.lead-head .chips button{padding:8px 12px;font-size:13.5px}

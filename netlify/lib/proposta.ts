@@ -12,7 +12,7 @@ import '../../public/gestao.js';
 import '../../public/quote-obra.js';
 import '../../public/solucoes.js';
 import { getPortfolio, nearby, monthLabel } from './portfolio.mjs';
-import { BASE_CSS } from './page-style.mjs';
+import { BASE_CSS, reviewCard } from './page-style.mjs';
 
 const G: any = globalThis;
 export const ANSWERS: Record<string, string> = { adjudicar: 'Adjudicado', revisao: 'Pedido de revisão', pensar: 'Vai pensar', mais_tarde: 'Fica para mais tarde', rejeitar: 'Rejeitado' };
@@ -266,6 +266,7 @@ ${portal ? `<section class="card"><h2>A sua página ENAT</h2><p class="muted">To
  <div id="thanks" class="thanks" hidden></div>
 </section>
 ${faqHtml}
+${reviewCard(e.google?.avaliar || undefined)}
 <footer><span class="logo sm"><img src="/enat-logo.png" alt="" width="84" height="30"></span><p><b>${COMPANY.name}</b><br>${esc(person)}${tel ? ' · <a href="tel:+' + esc(wa) + '">' + esc(tel) + '</a>' : ''} · <a href="mailto:${COMPANY.email}">${COMPANY.email}</a></p></footer>
 <div class="bar" id="bar"${answer ? ' hidden' : ''}><button type="button" class="btn ghost" data-pick="duvida">Tenho uma dúvida</button><button type="button" class="btn go" data-pick="adjudicar">Quero avançar</button></div>
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-t"><div class="sheet-in"><b id="sheet-t">Já viu o orçamento?</b><p class="muted">Diga-nos o que achou. Um toque chega.</p><button type="button" class="btn go" data-pick="adjudicar">Quero avançar</button><button type="button" class="btn ghost" data-pick="duvida">Tenho uma dúvida</button><button type="button" class="btn ghost" data-pick="revisao">Pedir um ajuste</button><button type="button" class="btn ghost" data-pick="nao">Ainda não vou avançar</button><button type="button" class="link" id="sheet-x">Agora não</button></div></div>

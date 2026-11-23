@@ -128,6 +128,9 @@ const fd=d=>{try{return new Date(d+'T12:00').toLocaleDateString('pt-PT',{day:'nu
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const TOPICS=['VMC','Bomba de calor AQS','Bomba de calor climatização','Ar condicionado','Ventiloconvectores','UPAC (fotovoltaico)','Painéis solares térmicos','Carregador automóvel','Piso radiante','Geral / outros'];
 const TY={recebimento:'Recebimento',fatura:'Fatura',despesa:'Despesa',mao_obra:'Mão de obra'};
+// Link para o cliente avaliar a Enat no Google (enviado nas obras concluídas).
+const GOOGLE_REVIEW='https://g.page/r/CXozASQ10Lr2EBI/review';
+const reviewHref=o=>{const first=String(o.client||'').trim().split(/\s+/)[0],tel=waTel(o.phone||'');return'https://wa.me/'+(tel||'')+'?text='+encodeURIComponent('Olá'+(first?' '+first:'')+'! Obrigado por ter escolhido a ENAT Ponte de Lima. Esperamos que esteja satisfeito com a instalação.\n\nSe puder, deixe-nos uma avaliação no Google: leva menos de um minuto e ajuda muito outras famílias da região a conhecer o nosso trabalho.\n\n'+GOOGLE_REVIEW+'\n\nMuito obrigado!')};
 const STAT={em_curso:'Em curso',concluida:'Concluída',orcamento:'Orçamento',pausada:'Pausada'};
 const P={
  home:'<path d="M4 11l8-7 8 7v9H4zM10 20v-6h4v6"/>',bell:'<path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20.5a2 2 0 004 0"/>',cal:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/>',lead:'<path d="M4 5h16l-6 7.5V18l-4 2v-7.5z"/>',obras:'<path d="M4 21V8l8-4 8 4v13M9 21v-6h6v6M9 11h6"/>',list:'<path d="M5 7h14M5 12h14M5 17h14"/>',
@@ -296,7 +299,7 @@ function vObra(){
  c.t.filter(x=>x.type!=='recebimento').forEach(x=>{const k=x.topic||'Geral / outros';tp[k]=(tp[k]||0)+x.base});
  const mx=Math.max(...Object.values(tp),1);
  let body='';
- if(V.seg==='contas')body=`<h2>Cliente</h2><div class="grp">${kv('Valor da obra c/ IVA',eur(o.valor))}${kv('Recebido',eur(c.rec))}${kv('Por receber',eur(c.porRec),'tot')}</div>
+ if(V.seg==='contas')body=`<h2>Cliente</h2><div class="grp">${kv('Valor da obra c/ IVA',eur(o.valor))}${kv('Recebido',eur(c.rec))}${kv('Por receber',eur(c.porRec),'tot')}</div>${o.status==='concluida'?`<div class="q-card review-ask"><b>Avaliação no Google</b><p class="note">Obra concluída: peça ao cliente que avalie a ENAT. A mensagem vai escrita, com o link.</p><a class="btn" href="${esc(reviewHref(o))}" target="_blank" rel="noopener">Pedir avaliação por WhatsApp</a></div>`:''}
  <h2>Custos sem IVA</h2><div class="grp">${kv('Materiais (faturas)',eur(c.fb))}${kv('Despesas sem fatura',eur(c.de))}${kv('Mão de obra',eur(c.mo))}${kv('Total de custos',eur(c.custo),'tot')}</div>
  <h2>Resultado</h2><div class="grp">${kv('Receita sem IVA',eur(c.base))}${kv('Custos',eur(-c.custo))}${kv('Lucro',sg(c.lucro),'tot')}${kv('Margem',pc(c.margem))}</div>
  <h2>Custo por tópico</h2><div class="grp tpad">${Object.keys(tp).length?Object.entries(tp).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div style="margin-bottom:12px"><div class="tb"><div class="bt"><b>${k}</b></div><b>${eur(v)}</b></div><div class="trk"><i style="width:${v/mx*100}%"></i></div></div>`).join('').replace(/margin-bottom:12px"(?![\s\S]*margin-bottom)/,'"'):'<span class="sub">Sem custos registados.</span>'}</div>

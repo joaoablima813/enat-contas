@@ -14,7 +14,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const get = (store, token) => TOKEN.test(token) ? store.get('pedido-' + token, { type: 'json' }).catch(() => null) : null;
 
 // Um link por lead: voltar a pedir reutiliza o mesmo e mantém as respostas já dadas.
-async function createLink(store, lead, nome, solutions) {
+export async function createLink(store, lead, nome, solutions) {
   let token = (await store.get('pedido-lead-' + lead, { type: 'json' }).catch(() => null))?.token;
   const old = token ? await get(store, token) : null;
   if (!old) token = randomBytes(18).toString('base64url');
@@ -39,7 +39,7 @@ export async function handlePedidoApi(req, path, store) {
     const out = [];
     for (const x of list.slice(-60)) { const p = await get(store, x.token); if (p?.resp) out.push({ token: x.token, lead: p.lead, at: p.resp.at, resp: p.resp, sug: sugestoes(p.resp) }); }
     // Links enviados automaticamente por email às leads novas (a app marca-os na lead).
-    const auto = Object.entries((await store.get(AUTO_SENT, { type: 'json' }).catch(() => null)) || {}).map(([lead, x]) => ({ lead, token: x.token, sent: x.at, failed: Boolean(x.failed) }));
+    const auto = Object.entries((await store.get(AUTO_SENT, { type: 'json' }).catch(() => null)) || {}).map(([lead, x]) => ({ lead, token: x.token, sent: x.at, failed: Boolean(x.failed), via: x.via || 'email' }));
     return json(200, { pedidos: out, auto });
   }
   const m = path.match(/^pedido\/foto\/([a-z0-9]{8,40})$/);
@@ -97,6 +97,11 @@ export async function handlePedidoPublic(req, token, sub, store) {
 const linkBase = (fallback) => String(process.env.LINK_URL || '').replace(/\/+$/, '') || fallback;
 const AUTO_SENT = 'pedido-auto-enviados', AUTO_LAST = 'pedido-auto-ultimo', EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
 const leadTime = (l) => { const t = new Date(l.received || (l.date ? l.date + 'T12:00:00Z' : 0)).getTime(); return Number.isFinite(t) ? t : 0; };
+// Link já mostrado ao cliente (ex.: no site, logo a seguir ao pedido): não volta a ser enviado por email.
+export async function markSent(store, lead, token, at = Date.now(), via = 'site') {
+  const sent = (await store.get(AUTO_SENT, { type: 'json' }).catch(() => null)) || {};
+  await store.setJSON(AUTO_SENT, { ...sent, [lead]: { token, at, via } });
+}
 export function autoCandidates(state, inbox, sent, now = Date.now()) {
   const del = state?.del || {}, seen = new Set(), out = [];
   const inState = new Map((state?.leads || []).map((l) => [l.id, l]));
@@ -132,7 +137,8 @@ export async function runAutoPedidos(store, now = Date.now(), send = sendEmail, 
   if (!force && last && now - last.t < 50e3) return { skipped: 'recent' };
   await store.setJSON(AUTO_LAST, { t: now });
   const [state, meta, sent] = await Promise.all([store.get('estado', { type: 'json' }), store.get('leads-meta', { type: 'json' }), store.get(AUTO_SENT, { type: 'json' })].map((p) => p.catch(() => null)));
-  const todo = autoCandidates(state, meta?.leads, sent || {}, now).slice(0, 5);
+  const { siteInbox } = await import('./site.mjs');
+  const todo = autoCandidates(state, [...(meta?.leads || []), ...(await siteInbox(store))], sent || {}, now).slice(0, 5);
   if (!todo.length) return { sent: 0 };
   const origin = process.env.URL || 'https://enat-contas.netlify.app', me = e.contacto?.nome || 'João Lima', done = { ...(sent || {}) };
   let n = 0;

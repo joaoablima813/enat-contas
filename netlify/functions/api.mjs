@@ -190,7 +190,8 @@ export default async (req) => {
     if (req.method === 'GET') {
       // Leads recebidas por email (Meta): a app junta-as às suas, sem o servidor mexer no estado.
       const meta = await store.get('leads-meta', { type: 'json' }).catch(() => null);
-      return json(200, { state: (await store.get('estado', { type: 'json' })) || null, inbox: meta?.leads || [] });
+      const { siteInbox } = await import('../lib/site.mjs');
+      return json(200, { state: (await store.get('estado', { type: 'json' })) || null, inbox: [...(meta?.leads || []), ...(await siteInbox(store))] });
     }
     if (req.method === 'PUT') {
       let b; try { b = await req.json(); } catch { return json(400); }

@@ -50,7 +50,7 @@ test('the server builds the full kit from the request data, with no AI round tri
  assert.deepEqual(spec.tipologias,['Bomba de calor AQS','Ar condicionado','Geral / outros']);assert.equal(spec.ac.divisoes[2].area_m2,null);assert.deepEqual(spec.excluir,['consumiveis']);
  const p=buildPlan(spec),d=s=>p.itens.filter(i=>s.test(i.descricao));
  assert.equal(d(/^Unidade exterior multisplit/).length,1);assert.equal(d(/^Unidade interior/).reduce((t,i)=>t+i.quantidade,0),3);
- assert.ok(d(/^Par de cobre/).length>=1);assert.ok(d(/Cabo de interligação/).length);assert.equal(d(/^Bomba de condensados/)[0].quantidade,1,'only the room without drain gets a pump');
+ assert.ok(d(/^Tubo de cobre isolado para refrigeração 1\/4"/).length&&d(/^Tubo de cobre isolado para refrigeração 3\/8"/).length,'copper is sold tube by tube, not as a pair');assert.ok(d(/Cabo de interligação/).length);assert.equal(d(/^Bomba de condensados/)[0].quantidade,1,'only the room without drain gets a pump');
  assert.equal(d(/^Calha técnica/)[0].quantidade,30,'metres stated by the user win');assert.equal(d(/Montagem de calha/)[0].quantidade,30);
  assert.ok(d(/Suporte de parede/).length&&d(/antivibráticos/).length);assert.equal(d(/Consumíveis/).length,0,'excluded parts are left out');
  assert.ok(d(/^Bomba de calor para AQS 200 L/).length&&d(/Grupo de segurança/).length&&d(/Vaso de expansão sanitário 12 L/).length&&d(/misturadora/).length);
@@ -143,4 +143,37 @@ test('a product picked by hand for an AI line is remembered and used next time',
  run(`quoteAiLearn({aiKey:${JSON.stringify(key)}},PRICE_TABLES[0],PRICE_TABLES[0].products[0])`);
  assert.equal(run(`quoteAiLearned(${JSON.stringify(key)}).pi`),0);
  assert.match(run('JSON.stringify(S.iaAprendido)'),/"src":"sanitop","ref":"X9"/);
+});
+
+// Casos reais dos catálogos da Sanipower e da Sanitop (nomes como aparecem nos sites).
+test('real catalogue names: right family, right size, no fittings or look-alikes',()=>{
+ const run=app();
+ const P=(name,model,group,price)=>({name,model,ref:model,group:group.split(' > '),price,net:price,disc:0,maker:''});
+ run(`PRICE_TABLES.length=0;PRICE_TABLES.push({brand:'Sanipower',supplier:'sanipower',live:true,table:'C',discount:0,products:${JSON.stringify([
+  P('Proteu Plus Multi-Split c/Wi-Fi Unidade Interior R32','MT07PA - 7000 BUTS','Ar condicionado > Ar Condicionado Proteu > Multisplit',93.5),
+  P('Proteu Plus Multi-Split c/Wi-Fi Unidade Interior R32','MT18PA - 18000 BTUS','Ar condicionado > Ar Condicionado Proteu > Multisplit',125),
+  P('Proteu Multi-Split Unidade Exterior R32','MT2PA14 - 14000 BTUS','Ar condicionado > Ar Condicionado Proteu > Multisplit',524.91),
+  P('Proteu Multi-Split Unidade Exterior R32','MT3PA21 - 21000 BTUS','Ar condicionado > Ar Condicionado Proteu > Multisplit',642),
+  P('Proteu Multi-Split Unidade Exterior R32','MT3PA27 - 27000 BTUS','Ar condicionado > Ar Condicionado Proteu > Multisplit',707),
+  P('LG Caixa de Distribuição','1-3 Saídas PMBD3630','Ar condicionado > LG > Acessórios',198),
+  P('Tubo de Cobre Refrigeração','6.35 1/4"','Sistemas > Tubos de Cobre > Tubos',2.12),
+  P('Tubo de Cobre Refrigeração Isolado','1/4"','Sistemas > Tubos de Cobre > Tubos',3.8),
+  P('Tubo de Cobre Refrigeração Isolado','1/4"x1/2"','Sistemas > Tubos de Cobre > Tubos',9.24),
+  P('União redução cobre 3/8" F x 1/4" F para refrigeração','','Sistemas > Cobre',0.55),
+  P('Tubo Drenagem Rolo 50m','160','Sistemas > Tubos Drenagem > Tubos',3.1),
+  P('Mangueira Pressão Cristal','16mm','Sistemas > Mangueiras',2.17),
+  P('Proteu Depósito Inércia Inox V/S','150 Litros','Conforto > Termoacumuladores e Depósitos > Depósitos',399),
+  P('Termat Termoacumulador','150 Litros','Conforto > Termoacumuladores e Depósitos > Termoacumuladores',188),
+  P('Proteu Torneira de Esfera Jardim C/Junção','1/2" x 3/4"','Sistemas > Válvulas > Torneiras Esfera',2.35),
+  P('Proteu Válvula de Esfera Borboleta FF','1"','Sistemas > Válvulas > Válvulas Latão',4.69),
+ ])}})`);
+ const pick=(it,gama='preco')=>run(`(()=>{const it=${JSON.stringify(it)},T=quoteTables(),f=quoteAiSearch(it,'',T,quoteAiAllowed(it.categoria,'${gama}',T,it.aux));const a=quoteAiAutoPick(it,f,'${gama}',f.map(x=>priceNet(T[x.ti],T[x.ti].products[x.pi])));return a?(p=>p.name+' ['+p.model+']')(T[f[a.candidato].ti].products[f[a.candidato].pi]):null})()`);
+ const plan=buildPlan(cleanSpec({tipologias:['Ar condicionado','Bomba de calor climatização'],ac:{sistema:'multi',divisoes:[{nome:'Sala',area_m2:30,uso:'sala'},{nome:'Quarto',area_m2:12},{nome:'Quarto 2',area_m2:12}]},bc:{area_m2:150,emissores:'radiadores'}}));
+ const it=re=>plan.itens.find(i=>re.test(i.descricao));
+ assert.equal(pick(it(/^Unidade exterior multisplit/)),'Proteu Multi-Split Unidade Exterior R32 [MT3PA27 - 27000 BTUS]','3 outputs and enough power, not the distribution box nor the 21000 BTU');
+ assert.equal(pick(it(/^Unidade interior mural multisplit 2 kW/)),'Proteu Plus Multi-Split c/Wi-Fi Unidade Interior R32 [MT07PA - 7000 BUTS]','an indoor unit, never an outdoor one');
+ assert.equal(pick(it(/^Tubo de cobre isolado para refrigeração 1\/4"/)),'Tubo de Cobre Refrigeração Isolado [1/4"]','insulated tube of that size: not bare copper, not a reducer, not the 1/4x1/2 pair');
+ assert.equal(pick(it(/^Depósito de inércia/)),'Proteu Depósito Inércia Inox V/S [150 Litros]','an inertia tank, not a water heater');
+ assert.equal(pick(it(/^Válvula de esfera 1"/)),'Proteu Válvula de Esfera Borboleta FF [1"]','not a garden tap');
+ assert.equal(pick({id:'c',categoria:'Material',descricao:'Tubo de condensados (bomba até ao esgoto)',pesquisa:['mangueira cristal 16','tubo condensados 16'],evita:['drenagem','saneamento']}),'Mangueira Pressão Cristal [16mm]','never 160 mm ground drainage pipe');
 });

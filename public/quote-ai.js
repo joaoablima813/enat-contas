@@ -36,8 +36,9 @@
  const names=v=>String(v||'').split(/[,;]/).map(x=>quoteNorm(x)).filter(Boolean);
  const tableName=t=>quoteNorm(t.supplier||t.brand||'');
  // Índices das tabelas onde se pode procurar esta linha (null = todas).
- function allowed(categoria,gama,tables=quoteTables()){
-  const want=categoria==='Equipamento'?(gama?names(sources()[gama]):null):names(sources().material);
+ // «aux»: equipamento auxiliar (depósitos) que pode vir da marca da gama ou dos fornecedores de material.
+ function allowed(categoria,gama,tables=quoteTables(),aux=false){
+  const want=categoria==='Equipamento'?(gama?[...names(sources()[gama]),...(aux?names(sources().material):[])]:null):names(sources().material);
   if(!want||!want.length)return null;
   return new Set(tables.map((t,i)=>[t,i]).filter(([t])=>!t.invoices&&want.some(w=>tableName(t).includes(w))).map(([,i])=>i));
  }
@@ -89,10 +90,20 @@
   for(let i=x.big.indexOf(w);i>=0;){let lo=0,hi=o.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(o[m]<=i)lo=m;else hi=m-1}out.add(lo);const next=lo+1<o.length?o[lo+1]:x.big.length;i=x.big.indexOf(w,Math.max(i+1,next))}
   if(x.hits.size>3000)x.hits.clear();x.hits.set(w,out);return out;
  }
+ // Potência do produto lida do nome/modelo: «12kW», «3,5 kW», «14000 BTUS» (também «BUTS», como aparece num catálogo).
+ function powerOf(h){
+  const k=[...h.matchAll(/(\d+(?:\.\d+)?)\s?kw\b/g)].map(m=>Number(m[1])).filter(v=>v>0&&v<200);
+  const b=[...h.matchAll(/(\d{4,6})\s?(?:btu|buts)/g)].map(m=>Number(m[1])/3412).filter(v=>v>0&&v<200);
+  return k.length?k[0]:b.length?b[0]:null;
+ }
+ // Saídas de uma exterior multisplit: «3 saídas», «3x», ou no modelo (MT3PA27, HR3PA18).
+ const portsOf=h=>{const m=h.match(/(\d)\s?(?:saidas|portas|vias)\b/)||h.match(/\b[a-z]{2}(\d)[a-z]{2}\d/);return m?Number(m[1]):null};
  function search(item,brand,tables=quoteTables(),only=null){
   const qs=[...(item.pesquisa||[]),item.descricao].map(words).filter(w=>w.length).flatMap(variants),b=quoteNorm(brand),found=[];
   if(!qs.length)return [];
   const ex=rx(item.exige);
+  // «grupo»: a família do produto (ex.: só ar condicionado); «evita»: palavras que excluem o produto (ex.: «exterior» numa unidade interior).
+  const grp=item.grupo?rx([[item.grupo]])[0]?.[0]:null,avoid=rx([item.evita||[]])[0]||[];
   tables.forEach((t,ti)=>{
    if(only&&!only.has(ti))return;
    const x=index(t),best=new Map();
@@ -102,9 +113,14 @@
    });
    for(const [pi,v] of best){
     if(v<0.5)continue;
-    const p=t.products[pi],h=hay(t,p),ok=ex.length?ex.every(g=>g.some(r=>r.test(h))):null;
+    const p=t.products[pi],h=hay(t,p);
+    const nm=quoteNorm(p.name+' '+(p.model||'')+' '+(p.maker||'')).replace(/(\d)\s*"/g,'$1');
+    if(avoid.some(r=>r.test(nm))||(grp&&!grp.test(quoteNorm((p.group||[]).join(' ')+' '+p.name))))continue;
+    let ok=ex.length?ex.every(g=>g.some(r=>r.test(h))):null;
+    // Com potência pedida: aceita do valor pedido até 45% acima (o tamanho comercial seguinte); com saídas, pelo menos as pedidas.
+    if(item.potencia){const kw=powerOf(h),pp=item.saidas?portsOf(h):null;ok=kw!=null&&kw>=item.potencia*0.95&&kw<=item.potencia*1.45&&(!item.saidas||pp==null||pp>=item.saidas)&&(ok!==false||!ex.length||ex.slice(1).every(g=>g.some(r=>r.test(h))))}
     let s=v;if(ok)s+=0.25;else if(ok===false)s-=0.1;if(b&&item.categoria==='Equipamento'&&h.includes(b))s+=0.2;if(item.tipologia&&p.group[0]===item.tipologia)s+=0.05;if(t.invoices)s+=0.03;if(p.est)s-=0.02;if(t.live&&p.stock===0)s-=0.05;
-    found.push({ti,pi,s,ok});
+    found.push({ti,pi,s,ok,...(item.potencia?{kw:powerOf(h)}:{}),...(item.saidas?{ports:portsOf(h)}:{})});
    }
   });
   found.sort((x,y)=>y.s-x.s);
@@ -119,6 +135,9 @@
   return null;
  }
  root.quoteAiLearn=(line,t,p)=>{if(!line?.aiKey||!t||!p)return;S.iaAprendido={...(S.iaAprendido||{}),[line.aiKey]:{src:tableName(t),ref:p.ref||'',name:p.name}};if(typeof save==='function')save()};
+ const prices=f=>f.map(c=>{const t=quoteTables()[c.ti];return priceNet(t,t.products[c.pi])});
+ // Marca/série do produto: nos catálogos online é a marca do fabricante (ou a 1.ª palavra do nome, ex.: Proteu); nas tabelas, a marca da tabela.
+ const family=(t,p)=>t.live?quoteNorm(p.maker||String(p.name).split(/\s+/)[0]):quoteNorm(t.brand);
  const candidate=(t,p)=>({nome:p.name+(p.model&&!String(p.name).includes(p.model)?' – '+p.model:''),ref:p.ref||'',marca:t.invoices?'(última fatura)':t.live?p.maker||'':t.brand,grupo:p.group.join(' › '),preco:priceNet(t,p)});
 
  // Pedido direto ao servidor (responde em poucos segundos), com limite de tempo.
@@ -135,6 +154,9 @@
  function autoPick(it,f,gama='',prices=[]){
   const fits=(f||[]).map((x,i)=>[x,i]).filter(([x])=>x.ok===true||(x.ok===null&&it.categoria!=='Equipamento'&&x.s>=0.85));
   if(!fits.length)return null;
+  // Potência: primeiro o tamanho comercial mais próximo que cumpre; a gama escolhe entre esses (não uma máquina maior).
+  const kws=fits.map(([x])=>x.kw).filter(v=>v!=null);if(kws.length){const lo=Math.min(...kws);for(let i=fits.length-1;i>=0;i--)if(fits[i][0].kw!=null&&fits[i][0].kw>lo*1.1)fits.splice(i,1)}
+  const ps=fits.map(([x])=>x.ports).filter(v=>v!=null);if(ps.length){const lo=Math.min(...ps);for(let i=fits.length-1;i>=0;i--)if(fits[i][0].ports!=null&&fits[i][0].ports>lo)fits.splice(i,1)}
   let c=fits[0][1];
   if(gama&&fits.length>1&&prices.length){const s=fits.filter(([,i])=>prices[i]>0).sort((a,b)=>prices[a[1]]-prices[b[1]]);if(s.length)c=(gama==='preco'?s[0]:gama==='qualidade'?s[s.length-1]:s[Math.floor((s.length-1)/2)])[1]}
   return {id:it.id,candidato:c,quantidade:null,unidade:null};
@@ -172,10 +194,14 @@
    const found={},items=[],picks={};
    const missing=new Set();
    for(const it of plan.itens){if(it.categoria==='Mão de obra')continue;await new Promise(r=>setTimeout(r,0));
-    const only=allowed(it.categoria,gama);if(only&&!only.size)missing.add(it.categoria==='Equipamento'?sources()[gama]:sources().material);
+    const only=allowed(it.categoria,gama,quoteTables(),it.aux);if(only&&!only.size)missing.add(it.categoria==='Equipamento'?sources()[gama]:sources().material);
     const hit=learned(learnKey(it,gama));if(hit){found[it.id]=[hit];picks[it.id]={id:it.id,candidato:0,quantidade:null,unidade:null};continue}
     // Com gama, a marca escrita no pedido não se sobrepõe aos fornecedores da gama.
-    const f=search(it,gama&&it.categoria==='Equipamento'?q.brand:(q.brand||plan.marca),quoteTables(),only);found[it.id]=f;const a=autoPick(it,f,gama,f.map(c=>{const t=quoteTables()[c.ti];return priceNet(t,t.products[c.pi])}));if(a)picks[it.id]=a;if(f.length&&!picks[it.id])items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
+    const f=search(it,gama&&it.categoria==='Equipamento'?q.brand:(q.brand||plan.marca),quoteTables(),only);found[it.id]=f;const a=autoPick(it,f,gama,prices(f));if(a)picks[it.id]=a}
+   const T=quoteTables(),ext=plan.itens.find(i=>i.categoria==='Equipamento'&&i.saidas&&picks[i.id]);
+   if(ext){const c=found[ext.id][picks[ext.id].candidato],fam=family(T[c.ti],T[c.ti].products[c.pi]);
+    for(const it of plan.itens.filter(i=>i.categoria==='Equipamento'&&!i.saidas&&/interior/i.test(i.descricao))){const f=(found[it.id]||[]).filter(x=>x.ti===c.ti&&family(T[x.ti],T[x.ti].products[x.pi])===fam);found[it.id]=f;const a=autoPick(it,f,gama,prices(f));if(a)picks[it.id]=a;else delete picks[it.id]}}
+   for(const it of plan.itens){const f=found[it.id];if(it.categoria==='Mão de obra'||!f||!f.length||picks[it.id])continue;items.push({id:it.id,descricao:it.descricao,especificacao:it.especificacao,quantidade:it.quantidade,unidade:it.unidade,candidatos:f.map(c=>{const t=quoteTables()[c.ti];return candidate(t,t.products[c.pi])})})}
    if(items.length){
     st.phase='A escolher os produtos certos…';paint();
     // Se a IA falhar ou demorar, ficam as escolhas locais.
@@ -245,5 +271,5 @@
   if(k==='rate-add'){st.labour=true;setRates(L=>L.push({id:'mo'+Date.now().toString(36),nome:'',unidade:'un.',preco:0}));render();return}
   if(k==='rate-del'){st.labour=true;setRates(L=>L.splice(Number(b.dataset.i),1));render()}
  });
- Object.assign(root,{quoteAiAllowed:allowed,quoteAiLearnKey:learnKey,quoteAiLearned:learned,quoteAiSearch:search,quoteAiAutoPick:autoPick,quoteAiBuildLines:buildLines,quoteAiLabour:labour,quoteAiLeadText:leadText});
+ Object.assign(root,{quoteAiFamily:family,quoteAiAllowed:allowed,quoteAiLearnKey:learnKey,quoteAiLearned:learned,quoteAiSearch:search,quoteAiAutoPick:autoPick,quoteAiBuildLines:buildLines,quoteAiLabour:labour,quoteAiLeadText:leadText});
 })(globalThis);

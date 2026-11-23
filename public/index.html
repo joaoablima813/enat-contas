@@ -108,7 +108,7 @@ nav button.on{color:var(--blue)}
 <script src="/agenda.js?v=20261109"></script>
 <script src="/pv-sizing.js?v=20261114"></script>
 <script src="/pv.js?v=20261028"></script>
-<script type="module">import{startRegistration,startAuthentication}from"https://esm.sh/@simplewebauthn/browser@14.0.0";window.SWA={startRegistration,startAuthentication}</script>
+<script src="/vendor/simplewebauthn-browser.umd.min.js"></script><script>window.SWA=window.SimpleWebAuthnBrowser</script>
 <script src="/vendor/exceljs.min.js"></script>
 <script src="/excel-export.js"></script>
 </head>
@@ -743,9 +743,15 @@ const post=async(p,b,code)=>{const r=await fetch('/api/'+p,{method:'POST',header
 let LIGADO=false;
 function bloquear(m){sessionStorage.removeItem('enat-sess');$('#lock').classList.add('on');ecraLock(m)}
 const CRED=()=>localStorage.getItem('enat-cred')||'';
+// Pedido de login preparado antes do toque: o Windows Hello / Face ID aparece logo, sem esperar pelo servidor.
+let PRE=null;
+const preparar=()=>{if(!navigator.onLine||!CRED())return;PRE={at:Date.now(),p:post('auth/entrar-opcoes',{id:CRED()}).catch(()=>null)}};
+setInterval(()=>{if($('#lock').classList.contains('on')&&(!PRE||Date.now()-PRE.at>3*60e3))preparar()},60e3);
 async function ecraLock(m,falhou){const lk=$('#lk');
- lk.innerHTML='<button class="btn" disabled aria-busy="true">Login</button>';
- let tem=true,semRede=!navigator.onLine;try{tem=(await (await fetch('/api/auth/estado')).json()).temChaves}catch(e){semRede=true}
+ const tem0=localStorage.getItem('enat-tem-chaves')!=='0';
+ if(tem0&&CRED()&&!m&&!falhou){lk.innerHTML='<button class="btn" data-l="entrar">Login</button>';if(!PRE||Date.now()-PRE.at>3*60e3)preparar()}
+ else lk.innerHTML='<button class="btn" disabled aria-busy="true">Login</button>';
+ let tem=true,semRede=!navigator.onLine;try{tem=(await (await fetch('/api/auth/estado')).json()).temChaves;localStorage.setItem('enat-tem-chaves',tem?'1':'0')}catch(e){semRede=true}
  // Sem rede, o Face ID / Touch ID deste dispositivo abre os dados guardados nele; sincroniza quando a ligação voltar.
  const local=semRede&&CRED()&&(S.obras.length||S.tx.length)&&window.PublicKeyCredential;
  const aviso=window.PublicKeyCredential?'':'<p class="neg" role="alert">Este navegador não suporta Face ID / Touch ID.</p>';
@@ -764,12 +770,12 @@ window.addEventListener('offline',()=>setSync('off'));
 function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill();quoteRefresh()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render();if(typeof pushReady==='function')pushReady();if(typeof supplierStart==='function')supplierStart()}
 async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});const t=(await post('auth/registo',{cid:o.cid,response},code)).token;localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 // Face ID: vai direto à chave guardada neste dispositivo. Touch ID: deixa o sistema escolher qualquer chave (outro sensor ou dispositivo).
-async function entrar(local){const o=await post('auth/entrar-opcoes',local&&CRED()?{id:CRED()}:{});const response=await SWA.startAuthentication({optionsJSON:o.options});const t=(await post('auth/entrar',{cid:o.cid,response})).token;if(response.authenticatorAttachment!=='cross-platform')localStorage.setItem('enat-cred',response.id);desbloquear(t)}
+async function entrar(local){const pre=local&&CRED()&&PRE&&Date.now()-PRE.at<4*60e3?await PRE.p:null;PRE=null;const o=pre||await post('auth/entrar-opcoes',local&&CRED()?{id:CRED()}:{});const response=await SWA.startAuthentication({optionsJSON:o.options});const t=(await post('auth/entrar',{cid:o.cid,response})).token;if(response.authenticatorAttachment!=='cross-platform')localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 $('#lock').addEventListener('click',async e=>{const b=e.target.closest('[data-l]');if(!b)return;
  if(b.dataset.l==='offline'){try{b.disabled=true;await entrarOffline()}catch(err){ecraLock(err.name==='NotAllowedError'?'Operação cancelada.':'Não foi possível confirmar a identidade.')}return}
  if(!window.SWA){ecraLock('A carregar, tente de novo dentro de um segundo.');return}
  try{const l=b.dataset.l;b.disabled=true;
-  if(l==='entrar'){try{await entrar(false)}catch(err){return ecraLock(err.name==='NotAllowedError'?'':(err.message||'Erro'),true)}}
+  if(l==='entrar'){try{await entrar(Boolean(CRED()))}catch(err){return ecraLock(err.name==='NotAllowedError'?'':(err.message||'Erro'),true)}}
   else if(l==='touch')await entrar(false);
   else if(l==='registar')await registar();
   else if(l==='novo'){const c=SESS()?'':prompt('Para registar um novo dispositivo, indique o código de acesso (APP_CODE):');if(c===null)return ecraLock('',true);await registar((c||'').trim())}

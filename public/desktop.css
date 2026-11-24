@@ -53,3 +53,16 @@
 @media (min-width:1600px){
  main,.top{max-width:1400px}
 }
+/* Computador: menu lateral verde como o cabeçalho do site */
+@media (min-width:1100px){
+ nav{background:var(--lines),var(--band);background-size:48px 48px,48px 48px,auto;border-right:0;box-shadow:6px 0 30px -18px rgba(13,42,19,.6)}
+ .nav-logo{background:none;box-shadow:none;height:56px}.nav-logo img{content:url(/logo-claro.svg);height:42px}
+ nav button{color:rgba(255,255,255,.78)}
+ nav button:hover{background:rgba(255,255,255,.08);color:#fff}
+ nav button.on{background:rgba(255,255,255,.13);color:#fff;box-shadow:inset 3px 0 0 #f39200}
+ .top{background:none;box-shadow:none;padding:18px 44px 0;max-width:1240px;margin:0 auto}
+ .top .bell{background:var(--card);color:var(--ink);box-shadow:var(--sh1)}
+ .top .sync{background:var(--card);color:var(--mute);box-shadow:var(--sh1)}
+}
+@media (min-width:1600px){.top{max-width:1400px}}
+@media (min-width:1100px){.nl-l{display:inline}.nl-s{display:none}.eq-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}

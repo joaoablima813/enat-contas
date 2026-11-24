@@ -310,3 +310,13 @@ test('home dashboard: business numbers that open their page, 12-month chart and 
  assert.match(html,/<button class="logo-btn" data-a="tab" data-id="home" aria-label="Ir para o Início"><img src="\/enat-logo.png"/);
  assert.match(html,/<nav><button class="logo-btn nav-logo" data-a="tab" data-id="home"/);
 });
+test('Equipamentos tab: every installed unit from every job, warranty status, search by serial number and filters',()=>{
+ const {run}=app(state);
+ run(`S.obras[0].eqs=[{id:'e1',tipo:'Inversor',marca:'AlphaESS',modelo:'SMILE5',sn:'AL123',garantiaAte:'2020-01-01',remoto:true,app:'AlphaCloud'},{id:'e2',tipo:'Bomba de calor AQS',marca:'Energie',sn:'EN9',garantiaAte:'2099-01-01'}];S.obras[1].eqs=[{id:'e3',tipo:'VMC',marca:'Ekallor',garantiaAte:''}]`);
+ run("V.tab='equip'");let h=run('vEquipamentos()');
+ assert.match(h,/<h1>Equipamentos<\/h1>/);assert.match(h,/Inversor · AlphaESS SMILE5/);assert.match(h,/Fora de garantia/);assert.match(h,/Em garantia/);
+ assert.match(h,/data-a="open" data-s="equip" data-id="o1" data-eqopen="e1"/);
+ run("V.eqq='en9'");h=run('vEquipamentos()');assert.match(h,/Energie/);assert.doesNotMatch(h,/AlphaESS SMILE5/);
+ run("V.eqq='';V.eqf='remoto'");h=run('vEquipamentos()');assert.match(h,/AlphaESS/);assert.doesNotMatch(h,/Ekallor/);
+ assert.match(html,/\['equip','<span class="nl-l">Equipamentos<\/span>/);
+});

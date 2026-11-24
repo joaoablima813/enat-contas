@@ -188,3 +188,29 @@ document.addEventListener('click',ev=>{
  }
  else if(b.dataset.eqa==='del'){const e=o.eqs?.[+b.dataset.i];if(!e||!confirm('Eliminar '+eqTitulo(e)+'?'))return;o.eqs=o.eqs.filter(x=>x!==e);save();render()}
 });
+
+// ---- Separador «Equipamentos»: todos os equipamentos instalados, de todas as obras ----
+const eqHoje=()=>new Date().toISOString().slice(0,10);
+const eqEstado=e=>{const g=e.garantiaAte,h=eqHoje();if(!/^\d{4}-\d{2}-\d{2}$/.test(g||''))return 'sem';if(g<h)return 'fora';return (new Date(g+'T12:00:00')-new Date(h+'T12:00:00'))/864e5<=90?'acabar':'garantia'};
+const EQ_FILTROS=[['','Todos'],['garantia','Em garantia'],['acabar','Garantia a acabar'],['fora','Fora de garantia'],['remoto','Acesso remoto']];
+function eqTodos(){const l=[];for(const o of S.obras)for(const e of o.eqs||[])l.push({o,e});return l}
+function vEquipamentos(){
+ const todos=eqTodos(),q=String(V.eqq||'').trim(),f=V.eqf||'';
+ const conta=k=>todos.filter(x=>k==='remoto'?x.e.remoto:eqEstado(x.e)===k).length;
+ const lista=todos.filter(({o,e})=>(!f||(f==='remoto'?e.remoto:eqEstado(e)===f))&&(!q||match([eqTitulo(e),e.sn,e.marca,e.modelo,e.app,o.name,o.client,o.address].join(' '),q)))
+  .sort((a,b)=>String(a.e.garantiaAte||'9999').localeCompare(String(b.e.garantiaAte||'9999')));
+ const badge=e=>{const s=eqEstado(e);return s==='fora'?'<span class="lead-badge eq-b fora">Fora de garantia</span>':s==='acabar'?'<span class="lead-badge eq-b acabar">Garantia a acabar</span>':s==='garantia'?'<span class="lead-badge eq-b ok">Em garantia</span>':''};
+ const row=({o,e})=>`<button class="row invoice-row" data-a="open" data-s="equip" data-id="${esc(o.id)}" data-eqopen="${esc(e.id)}"><div class="av">${ic('equip')}</div><div class="rt"><b>${esc(eqTitulo(e))}</b><span>${esc([o.client||o.name,e.sn?'SN '+e.sn:'sem n.º de série',e.app].filter(Boolean).join(' · '))}</span></div><div class="rr">${badge(e)}<span>${e.garantiaAte?'até '+esc(eqDia(e.garantiaAte)):'sem garantia indicada'}${e.remoto?' · remoto':''}</span></div></button>`;
+ return `<h1>Equipamentos</h1>
+ <div class="kpis eq-kpis">${[['Instalados',todos.length,''],['Em garantia',conta('garantia')+conta('acabar'),'garantia'],['A acabar (90 dias)',conta('acabar'),'acabar'],['Com acesso remoto',conta('remoto'),'remoto']].map(([l,n,k])=>`<button class="kpi" data-eqv="f" data-v="${k}"><span>${l}</span><b>${n}</b></button>`).join('')}</div>
+ <div class="sbar" style="margin-top:14px">${ic('search')}<input id="eqq" type="search" value="${esc(V.eqq||'')}" aria-label="Procurar equipamentos" placeholder="Número de série, marca, modelo ou cliente" autocomplete="off"></div>
+ <div class="chips">${EQ_FILTROS.map(([k,l])=>`<button class="${f===k?'on':''}" data-eqv="f" data-v="${k}">${l}</button>`).join('')}</div>
+ <div class="grp" id="eqlist">${lista.length?lista.map(row).join(''):`<div class="empty">${todos.length?'Nenhum equipamento encontrado.':'Ainda sem equipamentos. Registe-os em cada obra, no separador «Equipamentos».'}</div>`}</div>
+ <p class="note">Toque num equipamento para abrir a ficha na obra (número de série, garantia, app da marca e acesso remoto).</p>`;
+}
+document.addEventListener('click',ev=>{
+ const o=ev.target.closest('[data-eqopen]');if(o)EQ_OPEN=o.dataset.eqopen;
+ const b=ev.target.closest('[data-eqv]');if(!b)return;
+ if(b.dataset.eqv==='f'){V.eqf=V.eqf===b.dataset.v&&b.dataset.v?'':b.dataset.v;render()}
+});
+document.addEventListener('input',ev=>{if(ev.target.id==='eqq'){V.eqq=ev.target.value;const g=document.getElementById('eqlist');if(g){const pos=ev.target.selectionStart;render();const i=document.getElementById('eqq');if(i){i.focus();try{i.setSelectionRange(pos,pos)}catch{}}}}});

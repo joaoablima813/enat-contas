@@ -1,0 +1,55 @@
+/* Computador (ecrãs largos): menu lateral com o logótipo, conteúdo mais largo, resumos em mais colunas e janelas
+   centradas. Só se aplica a partir de 1100 px de largura; no telemóvel e no tablet a app fica igual. */
+@media (min-width:1100px){
+ :root{--side:248px}
+ body{padding-left:var(--side)}
+
+ /* Menu lateral */
+ nav{top:0;bottom:0;left:0;right:auto;width:var(--side);padding:22px 14px 18px;border-top:0;border-right:1px solid var(--line);background:var(--card);backdrop-filter:none;-webkit-backdrop-filter:none;display:flex;flex-direction:column;overflow-y:auto}
+ .nav-logo{display:flex;align-items:center;justify-content:center;flex:none;height:54px;margin:0 6px 24px;background:#fff;border-radius:12px;box-shadow:0 1px 0 var(--line)}.nav-logo img{height:40px}
+ nav div{max-width:none;margin:0;display:flex;flex-direction:column;gap:3px}
+ nav button{flex-direction:row;justify-content:flex-start;align-items:center;gap:13px;width:100%;padding:11px 14px;border-radius:12px;font-size:15px;font-weight:600;letter-spacing:0;color:var(--mute);overflow:visible;text-align:left;transition:background .12s,color .12s}
+ nav button svg{width:21px;height:21px;flex:none}
+ nav button:hover{background:var(--chip);color:var(--ink)}
+ nav button.on{background:color-mix(in srgb,var(--green) 13%,transparent);color:var(--green)}
+
+ /* Barra de cima e conteúdo */
+ .top{max-width:1240px;padding:18px 44px 0;justify-content:flex-end}
+ .top .logo-btn{display:none}
+ main{max-width:1240px;padding:6px 44px 64px}
+ h1{font-size:38px;margin:10px 0 18px}
+ h2{margin-top:30px}
+ .chips{margin:0 0 16px;padding:0;flex-wrap:wrap;overflow:visible}
+ .row:hover{background:color-mix(in srgb,var(--chip) 55%,transparent)}
+ .row.kv:hover{background:none}
+
+ /* Início em duas colunas (o resumo e os atalhos à esquerda, as listas à direita) */
+ #homebody{columns:2;column-gap:32px}
+ #homebody>*{break-inside:avoid}
+ #homebody>h2{break-after:avoid;margin-top:0;padding-top:26px}
+ #homebody>.hero{margin-top:0}
+ #homebody>.dash{column-span:all;margin-bottom:8px}
+ .dash-ks{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+ .dash-k{padding:16px 18px}.dash-k b{font-size:25px}
+ .dash-g{grid-template-columns:1.4fr 1fr;gap:14px;margin-top:14px}
+ .tiles{grid-template-columns:repeat(3,1fr)}
+
+ /* Resumos e cartões em mais colunas */
+ .kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .hero{padding:26px 28px 22px}
+ .acts{max-width:620px}
+
+ /* Formulários e páginas de detalhe com uma largura confortável de leitura */
+ #quote-form,.eq-list,.mat-grp{max-width:900px}
+
+ /* Janelas (detalhes, novo movimento…) centradas, em vez de subirem do fundo */
+ #ov{align-items:center}
+ #sh{max-width:680px;border-radius:24px;max-height:88vh;padding:20px 26px 26px;box-shadow:0 30px 80px -20px rgba(0,0,0,.45)}
+ #sh .grab{display:none}
+
+ /* Ecrã de entrada sem o menu */
+ #lock{left:0}
+}
+@media (min-width:1600px){
+ main,.top{max-width:1400px}
+}

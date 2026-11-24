@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','material.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','material.js','dashboard.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -115,7 +115,7 @@ test('leads received by email appear as Leads novas until marked as received, ca
  const {run}=app(state);
  const inbox=JSON.stringify([{id:'meta-x',src:'meta',received:'2026-10-31T10:00:00Z',name:'Nando Costa',contact:'+351927386939',email:'n@x.pt',house:'Moradia',timing:'Já',stage:'nova',solutions:[],call:'',date:'2026-10-31'}]);
  assert.equal(run(`leadInbox(${inbox})`),true);assert.equal(run(`leadInbox(${inbox})`),false,'not added twice');
- const main=run('vLeads()');assert.ok(!main.includes('lead-row lead-email'),'new leads only in their own tab');assert.match(main,/data-id="novas">Novas <span class="lead-seg-n">1/);assert.ok(!run('vHome()').includes('Leads novas'),'not on the home screen');
+ const main=run('vLeads()');assert.ok(!main.includes('lead-row lead-email'),'new leads only in their own tab');assert.match(main,/data-id="novas">Novas <span class="lead-seg-n">1/);assert.ok(!run('vHome()').includes('lead-row'),'the list of new leads is not on the home screen (the dashboard shows only how many)');
  const list=run("V.lt='novas';vLeads()");assert.match(list,/Leads novas \(1\)/);assert.match(list,/lead-row lead-email/);assert.match(list,/lead-src-email">Email</);run("V.lt=''");
  run("leadOpen('meta-x')");assert.match(run('vLeads()'),/Marcar como recebida/);
  run("leadDraft.seen=true;leadSave();leadDraft=null");const after=run('vLeads()');
@@ -301,4 +301,12 @@ test('material per job: list from the accepted quote grouped by supplier, order 
  assert.match(run('vHome()'),/data-id="enc"/);
  // A marca já usada com um fornecedor é lembrada para a próxima lista.
  run("S.obras[0].material[0].forn='Climafrio'");assert.equal(run("matFromQuote({lines:[{kind:'Equipamento',description:'Outra',catalog:{brand:'Energie'}}]})[0].forn"),'Climafrio');
+});
+test('home dashboard: business numbers that open their page, 12-month chart and leads by stage; the logo goes to Início',()=>{
+ const {run}=app(state);
+ const h=run('vHome()');
+ for(const l of ['Recebido este mês','Resultado do mês','Recebido este ano','Por receber','Obras em curso','Leads novas','Orçamentos à espera','Taxa de aceitação'])assert.ok(h.includes(l),l);
+ assert.match(h,/class="dash-k[^"]*" data-a="tab" data-id="rel"/);assert.match(h,/Últimos 12 meses/);
+ assert.match(html,/<button class="logo-btn" data-a="tab" data-id="home" aria-label="Ir para o Início"><img src="\/enat-logo.png"/);
+ assert.match(html,/<nav><button class="logo-btn nav-logo" data-a="tab" data-id="home"/);
 });

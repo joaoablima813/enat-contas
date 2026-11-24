@@ -106,3 +106,18 @@ a{color:var(--blue)}
 .mat-st button{margin:0}.mat-acts .btn{font-size:14px;padding:10px 12px;min-height:0;text-decoration:none;line-height:1.25}.mat-acts .note{width:100%;margin:0}
 .mat-st .link{display:inline-block;margin:0;padding:4px 2px}
 .eq-code{width:100%;font:inherit;font-size:18px;letter-spacing:.1em;text-align:center;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);margin:4px 0 8px}
+
+/* Logótipo = botão para o Início */
+.logo-btn{background:none;border:0;padding:0;cursor:pointer;border-radius:12px;display:block}.logo-btn:hover img{box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 25%,transparent)}
+.nav-logo{display:none}
+/* Painel do Início */
+.dash{margin:0 0 6px}
+.dash-ks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dash-k{border:0;text-align:left;background:var(--card);border-radius:18px;padding:13px 14px;box-shadow:var(--sh1);cursor:pointer;color:var(--ink);display:flex;flex-direction:column;gap:3px;min-width:0;border-top:3px solid transparent;font:inherit}
+.dash-k>span{font-size:12.5px;color:var(--mute);font-weight:600}.dash-k b{font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-k small{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-k small span{font-weight:600}
+.dash-k.pos{border-top-color:var(--green)}.dash-k.neg{border-top-color:var(--red)}.dash-k.warn{border-top-color:#e8890c}.dash-k.warn b{color:#c46f00}.dash-k.hot{border-top-color:#8b5cf6}
+.dash-k:hover{transform:translateY(-1px);box-shadow:0 8px 22px -12px rgba(0,0,0,.35)}
+.dash-g{display:grid;gap:10px;margin-top:10px}
+.dash-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0 2px 10px}.dash-h .legend{margin:0}
+.dash-f{display:grid;grid-template-columns:128px 1fr 30px;align-items:center;gap:10px;width:100%;border:0;background:none;padding:5px 2px;cursor:pointer;font:inherit;color:var(--ink);text-align:left}
+.dash-f span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-f i{height:10px;border-radius:6px;background:var(--chip);overflow:hidden}.dash-f em{display:block;height:100%;border-radius:6px;background:var(--lc,var(--green))}.dash-f b{text-align:right;font-variant-numeric:tabular-nums}

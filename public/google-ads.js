@@ -21,13 +21,19 @@ function gaBarras(dias,campo,titulo,fmt,cls,fmtEixo=fmt){
  const n=dias.length,vals=dias.map(d=>Math.max(0,+d[campo]||0)),top=gaTopo(Math.max(...vals)),tot=vals.reduce((a,b)=>a+b,0);
  const passo=Math.max(1,Math.ceil(n/6)),marcas=dias.map((d,i)=>i%passo===0||i===n-1?i:-1).filter(i=>i>=0);
  if(marcas.length>1&&marcas.at(-1)-marcas.at(-2)<passo*.9)marcas.splice(-2,1);
- const cols=dias.map((d,i)=>{const v=vals[i],h=v/top*100,txt=esc(gaDia(d.data))+': '+esc(fmt(v));
+ const cols=dias.map((d,i)=>{const v=vals[i],h=v/top*100,txt=esc(gaDia(d.data))+': '+(d.vazio?'sem dados':esc(fmt(v)));
   return `<div class="ga-c${i>=n/2?' r':''}" tabindex="0" aria-label="${txt}"><i class="${cls}" style="height:${v?Math.max(1.5,h).toFixed(2):0}%"></i><em>${txt}</em></div>`}).join('');
  const eixo=[top,top/2,0].map(v=>`<span>${esc(fmtEixo(v))}</span>`).join('');
  const datas=marcas.map(i=>`<span style="${i===0?'left:0;transform:none':i===n-1?'left:100%;transform:translateX(-100%)':'left:'+((i+.5)/n*100).toFixed(2)+'%'}">${esc(gaDia(dias[i].data))}</span>`).join('');
  return `<div class="chart ga-chart"><div class="dash-h"><b>${titulo}</b><span class="ga-tot">Total: <b>${esc(fmt(tot))}</b></span></div>
- <div class="ga-plot"><div class="ga-y">${eixo}</div><div class="ga-area"><div class="ga-grid"><i></i><i></i><i></i></div><div class="ga-cols${n>45?' fino':''}">${cols}</div></div><span></span><div class="ga-x">${datas}</div></div></div>`;
+ <div class="ga-plot"><div class="ga-y">${eixo}</div><div class="ga-area"><div class="ga-grid"><i></i><i></i><i></i></div><div class="ga-cols${n>45?' fino':n>14?' med':''}">${cols}</div></div><span></span><div class="ga-x">${datas}</div></div></div>`;
 }
+const gaPeriodo=(dias,n)=>{
+ const by=new Map(dias.map(d=>[d.data,d])),ontem=new Date(Date.now()-864e5).toISOString().slice(0,10);
+ const fim=[ontem,...dias.map(d=>d.data)].sort().at(-1),t=Date.parse(fim+'T12:00:00Z'),out=[];
+ for(let i=n-1;i>=0;i--){const k=new Date(t-i*864e5).toISOString().slice(0,10);out.push(by.get(k)||{data:k,vazio:true})}
+ return out;
+};
 const gaGrafico=dias=>`<div class="ga-charts">${gaBarras(dias,'custo','Custo por dia',v=>eur(v),'ga-cus',v=>v.toLocaleString('pt-PT',{maximumFractionDigits:1})+' €')}${gaBarras(dias,'cliques','Cliques por dia',gaNum,'ga-cli')}</div>`;
 function vGoogleAds(){
  const n=GA.n,d=GA.data[n];
@@ -46,7 +52,7 @@ function vGoogleAds(){
   ${card('Pedidos de orçamento',gaNum(r.pedidosOrcamento),'formulário do site','pos')}
   ${card('Contactos',gaNum(r.contactos),'telefone, email e WhatsApp no site','pos')}
   ${card('Custo por contacto',r.custoPorLead==null?'—':eur(r.custoPorLead),'pedidos + contactos',r.custoPorLead==null?'':'warn')}
- </div>${gaGrafico(d.dias)}`;
+ </div>${gaGrafico(gaPeriodo(d.dias,n))}`;
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('[data-ga]');if(!b)return;e.stopImmediatePropagation();

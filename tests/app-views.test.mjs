@@ -320,3 +320,12 @@ test('Equipamentos tab: every installed unit from every job, warranty status, se
  run("V.eqq='';V.eqf='remoto'");h=run('vEquipamentos()');assert.match(h,/AlphaESS/);assert.doesNotMatch(h,/Ekallor/);
  assert.match(html,/\['equip','<span class="nl-l">Equipamentos<\/span>/);
 });
+test('AlphaESS panel: energy of the day with chart, and charge/discharge schedule forms after the system is linked',()=>{
+ const {run}=app(state);
+ run(`S.obras[0].eqs=[{id:'a1',tipo:'Inversor',marca:'AlphaESS',sn:'AL1',app:'AlphaCloud',remoto:true,alphaOk:true}]`);
+ run(`EQ_LIVE.a1={dia:{dia:'2026-11-24',energia:{epv:21.4,eInput:3.1},potencia:[{uploadTime:'2026-11-24 12:00:00',ppv:3000,load:900,cbat:70}]},cfg:{carga:{gridCharge:1,timeChaf1:'02:00',timeChae1:'05:30',timeChaf2:'00:00',timeChae2:'00:00',batHighCap:90},descarga:{ctrDis:0,timeDisf1:'00:00',timeDise1:'00:00',timeDisf2:'00:00',timeDise2:'00:00',batUseCap:10}}}`);
+ const h=run('eqRemoto(S.obras[0].eqs[0],0)');
+ assert.match(h,/Produção solar/);assert.match(h,/21,4 kWh/);assert.match(h,/<polyline points=/);
+ assert.match(h,/data-acfg="timeChaf1" data-t="carga" data-i="0" value="02:00"/);assert.match(h,/data-acfg="gridCharge" data-t="carga" data-i="0" checked/);
+ assert.match(h,/data-acfg="batUseCap" data-t="descarga" data-i="0" value="10"/);assert.match(h,/uma vez a cada 24 horas/);
+});

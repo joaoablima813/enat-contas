@@ -63,6 +63,50 @@ async function dkAcao(a,b,e,i,L){
  e.notas=(e.notas?e.notas+'\n':'')+new Date().toLocaleString('pt-PT')+' · remoto Daikin: '+label;save();
  L.msg='Enviado. A ler o estado de novo…';await new Promise(r=>setTimeout(r,3000));L.data=await eqApi('remoto/daikin/estado?ref='+encodeURIComponent(ref));L.msg='Alteração enviada e registada nas notas.';
 }
+// ---- AlphaESS: energia do dia e horários de carga/descarga da bateria (o que a ligação oficial da AlphaESS permite) ----
+const ALPHA_E={epv:'Produção solar',eInput:'Comprado à rede',eOutput:'Vendido à rede',eCharge:'Carregado na bateria',eDischarge:'Descarregado da bateria',eGridCharge:'Bateria carregada pela rede',eChargingPile:'Carregador de carros'};
+const kwh=v=>(Math.round(Number(v||0)*10)/10).toLocaleString('pt-PT')+' kWh';
+function alphaGrafico(p){
+ if(!p?.length)return '';
+ const W=288,H=90,mx=Math.max(1,...p.map(x=>Math.max(+x.ppv||0,+x.load||0)));
+ const t=x=>{const m=String(x.uploadTime||'').match(/(\d{2}):(\d{2})/);return m?(+m[1]*60+ +m[2])/1440*W:0};
+ const line=k=>p.map(x=>`${t(x).toFixed(1)},${(H-(+x[k]||0)/mx*H).toFixed(1)}`).join(' ');
+ const soc=p.map(x=>`${t(x).toFixed(1)},${(H-(+x.cbat||0)/100*H).toFixed(1)}`).join(' ');
+ return `<div class="al-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Produção, consumo e bateria ao longo do dia"><polyline points="${line('ppv')}" class="al-pv"/><polyline points="${line('load')}" class="al-load"/><polyline points="${soc}" class="al-soc"/></svg>
+ <div class="legend"><span><b style="background:#f39200"></b>Produção</span><span><b style="background:#48524d"></b>Consumo</span><span><b style="background:#2f9e44"></b>Bateria (%)</span></div><div class="cols-l al-h"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span></div></div>`;
+}
+function alphaExtra(e,i,L){
+ let h=`<div class="eq-row al-bt"><button type="button" class="btn alt" data-eqr="alpha-dia" data-i="${i}" ${L.loading?'disabled':''}>Energia de hoje</button><button type="button" class="btn alt" data-eqr="alpha-cfg" data-i="${i}" ${L.loading?'disabled':''}>Carga e descarga da bateria</button></div>`;
+ if(L.dia){const en=L.dia.energia||{};
+  h+=`<div class="eq-live"><b>Energia de ${esc(eqDia(L.dia.dia))}</b><div class="eq-kv">${Object.entries(ALPHA_E).filter(([k])=>en[k]!=null&&(k!=='eChargingPile'||+en[k])).map(([k,l])=>`<div><span>${l}</span><b>${kwh(en[k])}</b></div>`).join('')||'<div><span>Sem dados deste dia</span><b>—</b></div>'}</div>${alphaGrafico(L.dia.potencia)}</div>`}
+ if(L.cfg){
+  const form=(t,titulo,expl,c,on,cap,capL,k)=>{const v=L.cfg[t]||{};return `<div class="al-cfg"><b>${titulo}</b><p class="note">${expl}</p>
+   <label class="row kv eq-chk"><input type="checkbox" data-acfg="${on}" data-t="${t}" data-i="${i}" ${+v[on]===1?'checked':''}><div class="rt"><b>Ligado</b></div></label>
+   <div class="eq-g2">${[[k[0],k[1],'Período 1'],[k[2],k[3],'Período 2']].map(([a,b,l])=>`<label class="q-field"><span>${l}</span><span class="al-per"><input type="time" step="900" data-acfg="${a}" data-t="${t}" data-i="${i}" value="${esc(v[a]||'00:00')}"> até <input type="time" step="900" data-acfg="${b}" data-t="${t}" data-i="${i}" value="${esc(v[b]||'00:00')}"></span></label>`).join('')}</div>
+   <label class="q-field"><span>${capL}</span><input type="number" min="0" max="100" step="1" data-acfg="${cap}" data-t="${t}" data-i="${i}" value="${esc(String(Math.round(+v[cap]||0)))}"></label>
+   <button type="button" class="btn" data-eqr="alpha-cfg-save" data-t="${t}" data-i="${i}" ${L.loading?'disabled':''}>Guardar ${t==='carga'?'carregamento':'descarga'}</button></div>`};
+  h+=`<div class="eq-live">${form('carga','Carregar a bateria pela rede','Útil para carregar de noite, com a eletricidade mais barata. Fora destes horários a bateria só carrega com o sol.','carga','gridCharge','batHighCap','Carregar até (% da bateria)',['timeChaf1','timeChae1','timeChaf2','timeChae2'])}
+  ${form('descarga','Descarga da bateria','Nos horários indicados a bateria alimenta a casa até ao mínimo escolhido.','descarga','ctrDis','batUseCap','Deixar sempre na bateria (%)',['timeDisf1','timeDise1','timeDisf2','timeDise2'])}
+  <p class="note">Horas de 15 em 15 minutos. Para não usar um período, deixe 00:00 até 00:00. A AlphaESS só deixa alterar cada um destes horários uma vez a cada 24 horas.</p></div>`;
+ }
+ return h;
+}
+// Lê os valores do formulário antes de a página ser redesenhada.
+function alphaCfgLer(i,t){const o={};document.querySelectorAll(`[data-acfg][data-t="${t}"][data-i="${i}"]`).forEach(n=>{o[n.dataset.acfg]=n.type==='checkbox'?(n.checked?1:0):n.value});return o}
+async function alphaAcao(a,b,e,i,L,cfgLido){
+ if(a==='alpha-dia'){if(!e.sn)throw new Error('Preencha o número de série.');L.dia=await eqApi('remoto/alpha/dia?sn='+encodeURIComponent(e.sn));return true}
+ if(a==='alpha-cfg'){if(!e.sn)throw new Error('Preencha o número de série.');L.cfg=await eqApi('remoto/alpha/config?sn='+encodeURIComponent(e.sn));return true}
+ if(a==='alpha-cfg-save'){
+  const t=b.dataset.t,v={...cfgLido};
+  const resumo=t==='carga'?`Carregar pela rede: ${v.gridCharge?'ligado':'desligado'}, ${v.timeChaf1}–${v.timeChae1} e ${v.timeChaf2}–${v.timeChae2}, até ${v.batHighCap}%`:`Descarga: ${v.ctrDis?'ligada':'desligada'}, ${v.timeDisf1}–${v.timeDise1} e ${v.timeDisf2}–${v.timeDise2}, mínimo ${v.batUseCap}%`;
+  if(!confirm('Enviar ao sistema AlphaESS?\n'+resumo+'\n\nSó pode voltar a alterar daqui a 24 horas.'))return true;
+  const r=await eqApi('remoto/alpha/config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,tipo:t,...v})});
+  if(r.lido&&L.cfg)L.cfg[t]=r.lido;
+  e.notas=(e.notas?e.notas+'\n':'')+new Date().toLocaleString('pt-PT')+' · remoto AlphaESS: '+resumo;save();
+  L.msg='Alteração enviada e registada nas notas.';return true;
+ }
+ return false;
+}
 async function eqApi(path,opts){const r=await API(path,opts);const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Não foi possível ligar ao equipamento.');return j}
 function eqRemoto(e,i){
  if(!EQ_LIGAVEL.has(e.app))return '';
@@ -79,6 +123,7 @@ function eqRemoto(e,i){
    ${d.sistema?`<p class="note">Estado do sistema: <b>${esc(String(d.sistema.emsStatus||'—'))}</b></p>`:''}
    <details class="eq-raw"><summary>Todos os dados</summary>${Object.entries({...(d.sistema||{}),...u}).map(([k,v])=>`<div><span>${esc(eqNome(k))}</span><b>${esc(typeof v==='object'?JSON.stringify(v):String(v))}</b></div>`).join('')}</details>
    <p class="note">Lido às ${new Date(d.at).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}.</p></div>`}
+  if(ok||d)body+=alphaExtra(e,i,L);
  } else {
   if(!e.tuyaId){
    const list=EQ_TUYA;
@@ -106,6 +151,7 @@ function eqRemoto(e,i){
 async function eqRemotoAcao(b){
  const o=eqObra(),i=+b.dataset.i,e=o?.eqs?.[i];if(!e)return;const a=b.dataset.eqr,L=EQ_LIVE[e.id]=EQ_LIVE[e.id]||{};
  L.err='';L.msg='';
+ const cfgLido=a==='alpha-cfg-save'?alphaCfgLer(i,b.dataset.t):null;
  if(a==='alpha-bind')L.code=(document.querySelector(`[data-alpha-code="${i}"]`)?.value||'').trim();
  if(a==='tuya-pick'){e.tuyaId=b.dataset.id;e.tuyaNome=b.dataset.nome;EQ_TUYA=null;save();render();return}
  if(a==='tuya-unpick'){e.tuyaId='';e.tuyaNome='';L.data=null;save();render();return}
@@ -113,6 +159,7 @@ async function eqRemotoAcao(b){
  L.loading=true;render();
  try{
   if(a.startsWith('dk'))await dkAcao(a,b,e,i,L);
+  else if(await alphaAcao(a,b,e,i,L,cfgLido)){}
   else   if(a==='alpha-code'){if(!e.sn||!e.check)throw new Error('Preencha o número de série e o CheckCode.');await eqApi('remoto/alpha/codigo',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,check:e.check})});L.codeSent=true;L.msg='Código pedido. Veja o email da conta AlphaCloud do sistema.'}
   else if(a==='alpha-bind'){const code=L.code;if(!code)throw new Error('Escreva o código que chegou por email.');await eqApi('remoto/alpha/associar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,code})});e.alphaOk=true;L.codeSent=false;save();L.msg='Sistema associado à ENAT.'}
   else if(a==='alpha'){if(!e.sn)throw new Error('Preencha o número de série.');L.data=await eqApi('remoto/alpha/estado?sn='+encodeURIComponent(e.sn));if(!e.alphaOk){e.alphaOk=true;save()}}

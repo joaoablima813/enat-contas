@@ -106,3 +106,47 @@ a{color:var(--blue)}
 .mat-st button{margin:0}.mat-acts .btn{font-size:14px;padding:10px 12px;min-height:0;text-decoration:none;line-height:1.25}.mat-acts .note{width:100%;margin:0}
 .mat-st .link{display:inline-block;margin:0;padding:4px 2px}
 .eq-code{width:100%;font:inherit;font-size:18px;letter-spacing:.1em;text-align:center;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);margin:4px 0 8px}
+
+/* Logótipo = botão para o Início */
+.logo-btn{background:none;border:0;padding:0;cursor:pointer;border-radius:12px;display:block}.logo-btn:hover img{box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 25%,transparent)}
+.nav-logo{display:none}
+/* Painel do Início */
+.dash{margin:0 0 6px}
+.dash-ks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dash-k{border:0;text-align:left;background:var(--card);border-radius:18px;padding:13px 14px;box-shadow:var(--sh1);cursor:pointer;color:var(--ink);display:flex;flex-direction:column;gap:3px;min-width:0;border-top:3px solid transparent;font:inherit}
+.dash-k>span{font-size:12.5px;color:var(--mute);font-weight:600}.dash-k b{font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-k small{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-k small span{font-weight:600}
+.dash-k.pos{border-top-color:var(--green)}.dash-k.neg{border-top-color:var(--red)}.dash-k.warn{border-top-color:#e8890c}.dash-k.warn b{color:#c46f00}.dash-k.hot{border-top-color:#8b5cf6}
+.dash-k:hover{transform:translateY(-1px);box-shadow:0 8px 22px -12px rgba(0,0,0,.35)}
+.dash-g{display:grid;gap:10px;margin-top:10px}
+.dash-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0 2px 10px}.dash-h .legend{margin:0}
+.dash-f{display:grid;grid-template-columns:128px 1fr 30px;align-items:center;gap:10px;width:100%;border:0;background:none;padding:5px 2px;cursor:pointer;font:inherit;color:var(--ink);text-align:left}
+.dash-f span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-f i{height:10px;border-radius:6px;background:var(--chip);overflow:hidden}.dash-f em{display:block;height:100%;border-radius:6px;background:var(--lc,var(--green))}.dash-f b{text-align:right;font-variant-numeric:tabular-nums}
+
+/* ===== Aspeto do site (enat-pontedelima.pt) ===== */
+:root{--paper:#f7f8f4;--band:linear-gradient(160deg,#226c2e 0%,#1b5826 45%,#0f3416 100%);--lines:linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px)}
+:root:not([data-theme="dark"]){--bg:var(--paper)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a0f0b}}
+/* Barra de cima verde, com a grelha fina e o logótipo branco do site */
+.top{max-width:none;margin:0;padding:10px max(16px,calc(50% - 244px));background:var(--lines),var(--band);background-size:48px 48px,48px 48px,auto;box-shadow:0 10px 30px -18px rgba(13,42,19,.8)}
+.top img{background:none;padding:0;border-radius:0;height:36px;content:url(/logo-claro.svg)}
+.top .bell{background:rgba(255,255,255,.12);color:#fff}
+.top .sync{background:rgba(255,255,255,.12);color:rgba(255,255,255,.9)}
+/* Títulos como no site: Lexend fino */
+h1{font-weight:300;letter-spacing:-.025em}
+h1 strong,h1 b{font-weight:700}
+h2{font-weight:500;letter-spacing:-.01em}
+/* Cartão principal com a grelha do site */
+.hero{background:var(--lines),radial-gradient(90% 70% at 100% 0%,rgba(243,146,0,.38),transparent 60%),radial-gradient(120% 90% at 0% 100%,rgba(98,167,49,.35),transparent 60%),linear-gradient(160deg,var(--hero1),var(--hero2));background-size:44px 44px,44px 44px,auto,auto,auto}
+/* Filtros em cápsula com contorno, como no site */
+.chips button{background:var(--card);border:1.5px solid var(--line);border-radius:999px;color:var(--ink);transition:border-color .2s,background .2s,transform .2s}
+.chips button:hover{border-color:#62a731}
+.chips button.on{background:var(--g7);border-color:var(--g7);color:#fff}
+/* Botões: sobem um pouco ao passar o rato (computador) */
+@media (hover:hover){.btn:hover{transform:translateY(-2px);box-shadow:0 12px 26px -10px rgba(13,42,19,.5)}.dash-k:hover,.grp .row:hover{transition:background .15s}}
+
+/* Separador Equipamentos */
+nav div{grid-template-columns:repeat(9,minmax(0,1fr))}
+.nl-l{display:none}
+.eq-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.eq-kpis .kpi{border:0;text-align:left;cursor:pointer;font:inherit;color:var(--ink);box-shadow:var(--sh1)}
+.eq-b{font-size:11px;padding:2px 8px;margin-bottom:3px}.eq-b.ok{--lc:var(--green)}.eq-b.acabar{--lc:#e8890c}.eq-b.fora{--lc:var(--red)}
+#eqlist .rr{max-width:42%}#eqlist .rr span{font-size:12px;white-space:normal}#eqlist .rt b{white-space:normal;overflow-wrap:anywhere;line-height:1.25}#eqlist .rt span{white-space:normal}

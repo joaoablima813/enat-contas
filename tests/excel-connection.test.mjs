@@ -35,8 +35,10 @@ test('workbook has a modern interactive dashboard: header with sheet buttons, ca
  for(const t of ['ENAT_Obras','ENAT_Faturas','ENAT_Materiais'])assert.match(script,new RegExp(`PivotCaches.Create\\(1, "${t}", 6\\)`));
  // Chart pivots share the main pivot's cache, so one slicer filters table, cards and charts together.
  assert.equal((script.match(/Set pc = pt.PivotCache/g)||[]).length,6);
- assert.equal((script.match(/sc.PivotTables.AddPivotTable pt3/g)||[]).length,7);
- for(const f of ['Estado','Cliente','Obra','Loja / fornecedor','Ano','Mês','Categoria'])assert.match(script,new RegExp(`SlicerCaches.Add2\\(pt, "${f}"\\)`));
+ assert.equal((script.match(/Filtro Array\(pt, pt2, pt3/g)||[]).length,7);assert.ok(script.includes('Sub Ligar(sc, p)'));
+ for(const f of ['Estado','Cliente','Obra','Loja / fornecedor','Ano','Mês','Categoria'])assert.ok(script.includes(`, "${f}", "`),f);
+ // Excel sometimes ignores the first requests right after building the pivots: the filter step retries and never stops the installer.
+ assert.ok(script.includes('Sub Filtro(pts, field, cap, w, cols)'));assert.ok(script.includes('If wb.SlicerCaches.Count = n Then Set c = wb.SlicerCaches.Add2(p0, field)'));assert.ok(script.includes('WScript.Sleep 500'));
  // Theme in ENAT colours and Segoe UI; built-in styles follow the theme.
  assert.match(script,/ThemeColorScheme.Colors\(5\).RGB = RGB\(31,122,58\)/);assert.match(script,/MinorFont.Item\(1\).Name = "Segoe UI"/);
  assert.match(script,/styleSl = "SlicerStyleDark1"/);assert.ok(!script.includes('TableElements'),'VBScript cannot edit style elements');

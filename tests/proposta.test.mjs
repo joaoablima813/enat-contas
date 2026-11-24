@@ -38,7 +38,9 @@ function server(){
  const call=(token,method='GET',body,agent=ua)=>{c.req={method,url:'https://enat.example/proposta/'+token,headers:new Headers({'user-agent':agent}),text:async()=>JSON.stringify(body)};c.token=token;return vm.runInContext('handleProposta(req,token,store)',c)};
  // Sends a quote the way the app does: the PDF is stored and the link points to the quote page.
  const send=async(id,group)=>{w.req={method:'POST',url:'https://enat.example/api/whatsapp/pdf',json:async()=>({id,group,channel:'whatsapp',pdf:Buffer.from('%PDF-1.4').toString('base64')})};const r=await vm.runInContext('handleWhatsapp(req,"whatsapp/pdf",store)',w);return (await r.json()).url.split('/').pop()};
- return {c,q,f,store,call,send};
+ // «Mostrar na página do cliente»: the same request with channel «pagina»; returns the raw response.
+ const show=async(id)=>{w.req={method:'POST',url:'https://enat.example/api/whatsapp/pdf',json:async()=>({id,channel:'pagina',pdf:Buffer.from('%PDF-1.4').toString('base64')})};return vm.runInContext('handleWhatsapp(req,"whatsapp/pdf",store)',w)};
+ return {c,q,f,store,call,send,show};
 }
 let n=0;
 
@@ -159,3 +161,9 @@ test('finished jobs near the client appear before the price, without client name
  assert.match(html,new RegExp('/proposta/'+token+'/img/abcdefgh1'));assert.doesNotMatch(html,/Obra secreta|abcdefgh2/);
  assert.ok(html.indexOf('perto de si')<html.indexOf('O seu investimento'));
 });
+
+test('showing a quote on the client page: a quote that is not linked to a client is refused',async()=>{
+ const s=server();s.f.tables.quotes.push({id:7,document:{...sample,lead:undefined}});
+ const r1=await s.show(7);assert.equal(r1.status,400,'a quote without a client cannot be shown');
+});
+

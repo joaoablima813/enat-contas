@@ -86,7 +86,7 @@ export function installer(origin) {
   ...rows.filter(([f,cap])=>f!==cap).map(([f,cap])=>`${v}.PivotFields(${quote(f)}).Caption = ${quote(cap)}`),
  ];
  // Filtro com botões, ligado a uma ou mais tabelas dinâmicas; ficam lado a lado (x acumulado).
- const slicer=(pts,field,cap,w,cols)=>[`Set sc = wb.SlicerCaches.Add2(${pts[0]}, ${quote(field)})`,...pts.slice(1).map(p=>`sc.PivotTables.AddPivotTable ${p}`),'sc.CrossFilterType = 2',
+ const slicer=(pts,field,cap,w,cols)=>[`Set sc = wb.SlicerCaches.Add2(${pts[0]}, ${quote(field)})`,...pts.slice(1).map(p=>`Ligar sc, ${p}`),'sc.CrossFilterType = 2',
   `Set sl = sc.Slicers.Add(ws, , , ${quote(cap)}, y, x, ${w}, 150)`,'sl.Style = styleSl',`sl.NumberOfColumns = ${cols||1}`,'sl.RowHeight = 22',`x = x + ${w} + 10`];
  // Gráfico a partir de uma tabela dinâmica, com as cores dadas para cada série.
  const chart=(v,left,top,w,h,ttl,type,colors,labels='last')=>[`Set sh = ws.Shapes.AddChart2(-1, ${type}, ${left}, ${top}, ${w}, ${h})`,'Set ch = sh.Chart',`ch.SetSourceData ${v}.TableRange1`,`StyleChart ch, ${quote(ttl)}`,
@@ -209,6 +209,8 @@ export function installer(origin) {
   '  Set t = ws.Shapes.AddTextbox(1, cx + 14, cy + 58, w - 18, 18)','  Plain t','  t.DrawingObject.Formula = "=" & cellSmall','  t.TextFrame2.TextRange.Font.Size = 10',`  t.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = ${C.mute}`,
   ' End If',
   'End Sub',
+  // Liga um filtro a outra tabela dinâmica; se o Excel ainda estiver ocupado com as tabelas novas, tenta de novo.
+  'Sub Ligar(sc, p)',' Dim k',' On Error Resume Next',' For k = 1 To 20','  Err.Clear','  sc.PivotTables.AddPivotTable p','  If Err.Number = 0 Then Exit Sub','  WScript.Sleep 500',' Next',' On Error GoTo 0','End Sub',
   'Sub Plain(t)',' t.Fill.Visible = False',' t.Line.Visible = False',' t.TextFrame2.MarginLeft = 0',' t.TextFrame2.MarginRight = 0',' t.TextFrame2.MarginTop = 0',' t.TextFrame2.MarginBottom = 0',' t.TextFrame2.WordWrap = False',' t.TextFrame2.TextRange.Font.Name = "Segoe UI"','End Sub',
   // Gráfico limpo: título forte, sem grelha nem eixo de valores (os valores estão nas barras).
   'Sub StyleChart(ch, title)',

@@ -35,7 +35,7 @@ test('workbook has a modern interactive dashboard: header with sheet buttons, ca
  for(const t of ['ENAT_Obras','ENAT_Faturas','ENAT_Materiais'])assert.match(script,new RegExp(`PivotCaches.Create\\(1, "${t}", 6\\)`));
  // Chart pivots share the main pivot's cache, so one slicer filters table, cards and charts together.
  assert.equal((script.match(/Set pc = pt.PivotCache/g)||[]).length,6);
- assert.equal((script.match(/sc.PivotTables.AddPivotTable pt3/g)||[]).length,7);
+ assert.equal((script.match(/Ligar sc, pt3/g)||[]).length,7);assert.ok(script.includes('Sub Ligar(sc, p)'));
  for(const f of ['Estado','Cliente','Obra','Loja / fornecedor','Ano','Mês','Categoria'])assert.match(script,new RegExp(`SlicerCaches.Add2\\(pt, "${f}"\\)`));
  // Theme in ENAT colours and Segoe UI; built-in styles follow the theme.
  assert.match(script,/ThemeColorScheme.Colors\(5\).RGB = RGB\(31,122,58\)/);assert.match(script,/MinorFont.Item\(1\).Name = "Segoe UI"/);

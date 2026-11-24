@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','material.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -284,4 +284,21 @@ test('installed equipment per job: serial number, warranty, brand app, remote ac
  assert.match(html,/Equipamentos \(1\)/);assert.match(html,/Bomba de calor AQS · Energie Aquapura 200/);assert.match(html,/SN ENG123XY/);assert.match(html,/Garantia até/);assert.match(html,/Acesso remoto/);
  assert.match(html,/abra a app <b>Smart Life<\/b>/);
  const r=run("EnatGestao.search(S,[],'eng123xy')");assert.equal(r.obras.length,1,'found by serial number');
+});
+test('material per job: list from the accepted quote grouped by supplier, order message, and what has arrived',()=>{
+ const {run}=app(state);
+ run(`S.obras[0].material=matFromQuote({lines:[
+  {kind:'Equipamento',description:'Bomba de calor 200 L',quantity:1,unit:'un.',value:900,catalog:{brand:'Energie',ref:'AQ200'}},
+  {kind:'Material',description:'Tubo multicamada 20x2',quantity:8,unit:'m',value:2,catalog:{brand:'Sanitop',ref:'MC20'}},
+  {kind:'Material',description:'Válvula misturadora',quantity:1,unit:'un.',value:40,catalog:{brand:'S. Energias',src:'Sanitop'}},
+  {kind:'Mão de obra',description:'Montagem',quantity:1,value:300}]})`);
+ assert.equal(run('S.obras[0].material.length'),3,'labour is not material');
+ run("V.obra='o1';V.seg='material'");let h=run('vObra()');
+ assert.match(h,/Material \(0\/3\)/);assert.match(h,/<b>Sanitop<\/b><span>0 de 2 chegaram/);assert.match(h,/<b>Energie<\/b>/);
+ assert.match(h,/wa\.me\/\?text=[^"]*Tubo%20multicamada%2020x2%20\(ref\.%20MC20\)/);assert.match(h,/Marcar 2 como encomendados/);
+ run("S.obras[0].material[1].estado='chegou'");h=run('vObra()');assert.match(h,/1 de 2 chegaram/);assert.match(h,/Material \(1\/3\)/);
+ run("V.obra=null;V.tab='enc'");const g=run('vMaterial()');assert.match(g,/2 por encomendar/);assert.match(g,/Moradia T3/);assert.doesNotMatch(g,/Tubo multicamada/,'arrived items hidden by default');
+ assert.match(run('vHome()'),/data-id="enc"/);
+ // A marca já usada com um fornecedor é lembrada para a próxima lista.
+ run("S.obras[0].material[0].forn='Climafrio'");assert.equal(run("matFromQuote({lines:[{kind:'Equipamento',description:'Outra',catalog:{brand:'Energie'}}]})[0].forn"),'Climafrio');
 });

@@ -5,6 +5,7 @@
 //   clientes ligadas ao projeto da ENAT. Chaves: TUYA_ACCESS_ID, TUYA_ACCESS_SECRET e TUYA_ENDPOINT (por omissão Europa Central).
 // As chaves ficam só no servidor (variáveis secretas do Netlify); a app nunca as vê.
 import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { request } from 'node:https';
 
 const json = (status, body) => Response.json(body, { status });
 const SN = /^[A-Za-z0-9_-]{4,40}$/, TID = /^[A-Za-z0-9]{6,40}$/, CODE = /^[A-Za-z0-9_]{1,40}$/;
@@ -17,10 +18,15 @@ export function alphaHeaders(appId, secret, now = Date.now()) {
   const sign = createHash('sha512').update(appId + secret + timestamp).digest('hex');
   return { 'content-type': 'application/json', appId, timestamp, timeStamp: timestamp, sign };
 }
-async function alpha(path, { method = 'GET', body, fetcher = fetch } = {}) {
+// A AlphaESS exige um corpo JSON também nos pedidos GET (o fetch não o permite), por isso usa-se https diretamente.
+const httpsJson = (url, { method, headers, body }) => new Promise((ok, ko) => {
+  const b = body ?? '{}', r = request(url, { method, headers: { ...headers, 'content-length': Buffer.byteLength(b) }, timeout: 15000 }, (res) => { let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => ok({ json: async () => JSON.parse(d || '{}') })); });
+  r.on('timeout', () => r.destroy(new Error('A AlphaESS não respondeu a tempo.'))); r.on('error', ko); r.end(b);
+});
+async function alpha(path, { method = 'GET', body, fetcher = httpsJson } = {}) {
   const id = process.env.ALPHAESS_APP_ID, secret = process.env.ALPHAESS_APP_SECRET;
   if (!id || !secret) throw Object.assign(new Error('A ligação à AlphaESS ainda não está configurada.'), { status: 503 });
-  const r = await fetcher(ALPHA + path, { method, headers: alphaHeaders(id, secret), body: method === 'GET' ? undefined : JSON.stringify(body || {}) });
+  const r = await fetcher(ALPHA + path, { method, headers: alphaHeaders(id, secret), body: JSON.stringify(body || {}) });
   const j = await r.json().catch(() => ({}));
   if (j.code === 200 || j.msg === 'Success' || j.info === 'Success') return j.data ?? null;
   throw Object.assign(new Error(ALPHA_ERR[j.code] || j.msg || 'A AlphaESS não respondeu.'), { status: 502, code: j.code });

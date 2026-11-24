@@ -105,3 +105,4 @@ a{color:var(--blue)}
 .mat-it{align-items:flex-start}.mat-chk{padding-top:2px}.mat-st{display:flex;align-items:center;gap:12px;margin-top:6px}
 .mat-st button{margin:0}.mat-acts .btn{font-size:14px;padding:10px 12px;min-height:0;text-decoration:none;line-height:1.25}.mat-acts .note{width:100%;margin:0}
 .mat-st .link{display:inline-block;margin:0;padding:4px 2px}
+.eq-code{width:100%;font:inherit;font-size:18px;letter-spacing:.1em;text-align:center;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);margin:4px 0 8px}

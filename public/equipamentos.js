@@ -72,7 +72,7 @@ function eqRemoto(e,i){
  if(e.app==='Daikin Onecta')body=dkRemoto(e,i,L);
  else if(e.app==='AlphaCloud'){
   const ok=e.alphaOk;
-  body=(ok?'':`<p class="note">Primeiro associe este sistema à conta da ENAT. Precisa do número de série e do <b>CheckCode</b>: está na etiqueta do inversor (ou da bateria), junto ao S/N, com o nome «Check Code», e também na etiqueta da caixa. Escreva-o tal e qual, no campo acima.</p><button type="button" class="btn alt" data-eqr="alpha-bind" data-i="${i}" ${L.loading?'disabled':''}>Associar à ENAT</button>`)+
+  body=(ok?'':`<p class="note">Primeiro associe este sistema à conta da ENAT. Precisa do número de série e do <b>CheckCode</b>: está na etiqueta do inversor (ou da bateria), junto ao S/N, com o nome «Check Code», e também na etiqueta da caixa. Escreva-o tal e qual, no campo acima.</p><button type="button" class="btn alt" data-eqr="alpha-code" data-i="${i}" ${L.loading?'disabled':''}>${L.codeSent?'Pedir outro código':'1. Pedir código de verificação'}</button>${L.codeSent?`<p class="note">A AlphaESS enviou um código para o email da conta AlphaCloud onde o sistema está registado (veja também o spam). Escreva-o aqui:</p><input class="eq-code" data-alpha-code="${i}" inputmode="numeric" autocomplete="one-time-code" maxlength="20" placeholder="Código do email" value="${esc(L.code||'')}"><button type="button" class="btn" data-eqr="alpha-bind" data-i="${i}" ${L.loading?'disabled':''}>2. Associar à ENAT</button>`:''}`)+
    `<button type="button" class="btn alt" data-eqr="alpha" data-i="${i}" ${L.loading?'disabled':''}>${L.loading?'A ler…':'Ver estado agora'}</button>`;
   if(d){const u=d.ultimo||{},main=['ppv','pload','soc','pbat','pgrid'].filter(k=>u[k]!=null);
    body+=`<div class="eq-live"><div class="eq-kv">${main.map(k=>`<div><span>${esc(eqNome(k))}</span><b>${esc(String(u[k]))}</b></div>`).join('')||'<div><span>Sem dados recentes</span><b>—</b></div>'}</div>
@@ -106,13 +106,15 @@ function eqRemoto(e,i){
 async function eqRemotoAcao(b){
  const o=eqObra(),i=+b.dataset.i,e=o?.eqs?.[i];if(!e)return;const a=b.dataset.eqr,L=EQ_LIVE[e.id]=EQ_LIVE[e.id]||{};
  L.err='';L.msg='';
+ if(a==='alpha-bind')L.code=(document.querySelector(`[data-alpha-code="${i}"]`)?.value||'').trim();
  if(a==='tuya-pick'){e.tuyaId=b.dataset.id;e.tuyaNome=b.dataset.nome;EQ_TUYA=null;save();render();return}
  if(a==='tuya-unpick'){e.tuyaId='';e.tuyaNome='';L.data=null;save();render();return}
  if(a==='dk-copy'){navigator.clipboard?.writeText(L.link?.url||'').then(()=>{L.msg='Link copiado.';render()},()=>{});return}
  L.loading=true;render();
  try{
   if(a.startsWith('dk'))await dkAcao(a,b,e,i,L);
-  else   if(a==='alpha-bind'){if(!e.sn||!e.check)throw new Error('Preencha o número de série e o código de verificação (CheckCode).');await eqApi('remoto/alpha/associar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,check:e.check})});e.alphaOk=true;save();L.msg='Sistema associado à ENAT.'}
+  else   if(a==='alpha-code'){if(!e.sn||!e.check)throw new Error('Preencha o número de série e o CheckCode.');await eqApi('remoto/alpha/codigo',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,check:e.check})});L.codeSent=true;L.msg='Código pedido. Veja o email da conta AlphaCloud do sistema.'}
+  else if(a==='alpha-bind'){const code=L.code;if(!code)throw new Error('Escreva o código que chegou por email.');await eqApi('remoto/alpha/associar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,code})});e.alphaOk=true;L.codeSent=false;save();L.msg='Sistema associado à ENAT.'}
   else if(a==='alpha'){if(!e.sn)throw new Error('Preencha o número de série.');L.data=await eqApi('remoto/alpha/estado?sn='+encodeURIComponent(e.sn));if(!e.alphaOk){e.alphaOk=true;save()}}
   else if(a==='tuya-list'){EQ_TUYA=(await eqApi('remoto/tuya/dispositivos')).dispositivos||[]}
   else if(a==='tuya')L.data=await eqApi('remoto/tuya/estado?id='+encodeURIComponent(e.tuyaId));

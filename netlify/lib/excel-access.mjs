@@ -5,8 +5,12 @@ import { excelData } from './excel-data.mjs';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const headers = { 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8' };
 export async function handleExcel(req, path, store, authorized) {
-  const db = getDatabase();
   try {
+    if (!['excel/acesso', 'excel/dados'].includes(path) || (path === 'excel/dados' && req.method !== 'GET')) return new Response(null, { status: 405, headers });
+    const credential = path === 'excel/dados' ? readBasic(req.headers.get('authorization')) : null;
+    if (path === 'excel/dados' && !credential) return new Response(null, { status: 401, headers: { ...headers, 'WWW-Authenticate': 'Basic realm="ENAT Excel", charset="UTF-8"' } });
+    if (path === 'excel/acesso' && !authorized) return new Response(null, { status: 401, headers });
+    const db = getDatabase();
     if (path === 'excel/acesso') {
       if (!authorized) return new Response(null, { status: 401, headers });
       if (req.method === 'POST') {
@@ -24,8 +28,7 @@ export async function handleExcel(req, path, store, authorized) {
       }
     }
     if (path === 'excel/dados' && req.method === 'GET') {
-      const credential = readBasic(req.headers.get('authorization'));
-      const rows = credential ? await db.sql`SELECT id FROM excel_access WHERE id = 1 AND password_hash = ${hash(credential)}` : [];
+      const rows = await db.sql`SELECT id FROM excel_access WHERE id = 1 AND password_hash = ${hash(credential)}`;
       if (!rows.length) return new Response(null, { status: 401, headers: { ...headers, 'WWW-Authenticate': 'Basic realm="ENAT Excel", charset="UTF-8"' } });
       const state = await store.get('estado', { type: 'json' });
       if (!state) return Response.json({ error: 'Ainda não existem dados sincronizados na app.' }, { status: 409, headers });

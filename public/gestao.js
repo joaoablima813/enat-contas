@@ -70,7 +70,7 @@
   const w=norm(q).split(' ').filter(Boolean);if(!w.length)return null;
   const hit=(...f)=>{const h=norm(f.join(' '));return w.every(x=>h.includes(x))},name=id=>(S.obras.find(o=>o.id===id)||{}).name||'';
   return{
-   obras:S.obras.filter(o=>hit(o.name,o.client,o.phone,o.nif,o.email,o.address)),
+   obras:S.obras.filter(o=>hit(o.name,o.client,o.phone,o.nif,o.email,o.address,...(o.eqs||[]).map(e=>[e.sn,e.marca,e.modelo].join(" ")))),
    quotes:quotes.filter(r=>hit(r.document.client,r.document.contact,r.document.email,numberOf(r),(r.document.topics||[]).join(' '),r.document.brand)),
    inv:(S.inv||[]).filter(v=>hit(v.store,v.number,v.nif,name(v.obra))),
    tx:S.tx.filter(x=>hit(x.desc,x.topic,name(x.obra))),

@@ -219,6 +219,15 @@ export function autoCandidates(state, inbox, sent, now = Date.now()) {
   }
   return out;
 }
+// Aviso ao cliente: o orçamento já está na página dele (botão «Mostrar na página do cliente» da app).
+export async function avisarProposta(to, nome, numero, link, origin) {
+  if (!EMAIL.test(String(to || '').trim())) return 'sem email';
+  const first = String(nome || '').trim().split(/\s+/)[0];
+  try {
+    await sendEmail(String(to).trim(), 'O seu orçamento ' + numero + ' · Enat - Ponte de Lima', 'Olá' + (first ? ' ' + first : '') + ',\n\nO seu orçamento ' + numero + ' já está disponível na sua página da Enat. Pode ver todos os detalhes, descarregar o PDF e dar-nos a sua resposta:\n\n' + link + '\n\nQualquer dúvida, fale connosco na página ou responda a este email.\n\nJoão Lima\nEnat - Ponte de Lima', origin, 'Ver o meu orçamento');
+    return 'enviado';
+  } catch (e) { console.error('aviso orçamento', e?.message); return 'falhou'; }
+}
 async function sendEmail(to, subject, text, origin, label = 'Responder às perguntas') {
   const c = { host: process.env.SMTP_HOST || 'mail.enat.pt', port: Number(process.env.SMTP_PORT || 465), user: process.env.SMTP_USER || 'pontedelima@enat.pt', pass: process.env.SMTP_PASSWORD, from: process.env.EMAIL_FROM || 'pontedelima@enat.pt' };
   if (!c.pass) throw new Error('smtp not configured');

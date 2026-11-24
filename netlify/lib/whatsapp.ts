@@ -41,6 +41,14 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
   if (b.channel === 'whatsapp' || b.channel === 'mailto') await sent(row.id, b.channel === 'whatsapp' ? 'WhatsApp' : 'Email');
   // Endereço dos links enviados aos clientes: LINK_URL (ex.: https://propostas.enat.pt) ou, sem ele, o endereço da app.
   const base = String(process.env.LINK_URL || '').replace(/\/+$/, '') || new URL(req.url).origin;
+  // «Mostrar na página do cliente»: sem WhatsApp nem email do orçamento; o cliente recebe só um aviso por email.
+  if (b.channel === 'pagina') {
+    if (!portal) return fail(400, 'Este orçamento não está ligado a um cliente. Guarde-o a partir da ficha do cliente (lead).');
+    await sent(row.id, 'Página do cliente');
+    let aviso = 'sem email';
+    try { const { avisarProposta } = await import('./pedido.mjs'); aviso = await avisarProposta(b.email || q.email, q.client, number, base + '/pedido/' + portal, process.env.URL || new URL(req.url).origin); } catch (e: any) { console.error('aviso', e?.message); }
+    return Response.json({ url: base + '/proposta/' + token, number, pagina: base + '/pedido/' + portal, aviso });
+  }
   return Response.json({ url: base + '/proposta/' + token, number });
 }
 

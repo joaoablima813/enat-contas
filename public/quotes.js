@@ -79,7 +79,7 @@ function quoteWaPanel(key,contact,rows,email=''){
  if(quoteWa.key!==key)quoteWa={...quoteWa,key,to:quoteWaNumber(contact),auto:true,email:String(email||''),autoEmail:true,ids:rows.slice(0,1).map(r=>r.id),detailed:false,msg:'',ready:null};
  const pick=rows.length>1,chosen=pick?rows.filter(r=>quoteWa.ids.includes(r.id)):rows,ready=quoteWa.ready,share=ready?.files&&navigator.canShare?.({files:ready.files});
  const preview=chosen.length&&chosen[0].id&&String(chosen[0].document.client||'').trim()?quoteWaText(chosen.map(r=>({...r.document,id:r.id}))):'';
- return `<h2>Enviar ao cliente</h2><div class="q-card q-wa"><p class="note">WhatsApp: sai do seu WhatsApp Business, sem custos. A app prepara o PDF e a mensagem; depois basta tocar em enviar na conversa do cliente. O cliente recebe um link onde vê o orçamento e responde; aqui fica a saber quando abriu e o que escolheu. Email: ${quoteWa.mail?.configured?'enviado automaticamente de '+esc(quoteWa.mail.from)+', com o PDF em anexo.':'abre na sua app de email, já escrito, para enviar a partir de pontedelima@enat.pt.'}</p>${pick?`<p class="note">Escolha os orçamentos deste cliente a enviar.</p><div class="q-wa-list">${rows.map(r=>`<label class="q-wa-pick"><input type="checkbox" data-qw="pick" value="${r.id}" ${quoteWa.ids.includes(r.id)?'checked':''}><span><b>${quoteNumber(r.id,r.document.date)}</b><small>${esc(quoteTitle(r.document).replace('Orçamento para ',''))} · ${eur(quoteTotals(r.document).total)}</small></span></label>`).join('')}</div>`:''}<label class="q-field"><span>Número WhatsApp do cliente</span><input type="tel" data-qw="to" value="${esc(quoteWa.to)}" placeholder="351912345678" inputmode="tel" autocomplete="off" maxlength="20"></label><label class="q-field"><span>Email do cliente</span><input type="email" data-qw="email" value="${esc(quoteWa.email)}" placeholder="cliente@exemplo.pt" autocomplete="off" maxlength="320"></label><fieldset class="q-wa-kind"><legend>Versão do PDF</legend><label><input type="radio" name="qw-kind" data-qw="kind" value="summary" ${quoteWa.detailed?'':'checked'}><span>Só com totais</span></label><label><input type="radio" name="qw-kind" data-qw="kind" value="detailed" ${quoteWa.detailed?'checked':''}><span>Detalhado</span></label></fieldset>${preview&&!ready?`<details class="q-wa-preview"><summary>Ver a mensagem que o cliente recebe</summary><p>${esc(preview).replace(/\n/g,'<br>')}</p></details>`:''}${ready?`<div class="q-wa-preview"><p>${esc(ready.text).replace(/\n/g,'<br>')}</p></div><a class="btn q-wa-open" href="${esc(ready.href)}" target="_blank" rel="noopener">Abrir conversa no WhatsApp</a>${ready.mailto?`<a class="btn alt q-mail-open" href="${esc(ready.mailto)}">Abrir email para ${esc(quoteWa.email.trim())}</a>`:`<button type="button" class="btn alt" id="quote-mail-send" data-qa="mail-send" ${quoteBusy||!chosen.length?'disabled':''}>${quoteBusy&&quoteWa.msg.startsWith('A enviar email')?'A enviar email…':quoteMailLabel(chosen.length)}</button>`}${share?'<button type="button" class="btn alt" data-qa="wa-share">Partilhar o PDF como anexo</button>':''}<button type="button" class="link" data-qa="wa-reset">Alterar escolha</button>`:`<button type="button" class="btn" id="quote-wa-send" data-qa="wa-send" ${quoteBusy||!chosen.length?'disabled':''}>${quoteBusy&&quoteWa.msg.startsWith('A preparar')?'A preparar…':quoteWaLabel(chosen.length)}</button><button type="button" class="btn alt" id="quote-mail-send" data-qa="mail-send" ${quoteBusy||!chosen.length?'disabled':''}>${quoteBusy&&quoteWa.msg.startsWith('A enviar email')?'A enviar email…':quoteMailLabel(chosen.length)}</button>`}<p id="quote-wa-msg" role="status" class="note">${esc(quoteWa.msg)}</p></div>`;
+ return `<h2>Enviar ao cliente</h2><div class="q-card q-wa"><p class="note">WhatsApp: sai do seu WhatsApp Business, sem custos. A app prepara o PDF e a mensagem; depois basta tocar em enviar na conversa do cliente. O cliente recebe um link onde vê o orçamento e responde; aqui fica a saber quando abriu e o que escolheu. Email: ${quoteWa.mail?.configured?'enviado automaticamente de '+esc(quoteWa.mail.from)+', com o PDF em anexo.':'abre na sua app de email, já escrito, para enviar a partir de pontedelima@enat.pt.'}</p>${pick?`<p class="note">Escolha os orçamentos deste cliente a enviar.</p><div class="q-wa-list">${rows.map(r=>`<label class="q-wa-pick"><input type="checkbox" data-qw="pick" value="${r.id}" ${quoteWa.ids.includes(r.id)?'checked':''}><span><b>${quoteNumber(r.id,r.document.date)}</b><small>${esc(quoteTitle(r.document).replace('Orçamento para ',''))} · ${eur(quoteTotals(r.document).total)}</small></span></label>`).join('')}</div>`:''}<label class="q-field"><span>Número WhatsApp do cliente</span><input type="tel" data-qw="to" value="${esc(quoteWa.to)}" placeholder="351912345678" inputmode="tel" autocomplete="off" maxlength="20"></label><label class="q-field"><span>Email do cliente</span><input type="email" data-qw="email" value="${esc(quoteWa.email)}" placeholder="cliente@exemplo.pt" autocomplete="off" maxlength="320"></label><fieldset class="q-wa-kind"><legend>Versão do PDF</legend><label><input type="radio" name="qw-kind" data-qw="kind" value="summary" ${quoteWa.detailed?'':'checked'}><span>Só com totais</span></label><label><input type="radio" name="qw-kind" data-qw="kind" value="detailed" ${quoteWa.detailed?'checked':''}><span>Detalhado</span></label></fieldset>${preview&&!ready?`<details class="q-wa-preview"><summary>Ver a mensagem que o cliente recebe</summary><p>${esc(preview).replace(/\n/g,'<br>')}</p></details>`:''}${ready?`<div class="q-wa-preview"><p>${esc(ready.text).replace(/\n/g,'<br>')}</p></div><a class="btn q-wa-open" href="${esc(ready.href)}" target="_blank" rel="noopener">Abrir conversa no WhatsApp</a>${ready.mailto?`<a class="btn alt q-mail-open" href="${esc(ready.mailto)}">Abrir email para ${esc(quoteWa.email.trim())}</a>`:`<button type="button" class="btn alt" id="quote-mail-send" data-qa="mail-send" ${quoteBusy||!chosen.length?'disabled':''}>${quoteBusy&&quoteWa.msg.startsWith('A enviar email')?'A enviar email…':quoteMailLabel(chosen.length)}</button>`}${share?'<button type="button" class="btn alt" data-qa="wa-share">Partilhar o PDF como anexo</button>':''}<button type="button" class="link" data-qa="wa-reset">Alterar escolha</button>`:`<button type="button" class="btn" id="quote-wa-send" data-qa="wa-send" ${quoteBusy||!chosen.length?'disabled':''}>${quoteBusy&&quoteWa.msg.startsWith('A preparar')?'A preparar…':quoteWaLabel(chosen.length)}</button><button type="button" class="btn alt" id="quote-mail-send" data-qa="mail-send" ${quoteBusy||!chosen.length?'disabled':''}>${quoteBusy&&quoteWa.msg.startsWith('A enviar email')?'A enviar email…':quoteMailLabel(chosen.length)}</button>`}<button type="button" class="btn alt" data-qa="page-send" ${quoteBusy||!chosen.length?'disabled':''}>${quoteBusy&&quoteWa.msg.startsWith('A preparar')&&!ready?'A preparar…':'Mostrar na página do cliente'}</button><p class="note" style="margin-top:6px">O cliente só vê o orçamento na página dele depois de o enviar por WhatsApp, por email ou com este botão. Guardar não lhe mostra nada.</p><p id="quote-wa-msg" role="status" class="note">${esc(quoteWa.msg)}</p></div>`;
 }
 // The most recent email saved for the client, since older quotes may not have one.
 const quoteClientEmail=g=>(g.rows.find(r=>String(r.document.email||'').trim())?.document.email||'').trim();
@@ -226,7 +226,7 @@ document.addEventListener('click',async e=>{
  const a=b.dataset.qa;
  if(['new','new-client','edit','client','list'].includes(a))quoteWa.key=null;
  if(['new','new-client','edit','close','list'].includes(a)){quotePick=null;quotePickLast=null;quotePickOff=null}
- if(a==='wa-send'||a==='mail-send'){const ch=a==='wa-send'?'whatsapp':'email';await (quoteDraft?saveQuote(ch):quoteWaSendFolder(ch));return}
+ if(a==='wa-send'||a==='mail-send'||a==='page-send'){const ch=a==='wa-send'?'whatsapp':a==='page-send'?'pagina':'email';await (quoteDraft?saveQuote(ch):quoteWaSendFolder(ch));return}
  if(a==='wa-share'){const r=quoteWa.ready;navigator.share({files:r.files,text:r.text.replace(/\n+https?:\S+/g,'')}).catch(()=>{});return}
  if(a==='wa-reset'){quoteWa.ready=null;quoteWa.msg=''}
  if(quoteDraft&&a!=='wa-reset'&&quoteWa.ready){quoteWa.ready=null;quoteWa.msg=''}
@@ -309,7 +309,7 @@ async function saveQuote(pdf){
   const row=await r.json().catch(()=>({}));if(!r.ok)throw Error(row.error||'Não foi possível guardar o orçamento.');
   quoteDraft={...row.document,id:row.id};quoteRows=[quoteKeep(row),...(quoteRows||[]).filter(r=>r.id!==row.id)];quoteClient=quoteClientKey(row.document);quoteError='Orçamento guardado.';
   if(typeof leadFromQuote==='function')leadFromQuote(row.document,leadQuoteStage(row.document,row.events||[]));
-  if(pdf==='whatsapp'||pdf==='email'){quoteError='Orçamento guardado.';await quoteWaSend([quoteDraft],pdf)}
+  if(pdf==='whatsapp'||pdf==='email'||pdf==='pagina'){quoteError='Orçamento guardado.';await quoteWaSend([quoteDraft],pdf)}
   else if(pdf){quoteError='Orçamento guardado. A preparar PDF…';await downloadQuotePdf(quoteDraft,pdf==='detailed');quoteError='Orçamento guardado e PDF descarregado.'}
  }catch(e){quoteError=e.message||'Não foi possível gerar o PDF. O orçamento permanece disponível.'}
  finally{quoteBusy=false;if(quoteDraft)quoteEnsureBlank();if(V.tab==='orc')render()}
@@ -320,7 +320,22 @@ async function quoteWaSendFolder(channel){
  const docs=g.rows.filter(r=>quoteWa.ids.includes(r.id)).map(r=>({...r.document,id:r.id}));if(!docs.length)return;
  quoteBusy=true;render();try{await quoteWaSend(docs,channel)}finally{quoteBusy=false;render()}
 }
+// Página do cliente: o orçamento tem de estar ligado a um cliente (lead). Orçamentos feitos à mão ligam-se à lead com o
+// mesmo telefone ou email; se não houver, cria-se uma na fase «Proposta enviada». Só acontece ao enviar ou publicar.
+async function quoteEnsureLead(q){
+ const L=S.leads||(S.leads=[]);
+ if(q.lead&&L.some(l=>l.id===q.lead))return q.lead;
+ const dig=s=>String(s||'').replace(/\D/g,'').slice(-9),tel=dig(q.contact||quoteWa.to),mail=String(q.email||quoteWa.email||'').trim().toLowerCase();
+ let l=L.find(x=>(tel.length===9&&dig(x.contact)===tel)||(mail&&String(x.email||'').trim().toLowerCase()===mail));
+ if(!l){l={...leadNew(),id:uid(),name:String(q.client||'').trim(),contact:String(q.contact||'').trim(),email:String(q.email||quoteWa.email||'').trim(),address:String(q.address||'').trim(),solutions:[...(q.topics||[])],stage:'enviada'};L.push(l);save()}
+ const {id,...body}=q;
+ const r=await API('orcamentos/'+id,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({...body,lead:l.id})});
+ if(!r.ok)throw Error('Não foi possível ligar o orçamento à página do cliente.');
+ const row=await r.json();quoteRows=(quoteRows||[]).map(x=>x.id===row.id?quoteKeep(row):x);if(quoteDraft?.id===row.id)quoteDraft.lead=l.id;q.lead=l.id;
+ return l.id;
+}
 // Builds each PDF, stores it behind a private link, then prepares WhatsApp or sends the email.
+// «pagina»: só mostra na página do cliente (sem WhatsApp nem email do orçamento).
 async function quoteWaSend(docs,channel='whatsapp'){
  const to=quoteWa.to.replace(/\D/g,''),email=quoteWa.email.trim(),list=docs.map(q=>quoteNumber(q.id,q.date)).join(', ');
  const status=t=>{quoteWa.msg=t;const m=document.querySelector('#quote-wa-msg');if(m)m.textContent=t};
@@ -329,15 +344,17 @@ async function quoteWaSend(docs,channel='whatsapp'){
  if(channel==='email'&&quoteWa.mail?.configured&&!window.confirm('Enviar '+list+' por email para '+email+'?'))return;
  // The PDF uses the latest company profile (contact, warranties, credentials, free weeks).
  if(typeof empresaLoad==='function')await empresaLoad().catch(()=>{});
- const links=[],files=[],group=Date.now().toString(36)+Math.random().toString(36).slice(2,8),via=channel==='whatsapp'?'whatsapp':quoteWa.mail?.configured?'email':'mailto';
+ const links=[],files=[],group=Date.now().toString(36)+Math.random().toString(36).slice(2,8),via=channel==='pagina'?'pagina':channel==='whatsapp'?'whatsapp':quoteWa.mail?.configured?'email':'mailto';let avisos=[];
  try{
   for(const q of docs){
    status('A preparar '+quoteNumber(q.id,q.date)+(docs.length>1?' ('+(links.length+1)+' de '+docs.length+')':'')+'…');
+   await quoteEnsureLead(q);
    const {doc,filename}=await buildQuotePdf(q,quoteWa.detailed);
-   const r=await API('whatsapp/pdf',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:q.id,group,channel:via,pdf:doc.output('datauristring').split(',').pop()})});
-   const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||'Não foi possível preparar o PDF.');
+   const r=await API('whatsapp/pdf',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:q.id,group,channel:via,email:quoteWa.email.trim(),pdf:doc.output('datauristring').split(',').pop()})});
+   const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||'Não foi possível preparar o PDF.');if(b.aviso)avisos.push(b.aviso);
    links.push(b.url);if(typeof File==='function')files.push(new File([doc.output('blob')],filename,{type:'application/pdf'}));
   }
+  if(channel==='pagina'){quoteMarkSent(docs);return status((docs.length>1?'Orçamentos '+list+' já aparecem':'Orçamento '+list+' já aparece')+' na página do cliente.'+(avisos.includes('enviado')?' O cliente recebeu um email a avisar.':avisos.includes('falhou')?' O email de aviso falhou: avise-o por WhatsApp.':' O cliente não tem email: avise-o por WhatsApp.'))}
   const text=quoteWaText(docs,links);quoteMarkSent(docs);
   quoteWa.ready={text,docs,links,href:'https://wa.me/'+to+'?text='+encodeURIComponent(text),files:files.length?files:null};
   if(channel==='whatsapp')return status('Pronto. Toque em «Abrir conversa no WhatsApp» e depois em enviar.');

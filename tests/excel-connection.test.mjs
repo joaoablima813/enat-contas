@@ -24,24 +24,34 @@ test('data route refuses writes and cannot use app session as Excel credentials'
  const denied=await handleExcel(new Request('https://example.org/api/excel/dados'),'excel/dados',store,true);assert.equal(denied.status,401);assert.match(denied.headers.get('www-authenticate'),/Basic/);assert.equal(denied.headers.get('cache-control'),'no-store');
 });
 test('installer keeps credentials outside queries and creates a portable macro-free workbook',()=>{
- const script=installer('https://example.org');assert.ok(script.startsWith('\ufeff'));assert.match(script,/wb.SaveAs dest, 51/);assert.match(script,/qt.RefreshPeriod = 5/);assert.match(script,/qt.RefreshOnFileOpen = True/);assert.match(script,/INDIRECT/);assert.ok(!script.includes('Authorization'));assert.ok(!script.includes('x-session'));
+ const script=installer('https://example.org');assert.ok(script.startsWith('﻿'));assert.match(script,/wb.SaveAs dest, 51/);assert.match(script,/qt.RefreshPeriod = 5/);assert.match(script,/qt.RefreshOnFileOpen = True/);assert.ok(!script.includes('Authorization'));assert.ok(!script.includes('x-session'));
  // VBScript string literals use doubled quotes. Check all lines balance.
  for(const line of script.split('\r\n'))assert.equal((line.match(/"/g)||[]).length%2,0,line);
 });
-test('connected workbook applies ENAT styles and numeric query types to every financial sheet',()=>{
+test('workbook has an interactive dashboard: pivots with ENAT colours, shared slicers, KPI cards and charts',()=>{
  const script=installer('https://example.org');
- assert.match(script,/Set ts = wb.TableStyles.Add\("ENAT"\)/);
- assert.ok(!/\.TableElements\(/.test(script)); // Windows Script Host rejects indexed TableElements calls.
- assert.match(script,/ts.TableElements.Item\(6\)/);
- assert.equal((script.match(/lo.TableStyle = style/g)||[]).length,5);
- assert.match(script,/RGB\(246,247,251\)/);
- assert.match(script,/RGB\(25,30,61\)/);
- assert.match(script,/RGB\(89,96,127\)/);
- assert.equal((script.match(/Table.TransformColumnTypes/g)||[]).length,5);
- assert.match(script,/each _ \/ 100, type number/);
- for(const range of ['E8:K1048576','D2:L1048576','F2:H1048576','J2:J1048576','L2:M1048576']){
-  assert.ok(script.includes(`ws.Range("${range}").NumberFormat = """€"" #,##0.00"`),range);
- }
- assert.match(script,/C2:C1048576/); // Status formatting also follows the detailed Obras sheet.
- assert.match(script,/RGB\(6,95,70\)/);
+ for(const s of ['Painel','Compras','Artigos','Obras','Faturas','Materiais','Movimentos','Instruções'])assert.match(script,new RegExp(`Name = "${s}"`));
+ assert.equal((script.match(/Table.TransformColumnTypes/g)||[]).length,4);
+ for(const t of ['ENAT_Obras','ENAT_Faturas','ENAT_Materiais'])assert.match(script,new RegExp(`PivotCaches.Create\\(1, "${t}", 6\\)`));
+ // The chart pivots share the cache of the main pivot, so one slicer filters both.
+ assert.equal((script.match(/Set pc = pt.PivotCache/g)||[]).length,2);
+ assert.equal((script.match(/sc.PivotTables.AddPivotTable pt2/g)||[]).length,7);
+ for(const f of ['Estado','Cliente','Obra','Loja / fornecedor','Ano','Mês','Categoria'])assert.match(script,new RegExp(`SlicerCaches.Add2\\(pt, "${f}"\\)`));
+ assert.match(script,/GETPIVOTDATA\(""Lucro "",\$B\$19\)/);
+ assert.match(script,/PivotStyleMedium7/);assert.match(script,/SlicerStyleLight6/);
+ assert.match(script,/AddChart2\(-1, 57,/);
+ assert.match(script,/CalculatedFields.Add "PrecoUnidade"/);
+ // Captions rename the field, so they come after every other use of the source name.
+ const L=script.split('\r\n'),cap=L.findIndex(l=>l.includes('PivotFields("Loja / fornecedor").Caption'));
+ assert.ok(cap>L.findIndex(l=>l.includes('PivotFields("Loja / fornecedor").AutoSort')));
+ // Without data (no password yet) the dashboard is skipped and the user is told what to do.
+ assert.match(script,/If okData Then/);
+});
+test('purchases: one name per supplier (accents, case and short names), year and month for filtering',()=>{
+ const s={obras:[{id:'a',name:'Obra A',valor:100,status:'em_curso'}],tx:[{id:'f1',obra:'a',type:'fatura',total:123,rate:23},{id:'f2',obra:'a',type:'fatura',total:246,rate:23},{id:'f3',obra:'a',type:'fatura',total:12.3,rate:23}],
+  inv:[{obra:'a',tx:'f1',store:'ANTONIO MATOS, LDA',nif:'500000984',date:'2026-10-02',items:[]},{obra:'a',tx:'f2',store:'ANTÓNIO MATOS, LDA',date:'2026-11-05',items:[{name:'Tubo',qty:2,unit:'m',unit_price:50,vat:23,total:100}]},{obra:'a',tx:'f3',store:'sanitop',nif:'500000984',date:'2026-11-06',items:[]}]};
+ const T=excelData(s).tables;
+ assert.deepEqual(T.Faturas[0].slice(-2),['Ano','Mês']);
+ assert.deepEqual(T.Faturas.slice(1).map(r=>[r[1],r[9],r[10]]),[['ANTONIO MATOS, LDA','2026','2026-10'],['ANTONIO MATOS, LDA','2026','2026-11'],['sanitop','2026','2026-11']],'same NIF read from the ENAT invoice does not merge different suppliers');
+ assert.equal(T.Materiais[1][1],'ANTONIO MATOS, LDA');assert.equal(T.Materiais[1][13],'2026');
 });

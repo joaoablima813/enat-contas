@@ -1,91 +1,141 @@
-// Creates an Excel workbook through the installed Windows Excel application.
-// No access password is included in the installer or workbook queries.
+// Cria no Windows, através do Excel instalado, o ficheiro «ENAT-Financas.xlsx» ligado à app:
+// - «Painel»: resumo das obras (vendido, custos, lucro, margem, por receber) com filtros clicáveis e gráfico;
+// - «Compras»: quanto se comprou a cada fornecedor, por obra, ano e mês;
+// - «Artigos»: o que se comprou a cada fornecedor (quantidades, preço médio e total);
+// - folhas de dados (Obras, Faturas, Materiais, Movimentos) que se atualizam sozinhas a partir da app.
+// O instalador e as consultas não levam nenhuma palavra-passe: o Excel pede-a uma vez (Básico, utilizador «enat»).
 export function installer(origin) {
  const base=new URL('/api/excel/dados',origin).href;
- const quote=s=>'"'+s.replaceAll('"','""')+'"';
- const sheets=[['Controlo de Obras','Controlo','ENAT_Controlo',7],['Obras','Obras','ENAT_Obras',1],['Faturas','Faturas','ENAT_Faturas',1],['Materiais','Materiais','ENAT_Materiais',1],['Movimentos','Movimentos','ENAT_Movimentos',1]];
- const lines=[
- 'Option Explicit','Dim xl, wb, ws, lo, qt, q, dest, shell, fso, i, ts, el, style',
- 'Set shell = CreateObject("WScript.Shell")','Set fso = CreateObject("Scripting.FileSystemObject")',
- 'dest = shell.SpecialFolders("Desktop") & "\\ENAT-Financas.xlsx"',
- 'If fso.FileExists(dest) Then',
- ' dest = shell.SpecialFolders("Desktop") & "\\ENAT-Financas-" & Year(Now) & Month(Now) & Day(Now) & "-" & Hour(Now) & Minute(Now) & Second(Now) & ".xlsx"',
- 'End If',
- 'On Error Resume Next','Set xl = CreateObject("Excel.Application")',
- 'If Err.Number <> 0 Then',' MsgBox "E necessario ter o Microsoft Excel 2016 ou mais recente instalado no Windows. Consulte o guia na app.", 16, "ENAT"',' WScript.Quit','End If','On Error GoTo 0',
- 'xl.Visible = True','Set wb = xl.Workbooks.Add',
- // VBScript cannot pass an index to TableElements directly, so each element is read through Item.
- // If Excel refuses the custom style, the tables keep a built-in style and the direct formatting below.
- 'On Error Resume Next','Set ts = wb.TableStyles.Add("ENAT")',
- 'Set el = ts.TableElements.Item(0)','el.Interior.Color = RGB(255,255,255)','el.Font.Color = RGB(25,30,61)','el.Borders.Item(9).Color = RGB(226,230,240)',
- 'Set el = ts.TableElements.Item(1)','el.Interior.Color = RGB(75,92,146)','el.Font.Color = RGB(255,255,255)','el.Font.Bold = True',
- 'Set el = ts.TableElements.Item(5)','el.Interior.Color = RGB(255,255,255)','el.StripeSize = 1',
- 'Set el = ts.TableElements.Item(6)','el.Interior.Color = RGB(246,247,251)','el.StripeSize = 1',
- 'If Err.Number <> 0 Then','style = "TableStyleLight9"',' Err.Clear','Else',' style = "ENAT"','End If','On Error GoTo 0',
- 'Do While wb.Worksheets.Count > 1',' xl.DisplayAlerts = False',' wb.Worksheets(wb.Worksheets.Count).Delete',' xl.DisplayAlerts = True','Loop'
+ const quote=s=>'"'+String(s).replaceAll('"','""')+'"';
+ const EUR='#,##0.00 "€"';
+ // Cores ENAT (site e app): verde escuro, verde, laranja, fundo claro.
+ const C={dark:'RGB(27,77,46)',green:'RGB(47,125,50)',orange:'RGB(240,128,0)',bg:'RGB(244,247,242)',ink:'RGB(29,43,31)',mute:'RGB(98,112,101)',line:'RGB(220,228,218)',white:'RGB(255,255,255)'};
+ const DATA=[
+  ['Obras','Obras','ENAT_Obras',['Valor c/ IVA','Valor s/ IVA','Recebido','Por receber','Materiais s/ IVA','Despesas sem fatura','Mão de obra s/ IVA','Custos','Lucro','Margem %','IVA cobrado','IVA suportado','IVA a entregar'],['Conclusão'],[['D:L',EUR],['M:M','0.0%'],['N:P',EUR],['R:R','dd/mm/yyyy']]],
+  ['Faturas','Faturas','ENAT_Faturas',['Total s/ IVA','IVA','Total c/ IVA'],['Data'],[['F:H',EUR],['D:D','dd/mm/yyyy']]],
+  ['Materiais','Materiais','ENAT_Materiais',['Quantidade','Preço unit. s/ IVA','IVA %','Preço unit. c/ IVA','Total linha s/ IVA'],['Data'],[['H:H','0.###'],['J:J',EUR],['K:K','0%'],['L:M',EUR],['D:D','dd/mm/yyyy']]],
+  ['Movimentos','Movimentos','ENAT_Movimentos',['Total c/ IVA','Base s/ IVA','IVA'],['Data'],[['F:H',EUR],['E:E','dd/mm/yyyy']]],
  ];
- sheets.forEach(([name,key,table,row],index)=>{
- const numeric={Controlo:['Orçamento c/ IVA','Despesas Totais','IVA Suportado','IVA a Entregar','Valor Pago (Recebido)','Saldo a Receber','Lucro Estimado','Margem %'],Obras:['Valor c/ IVA','Valor s/ IVA','Recebido','Por receber','Materiais s/ IVA','Despesas sem fatura','Mão de obra s/ IVA','Custos','Lucro','Margem %','IVA cobrado','IVA suportado','IVA a entregar'],Faturas:['Total s/ IVA','IVA','Total c/ IVA'],Materiais:['Quantidade','Preço unit. s/ IVA','IVA %','Preço unit. c/ IVA','Total linha s/ IVA'],Movimentos:['Total c/ IVA','Base s/ IVA','IVA']};
- const dates={Controlo:['Data Início'],Obras:['Conclusão'],Faturas:['Data'],Materiais:['Data'],Movimentos:['Data']};
- const transforms=[...numeric[key].map(c=>`{"${c}", type number}`),...dates[key].map(c=>`{"${c}", type date}`)];
- const m=`let Fonte = Json.Document(Web.Contents("${base}")), Linhas = Fonte[tables][${key}], Tabela = Table.FromRows(List.Skip(Linhas, 1), List.First(Linhas)), Tipos = Table.TransformColumnTypes(Tabela, {${transforms.join(', ')}}, "pt-PT"), Datas = Table.ReplaceErrorValues(Tipos, {${dates[key].map(c=>`{"${c}", null}`).join(', ')}})${key==='Obras'||key==='Materiais'?`, Percentagens = Table.TransformColumns(Datas, {{"${key==='Obras'?'Margem %':'IVA %'}", each _ / 100, type number}})`:''} in ${key==='Obras'||key==='Materiais'?'Percentagens':'Datas'}`;
- lines.push(index?'Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))':'Set ws = wb.Worksheets(1)',
- `ws.Name = ${quote(name)}`,`q = ${quote(m)}`,`wb.Queries.Add ${quote(table)}, q`,
- `Set lo = ws.ListObjects.Add(0, ${quote('OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location='+table+';Extended Properties=""')}, True, 1, ws.Range("A${row}"))`,
- `lo.Name = ${quote(table)}`,'On Error Resume Next','lo.TableStyle = style','On Error GoTo 0','lo.ShowTableStyleRowStripes = True','Set qt = lo.QueryTable','qt.CommandType = 2',`qt.CommandText = ${quote('SELECT * FROM ['+table+']')}`,
- 'qt.BackgroundQuery = False','qt.RefreshOnFileOpen = True','qt.RefreshPeriod = 5','qt.PreserveFormatting = True','qt.AdjustColumnWidth = False','ws.Cells.Font.Name = "Calibri"','ws.Cells.Font.Size = 11','ws.Columns.ColumnWidth = 20','ws.Columns("A:A").ColumnWidth = 34',`ws.Rows(${row}).RowHeight = 32`,'ws.Activate',`ws.Range("A${row+1}").Select`,'xl.ActiveWindow.FreezePanes = True');
- if(!index){
-  lines.push('ws.Range("A2:M2").Merge','ws.Range("A2").Value = "ENAT • CONTROLO FINANCEIRO DE OBRAS"','ws.Range("A2").Font.Size = 20','ws.Range("A2").Font.Bold = True','ws.Range("A2").Font.Color = RGB(47,57,93)','ws.Range("A6:M6").Merge','ws.Range("A6").Value = "Atualiza ao abrir e a cada 5 minutos com internet. Estado da Obra acompanha a app."','ws.Range("A6").Font.Size = 10');
-  const metrics=[['TOTAL ORÇAMENTADO','SUM(ENAT_Controlo[Orçamento c/ IVA])'],['TOTAL DESPESAS','SUM(ENAT_Controlo[Despesas Totais])'],['LUCRO ESTIMADO','SUM(ENAT_Controlo[Lucro Estimado])'],['MARGEM MÉDIA','IFERROR(SUM(ENAT_Controlo[Lucro Estimado])/SUM(ENAT_Controlo[Orçamento c/ IVA]),0)'],['VALOR RECEBIDO','SUM(ENAT_Controlo[Valor Pago (Recebido)])'],['SALDO A RECEBER','SUM(ENAT_Controlo[Saldo a Receber])']];
-  // Formulas are added after the first refresh, when query column names exist.
-  metrics.forEach(([label],n)=>{const a=String.fromCharCode(65+n*2),b=String.fromCharCode(66+n*2);lines.push(`ws.Range("${a}3:${b}3").Merge`,`ws.Range("${a}4:${b}4").Merge`,`ws.Range("${a}3").Value = ${quote(label)}`,`ws.Range("${a}3:${b}4").Interior.Color = RGB(241,244,250)`,`ws.Range("${a}3:${b}4").Font.Bold = True`,`ws.Range("${a}4").Font.Size = 16`,`ws.Range("${a}3").Font.Color = RGB(89,96,127)`,`ws.Range("${a}3").Font.Size = 10`,`ws.Range("${a}4").Font.Color = RGB(25,30,61)`,`ws.Range("${a}3:${b}4").HorizontalAlignment = -4108`)});
+ const L=[
+  'Option Explicit',
+  'Dim xl, wb, ws, lo, qt, q, dest, shell, fso, pc, pt, pt2, df, sc, sl, sh, ch, okData, n, x',
+  'Set shell = CreateObject("WScript.Shell")','Set fso = CreateObject("Scripting.FileSystemObject")',
+  'dest = shell.SpecialFolders("Desktop") & "\\ENAT-Financas.xlsx"',
+  'If fso.FileExists(dest) Then',' dest = shell.SpecialFolders("Desktop") & "\\ENAT-Financas-" & Year(Now) & Right("0" & Month(Now), 2) & Right("0" & Day(Now), 2) & "-" & Hour(Now) & Minute(Now) & ".xlsx"','End If',
+  'On Error Resume Next','Set xl = CreateObject("Excel.Application")',
+  'If Err.Number <> 0 Then',' MsgBox "É necessário ter o Microsoft Excel (2016 ou mais recente) instalado no Windows.", 16, "ENAT"',' WScript.Quit','End If','On Error GoTo 0',
+  'xl.Visible = True','xl.ScreenUpdating = False','Set wb = xl.Workbooks.Add',
+  'Do While wb.Worksheets.Count > 1',' xl.DisplayAlerts = False',' wb.Worksheets(wb.Worksheets.Count).Delete',' xl.DisplayAlerts = True','Loop',
+  'wb.Worksheets(1).Name = "Painel"',
+  'Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))','ws.Name = "Compras"',
+  'Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))','ws.Name = "Artigos"',
+ ];
+ // Folhas de dados ligadas à app.
+ for(const [name,key,table,numeric,dates,formats] of DATA){
+  const transforms=[...numeric.map(c=>`{"${c}", type number}`),...dates.map(c=>`{"${c}", type date}`)];
+  const pct=key==='Obras'?'Margem %':key==='Materiais'?'IVA %':'';
+  const m=`let Fonte = Json.Document(Web.Contents("${base}")), Linhas = Fonte[tables][${key}], Tabela = Table.FromRows(List.Skip(Linhas, 1), List.First(Linhas)), Tipos = Table.TransformColumnTypes(Tabela, {${transforms.join(', ')}}, "pt-PT"), Datas = Table.ReplaceErrorValues(Tipos, {${dates.map(c=>`{"${c}", null}`).join(', ')}})${pct?`, Percentagens = Table.TransformColumns(Datas, {{"${pct}", each _ / 100, type number}})`:''} in ${pct?'Percentagens':'Datas'}`;
+  L.push('Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))',`ws.Name = ${quote(name)}`,`q = ${quote(m)}`,`wb.Queries.Add ${quote(table)}, q`,
+   `Set lo = ws.ListObjects.Add(0, ${quote('OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location='+table+';Extended Properties=""')}, True, 1, ws.Range("A1"))`,
+   `lo.Name = ${quote(table)}`,'lo.TableStyle = "TableStyleMedium7"','Set qt = lo.QueryTable','qt.CommandType = 2',`qt.CommandText = ${quote('SELECT * FROM ['+table+']')}`,
+   'qt.BackgroundQuery = False','qt.RefreshOnFileOpen = True','qt.RefreshPeriod = 5','qt.PreserveFormatting = True','qt.AdjustColumnWidth = False',
+   'ws.Cells.Font.Name = "Calibri"','ws.Columns.ColumnWidth = 16','ws.Columns("A:B").ColumnWidth = 30','ws.Rows(1).RowHeight = 34','ws.Rows(1).WrapText = True','ws.Tab.Color = '+C.mute);
+  for(const [range,format] of formats){const [a,b]=range.split(':');L.push(`ws.Range("${a}2:${b}1048576").NumberFormat = ${quote(format)}`)}
+  L.push('ws.Activate','ws.Range("A2").Select','xl.ActiveWindow.FreezePanes = True','xl.ActiveWindow.DisplayGridlines = False');
  }
- });
- lines.push('Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))','ws.Name = "Instrucoes"','ws.Columns("A:A").ColumnWidth = 110',
- 'ws.Range("A1").Value = "ENAT - Excel ligado a app"',
- 'ws.Range("A3").Value = "Primeira ligacao: escolha Basico, utilizador enat e a palavra-passe criada na app."',
- 'ws.Range("A4").Value = "Depois: Dados > Atualizar Tudo. Atualizacao automatica: ao abrir e a cada 5 minutos."',
- 'ws.Range("A5").Value = "Aguarde que a atualizacao termine. Sem internet, ficam os ultimos dados guardados."',
- 'ws.Range("A6").Value = "Edite os dados na app. As alteracoes feitas nas tabelas do Excel sao substituidas."',
- 'ws.Range("A7").Value = "Noutro computador: abra a copia do ficheiro e introduza de novo as credenciais."',
- 'ws.Range("A8").Value = "Se a ligacao falhar, Dados > Obter Dados > Definicoes da origem de dados > Editar permissoes."',
- 'ws.Range("A9").Value = "Guarde o ficheiro apos atualizar para conservar os dados quando estiver sem internet."',
- 'wb.Worksheets(1).Activate','wb.SaveAs dest, 51',
- 'MsgBox "O ficheiro foi criado no Ambiente de Trabalho. No Excel, escolha Basico (nao Anonimo), utilizador enat e a palavra-passe criada na app. Se aparecer um aviso sobre ligacoes, permita a ligacao apenas neste ficheiro ENAT.", 64, "ENAT"',
- 'On Error Resume Next','wb.RefreshAll','xl.CalculateUntilAsyncQueriesDone',
- 'If Err.Number <> 0 Then',' MsgBox "O ficheiro ficou guardado. Termine a ligacao em Dados > Atualizar Tudo. Consulte o guia na app se aparecer um erro.", 48, "ENAT"',' Err.Clear','End If','On Error GoTo 0');
- const metrics=['SUM(ENAT_Controlo[Orçamento c/ IVA])','SUM(ENAT_Controlo[Despesas Totais])','SUM(ENAT_Controlo[Lucro Estimado])','IFERROR(SUM(ENAT_Controlo[Lucro Estimado])/SUM(ENAT_Controlo[Orçamento c/ IVA]),0)','SUM(ENAT_Controlo[Valor Pago (Recebido)])','SUM(ENAT_Controlo[Saldo a Receber])'];
- // IFERROR also keeps an unconfigured workbook readable.
- lines.push('On Error Resume Next','Set ws = wb.Worksheets(1)');
- metrics.forEach((formula,i)=>lines.push(`ws.Range("${String.fromCharCode(65+i*2)}4").Formula = ${quote('=IFERROR('+formula.replace(/ENAT_Controlo\[[^\]]+\]/g,ref=>'INDIRECT("'+ref+'")')+',0)')}`,`ws.Range("${String.fromCharCode(65+i*2)}4").NumberFormat = ${quote(i===3?'0.0%':'"€" #,##0.00')}`));
- const formats={
-  'Controlo de Obras':[['E:K','"€" #,##0.00'],['L:L','0.0%'],['C:C','dd/mm/yyyy']],
-  Obras:[['D:L','"€" #,##0.00'],['M:M','0.0%'],['N:P','"€" #,##0.00'],['R:R','dd/mm/yyyy']],
-  Faturas:[['F:H','"€" #,##0.00'],['D:D','dd/mm/yyyy']],
-  Materiais:[['H:H','0.###'],['J:J','"€" #,##0.00'],['K:K','0%'],['L:M','"€" #,##0.00'],['D:D','dd/mm/yyyy']],
-  Movimentos:[['F:H','"€" #,##0.00'],['E:E','dd/mm/yyyy']]
- };
- const states=[['Planeamento','232,236,255','59,78,175'],['Em Curso','254,243,199','146,64,14'],['Concluída','209,250,229','6,95,70'],['Pausada','254,226,226','153,27,27']];
- const payments=[['Pago','220,252,231','21,128,61'],['Parcial','254,249,195','133,77,14'],['Pendente','254,226,226','185,28,28']];
- function badge(col,row,colors){
-  for(const [label,bg,fg] of colors){
-   const range=`${col}${row}:${col}1048576`;
-   lines.push(`With ws.Range("${range}").FormatConditions.Add(1, 3, ${quote('="'+label+'"')})`,`.Interior.Color = RGB(${bg})`,`.Font.Color = RGB(${fg})`,'.Font.Bold = True','End With');
-  }
- }
- for(const [name,,,row] of sheets){
-  lines.push(`Set ws = wb.Worksheets(${quote(name)})`);
-  for(const [range,format] of formats[name]){
-   const [a,b]=range.split(':');
-   lines.push(`ws.Range("${a}${row+1}:${b}1048576").NumberFormat = ${quote(format)}`,`ws.Range("${a}${row+1}:${b}1048576").HorizontalAlignment = -4152`);
-  }
-  lines.push('ws.ListObjects(1).HeaderRowRange.Interior.Color = RGB(75,92,146)','ws.ListObjects(1).HeaderRowRange.Font.Color = RGB(255,255,255)','ws.ListObjects(1).HeaderRowRange.WrapText = True',`ws.Rows(${row}).RowHeight = 36`,'ws.PageSetup.Orientation = 2','ws.PageSetup.Zoom = False','ws.PageSetup.FitToPagesWide = 1','ws.PageSetup.FitToPagesTall = False',`ws.PageSetup.PrintTitleRows = "$${row}:$${row}"`);
-  if(name==='Controlo de Obras'){badge('D',row+1,states);badge('M',row+1,payments)}
-  if(name==='Obras')badge('C',row+1,states);
-  if(name==='Faturas')badge('I',row+1,[['Sim','209,250,229','6,95,70'],['Não','241,244,250','89,96,127']]);
-  if(name==='Movimentos')badge('B',row+1,[['Recebimento','209,250,229','6,95,70'],['Mão de obra','243,232,255','107,33,168'],['Fatura','241,244,250','89,96,127']]);
- }
- lines.push('wb.Worksheets(1).Activate',
- 'wb.Save','On Error GoTo 0','MsgBox "Guarde este ficheiro. As obras e os estados chegam da app por consulta automatica; pode tambem usar Dados > Atualizar Tudo. Se as tabelas estiverem vazias, termine a autenticacao no Excel.", 64, "ENAT"');
- return '\ufeff'+lines.join('\r\n');
+ // Instruções.
+ L.push('Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))','ws.Name = "Instruções"','ws.Columns("A:A").ColumnWidth = 110','ws.Tab.Color = '+C.mute,
+  ...[
+   'ENAT · Excel ligado à app',
+   '',
+   'Primeira ligação: escolha «Básico», utilizador enat e a palavra-passe criada na app (Definições → Excel).',
+   'Para ver os dados mais recentes: separador Dados → Atualizar Tudo (também atualiza ao abrir o ficheiro).',
+   'Painel, Compras e Artigos: clique nos botões dos filtros (obra, estado, fornecedor, ano…) para escolher o que ver. Ctrl + clique escolhe vários; o funil com X limpa o filtro.',
+   'As folhas Obras, Faturas, Materiais e Movimentos têm todos os dados; use as setas dos cabeçalhos para filtrar ou ordenar.',
+   'Altere os dados na app, não no Excel: as tabelas são substituídas sempre que atualizam.',
+   'Noutro computador: copie o ficheiro e introduza de novo o utilizador enat e a palavra-passe.',
+  ].map((t,i)=>`ws.Range("A${i+1}").Value = ${quote(t)}`),'ws.Range("A1").Font.Size = 16','ws.Range("A1").Font.Bold = True',`ws.Range("A1").Font.Color = ${C.dark}`);
+ // Primeira atualização: as tabelas dinâmicas só se podem criar depois de as tabelas terem colunas.
+ L.push('wb.SaveAs dest, 51','xl.ScreenUpdating = True',
+  'On Error Resume Next','wb.RefreshAll','xl.CalculateUntilAsyncQueriesDone','Err.Clear','On Error GoTo 0',
+  'okData = (wb.Worksheets("Obras").ListObjects(1).ListColumns.Count > 5) And (wb.Worksheets("Faturas").ListObjects(1).ListColumns.Count > 5) And (wb.Worksheets("Materiais").ListObjects(1).ListColumns.Count > 5)',
+  'If okData Then','xl.ScreenUpdating = False');
+ // ---- helpers em VBScript ----
+ const title=(sheet,text,sub)=>[`Set ws = wb.Worksheets(${quote(sheet)})`,'x = ws.Range("B8").Left','ws.Activate','xl.ActiveWindow.DisplayGridlines = False','ws.Cells.Font.Name = "Calibri"',`ws.Cells.Interior.Color = ${C.bg}`,'ws.Columns("A:A").ColumnWidth = 2','ws.Tab.Color = '+C.green,
+  `ws.Range("B1").Value = ${quote(text)}`,'ws.Range("B1").Font.Size = 22','ws.Range("B1").Font.Bold = True',`ws.Range("B1").Font.Color = ${C.dark}`,'ws.Rows(1).RowHeight = 40',
+  `ws.Range("B2").Value = ${quote(sub)}`,`ws.Range("B2").Font.Color = ${C.mute}`,'ws.Range("B2").Font.Size = 10'];
+ // Cartão de indicador: título na linha r, valor na linha r+1, nas colunas a:b.
+ const card=(a,b,r,label,formula,fmt,color)=>[`ws.Range("${a}${r}:${b}${r}").Merge`,`ws.Range("${a}${r+1}:${b}${r+1}").Merge`,`ws.Range("${a}${r}").Value = ${quote(label)}`,
+  `ws.Range("${a}${r}").Font.Size = 9`,`ws.Range("${a}${r}").Font.Bold = True`,`ws.Range("${a}${r}").Font.Color = ${C.mute}`,
+  `ws.Range("${a}${r+1}").Formula = ${quote(formula)}`,`ws.Range("${a}${r+1}").NumberFormat = ${quote(fmt)}`,`ws.Range("${a}${r+1}").Font.Size = 20`,`ws.Range("${a}${r+1}").Font.Bold = True`,`ws.Range("${a}${r+1}").Font.Color = ${color||C.ink}`,`ws.Range("${a}${r+1}").HorizontalAlignment = -4131`,`ws.Range("${a}${r}").HorizontalAlignment = -4131`,
+  `ws.Range("${a}${r}:${b}${r+1}").Interior.Color = ${C.white}`,`ws.Range("${a}${r}:${b}${r+1}").BorderAround 1, 2, , ${C.line}`,`ws.Rows(${r+1}).RowHeight = 34`];
+ // Tabela dinâmica: cache a partir de uma tabela de dados (ou «=pt» para partilhar a da tabela pt, e assim os filtros
+ // ligarem às duas); linhas e valores (soma), estilo verde.
+ const pivot=(v,cache,dest,name,rows,values,sortBy)=>[
+  ...(cache.startsWith('=')?[`Set pc = ${cache.slice(1)}.PivotCache`]:[`Set pc = wb.PivotCaches.Create(1, ${quote(cache)}, 6)`]),`Set ${v} = pc.CreatePivotTable(ws.Range(${quote(dest)}), ${quote(name)}, True, 6)`,
+  `${v}.RowAxisLayout 1`,`${v}.ShowTableStyleRowHeaders = False`,`${v}.TableStyle2 = "PivotStyleMedium7"`,`${v}.ShowDrillIndicators = False`,`${v}.HasAutoFormat = False`,`${v}.PivotCache.RefreshOnFileOpen = True`,`${v}.NullString = "0"`,`${v}.GrandTotalName = "Total"`,
+  ...rows.flatMap(([f,cap],i)=>[`${v}.PivotFields(${quote(f)}).Orientation = 1`,`${v}.PivotFields(${quote(f)}).Position = ${i+1}`,`${v}.PivotFields(${quote(f)}).Subtotals(1) = ${i<rows.length-1?'True':'False'}`,`${v}.PivotFields(${quote(f)}).RepeatLabels = True`]),
+  ...values.flatMap(([f,cap,fn,fmt])=>[`Set df = ${v}.AddDataField(${v}.PivotFields(${quote(f)}), ${quote(cap)}, ${fn||-4157})`,`df.NumberFormat = ${quote(fmt||EUR)}`]),
+  ...(sortBy?[`${v}.PivotFields(${quote(rows[0][0])}).AutoSort 2, ${quote(sortBy)}`]:[]),
+  // O nome mostrado muda o nome do campo, por isso fica para o fim.
+  ...rows.filter(([f,cap])=>f!==cap).map(([f,cap])=>`${v}.PivotFields(${quote(f)}).Caption = ${quote(cap)}`),
+ ];
+ // Segmentação (filtro com botões) ligada a uma ou mais tabelas dinâmicas.
+ const slicer=(pts,field,cap,w,cols)=>[`Set sc = wb.SlicerCaches.Add2(${pts[0]}, ${quote(field)})`,...pts.slice(1).map(p=>`sc.PivotTables.AddPivotTable ${p}`),'sc.CrossFilterType = 2',
+  `Set sl = sc.Slicers.Add(ws, , , ${quote(cap)}, ws.Range("B8").Top, x, ${w}, 150)`,'sl.Style = "SlicerStyleLight6"',`sl.NumberOfColumns = ${cols||1}`,'sl.RowHeight = 20',`x = x + ${w} + 12`];
+ const chart=(v,cell,w,h,ttl,type,color)=>[`Set sh = ws.Shapes.AddChart2(-1, ${type}, ws.Range(${quote(cell)}).Left, ws.Range(${quote(cell)}).Top, ${w}, ${h})`,'Set ch = sh.Chart',`ch.SetSourceData ${v}.TableRange1`,'ch.ShowAllFieldButtons = False','ch.PlotVisibleOnly = False','ch.HasTitle = True',`ch.ChartTitle.Text = ${quote(ttl)}`,'ch.ChartTitle.Format.TextFrame2.TextRange.Font.Size = 13','ch.ChartTitle.Format.TextFrame2.TextRange.Font.Bold = True','ch.HasLegend = False',
+  `ch.FullSeriesCollection(1).Format.Fill.ForeColor.RGB = ${color}`,'ch.ChartGroups(1).GapWidth = 60','ch.FullSeriesCollection(1).HasDataLabels = True','ch.FullSeriesCollection(1).DataLabels.NumberFormatLinked = False',// Formato sem separadores: o Excel lê-o na língua do Windows (em português a vírgula é a casa decimal).
+  `ch.FullSeriesCollection(1).DataLabels.NumberFormat = ${quote('0 "€"')}`,'ch.FullSeriesCollection(1).DataLabels.Font.Size = 9','ch.Axes(1).ReversePlotOrder = True','ch.Axes(2).HasMajorGridlines = False','ch.Axes(2).TickLabelPosition = -4142','sh.Line.Visible = False'];
+ const gp=(field,cell)=>`IFERROR(GETPIVOTDATA("${field}",${cell}),0)`;
+
+ // ---- Painel (obras e lucros) ----
+ L.push(...title('Painel','ENAT · Painel de obras','Escolha nos filtros a obra, o estado ou o cliente. Para os dados mais recentes: Dados → Atualizar Tudo.'),
+  'ws.Columns("B:B").ColumnWidth = 42','ws.Columns("C:I").ColumnWidth = 15',
+  ...pivot('pt','ENAT_Obras','B19','PT_Obras',[['Obra','Obra']],[['Valor s/ IVA','Vendido s/ IVA '],['Custos','Custos '],['Lucro','Lucro '],['Por receber','Por receber '],['Materiais s/ IVA','Materiais '],['Mão de obra s/ IVA','Mão de obra ']],'Lucro '),
+  ...pivot('pt2','=pt','AA16','PT_ObrasGrafico',[['Obra','Obra']],[['Lucro','Lucro por obra']],'Lucro por obra'),
+  ...card('B','B',4,'VENDIDO S/ IVA',`=${gp('Vendido s/ IVA ','$B$19')}`,EUR),
+  ...card('C','D',4,'CUSTOS',`=${gp('Custos ','$B$19')}`,EUR),
+  ...card('E','F',4,'LUCRO',`=${gp('Lucro ','$B$19')}`,EUR,C.green),
+  ...card('G','G',4,'MARGEM',`=IFERROR(${gp('Lucro ','$B$19')}/${gp('Vendido s/ IVA ','$B$19')},0)`,'0.0%',C.green),
+  ...card('H','I',4,'POR RECEBER',`=${gp('Por receber ','$B$19')}`,EUR,C.orange),
+  ...slicer(['pt','pt2'],'Estado','Estado',150),
+  ...slicer(['pt','pt2'],'Cliente','Cliente',230),
+  ...slicer(['pt','pt2'],'Obra','Obra',330),
+   ...chart('pt2','K4',460,520,'Lucro por obra',57,C.green),'ws.Columns("AA:AC").Hidden = True',
+  'ws.Range("B18").Value = "Detalhe por obra"','ws.Range("B18").Font.Bold = True','ws.Range("B18").Font.Size = 13',`ws.Range("B18").Font.Color = ${C.dark}`);
+
+ // ---- Compras por fornecedor ----
+ L.push(...title('Compras','Compras por fornecedor','Escolha o fornecedor, a obra, o ano ou o mês. Valores das faturas registadas na app.'),
+  'ws.Columns("B:B").ColumnWidth = 40','ws.Columns("C:F").ColumnWidth = 15',
+  ...pivot('pt','ENAT_Faturas','B19','PT_Compras',[['Loja / fornecedor','Fornecedor']],[['Total s/ IVA','Comprado s/ IVA '],['IVA','IVA '],['Total c/ IVA','Comprado c/ IVA '],['Nº fatura','N.º de faturas',-4112,'0']],'Comprado s/ IVA '),
+  ...pivot('pt2','=pt','AA16','PT_ComprasGrafico',[['Loja / fornecedor','Fornecedor']],[['Total s/ IVA','Compras por fornecedor']],'Compras por fornecedor'),
+  ...card('B','B',4,'COMPRADO S/ IVA',`=${gp('Comprado s/ IVA ','$B$19')}`,EUR,C.green),
+  ...card('C','D',4,'IVA SUPORTADO',`=${gp('IVA ','$B$19')}`,EUR),
+  ...card('E','F',4,'N.º DE FATURAS',`=${gp('N.º de faturas','$B$19')}`,'0'),
+  ...slicer(['pt','pt2'],'Loja / fornecedor','Fornecedor',250),
+  ...slicer(['pt','pt2'],'Obra','Obra',260),
+  ...slicer(['pt','pt2'],'Ano','Ano',90),
+  ...slicer(['pt','pt2'],'Mês','Mês',170,2),
+  ...chart('pt2','H19',420,380,'Compras por fornecedor (s/ IVA)',57,C.orange),'ws.Columns("AA:AC").Hidden = True',
+  'ws.Range("B18").Value = "Por fornecedor"','ws.Range("B18").Font.Bold = True','ws.Range("B18").Font.Size = 13',`ws.Range("B18").Font.Color = ${C.dark}`);
+
+ // ---- Artigos comprados ----
+ L.push(...title('Artigos','O que comprei a cada fornecedor','Escolha o fornecedor e a obra para ver cada artigo, a quantidade, o preço por unidade (já com descontos) e o total.'),
+  'ws.Columns("B:B").ColumnWidth = 38','ws.Columns("C:C").ColumnWidth = 52','ws.Columns("D:F").ColumnWidth = 15',
+  ...pivot('pt','ENAT_Materiais','B19','PT_Artigos',[['Loja / fornecedor','Fornecedor'],['Artigo','Artigo']],[['Quantidade','Quantidade ',-4157,'General'],['Total linha s/ IVA','Total s/ IVA ']],'Total s/ IVA '),
+  `pt.CalculatedFields.Add "PrecoUnidade", ${quote("='Total linha s/ IVA'/Quantidade")}, True`,`Set df = pt.AddDataField(pt.PivotFields("PrecoUnidade"), "Preço por unidade s/ IVA", -4157)`,`df.NumberFormat = ${quote(EUR)}`,
+  ...card('B','B',4,'TOTAL S/ IVA',`=${gp('Total s/ IVA ','$B$19')}`,EUR,C.green),
+  ...slicer(['pt'],'Loja / fornecedor','Fornecedor',220),
+  ...slicer(['pt'],'Obra','Obra',260),
+  ...slicer(['pt'],'Categoria','Categoria',160),
+  ...slicer(['pt'],'Ano','Ano',90),
+  'ws.Range("B18").Value = "Artigos"','ws.Range("B18").Font.Bold = True','ws.Range("B18").Font.Size = 13',`ws.Range("B18").Font.Color = ${C.dark}`);
+
+ L.push('wb.Worksheets("Painel").Activate','wb.Worksheets("Painel").Range("A1").Select','xl.ScreenUpdating = True','wb.Save',
+  'MsgBox "Pronto! O ficheiro ENAT-Financas está no Ambiente de Trabalho. Use os filtros do Painel, das Compras e dos Artigos para escolher a obra ou o fornecedor.", 64, "ENAT"',
+  'Else',
+  ' wb.Save',
+  ' MsgBox "O ficheiro foi criado no Ambiente de Trabalho, mas o Excel ainda não conseguiu ler os dados da app. Confirme a palavra-passe do Excel (utilizador enat, autenticação Básico) e volte a correr este assistente.", 48, "ENAT"',
+  'End If');
+ return '﻿'+L.join('\r\n');
 }

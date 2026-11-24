@@ -14,16 +14,21 @@ async function gaFetch(n){
 const gaNum=v=>Number(v||0).toLocaleString('pt-PT',{maximumFractionDigits:0});
 const gaDia=s=>String(s||'').slice(8,10)+'/'+String(s||'').slice(5,7);
 const gaQuando=t=>{const d=new Date(t);return isNaN(d)?String(t||''):d.toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',' às')};
-// Barras: custo por dia; linha: cliques (cada um na sua escala).
-function gaGrafico(dias){
- const W=600,H=160,n=dias.length,bw=W/n,mc=Math.max(1,...dias.map(d=>+d.custo||0)),mk=Math.max(1,...dias.map(d=>+d.cliques||0));
- const bars=dias.map((d,i)=>{const h=(+d.custo||0)/mc*(H-8);return `<rect x="${(i*bw+bw*.15).toFixed(1)}" y="${(H-h).toFixed(1)}" width="${(bw*.7).toFixed(1)}" height="${h.toFixed(1)}" rx="2" class="ga-bar"><title>${esc(gaDia(d.data))}: ${esc(eur(+d.custo||0))} · ${gaNum(d.cliques)} cliques</title></rect>`}).join('');
- const line=dias.map((d,i)=>`${(i*bw+bw/2).toFixed(1)},${(H-(+d.cliques||0)/mk*(H-8)).toFixed(1)}`).join(' ');
- const lab=[0,Math.floor((n-1)/2),n-1].filter((v,i,a)=>a.indexOf(v)===i).map(i=>`<span>${esc(gaDia(dias[i].data))}</span>`).join('');
- return `<div class="chart ga-chart"><div class="dash-h"><b>Custo e cliques por dia</b><div class="legend"><span><b class="ga-k-c"></b>Custo</span><span><b class="ga-k-k"></b>Cliques</span></div></div>
- <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Custo e cliques por dia">${bars}<polyline points="${line}" class="ga-line"/></svg>
- <div class="cols-l ga-l">${lab}</div></div>`;
+// Gráficos por dia: um para o custo e outro para os cliques, cada um com a sua escala (nunca dois eixos no mesmo gráfico).
+// Barras em HTML (não esticam), eixo com valores redondos, datas espaçadas e o valor do dia ao passar o rato ou tocar.
+const gaTopo=v=>{if(!(v>0))return 1;const p=10**Math.floor(Math.log10(v)),m=v/p;return (m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p};
+function gaBarras(dias,campo,titulo,fmt,cls,fmtEixo=fmt){
+ const n=dias.length,vals=dias.map(d=>Math.max(0,+d[campo]||0)),top=gaTopo(Math.max(...vals)),tot=vals.reduce((a,b)=>a+b,0);
+ const passo=Math.max(1,Math.ceil(n/6)),marcas=dias.map((d,i)=>i%passo===0||i===n-1?i:-1).filter(i=>i>=0);
+ if(marcas.length>1&&marcas.at(-1)-marcas.at(-2)<passo*.9)marcas.splice(-2,1);
+ const cols=dias.map((d,i)=>{const v=vals[i],h=v/top*100,txt=esc(gaDia(d.data))+': '+esc(fmt(v));
+  return `<div class="ga-c${i>=n/2?' r':''}" tabindex="0" aria-label="${txt}"><i class="${cls}" style="height:${v?Math.max(1.5,h).toFixed(2):0}%"></i><em>${txt}</em></div>`}).join('');
+ const eixo=[top,top/2,0].map(v=>`<span>${esc(fmtEixo(v))}</span>`).join('');
+ const datas=marcas.map(i=>`<span style="${i===0?'left:0;transform:none':i===n-1?'left:100%;transform:translateX(-100%)':'left:'+((i+.5)/n*100).toFixed(2)+'%'}">${esc(gaDia(dias[i].data))}</span>`).join('');
+ return `<div class="chart ga-chart"><div class="dash-h"><b>${titulo}</b><span class="ga-tot">Total: <b>${esc(fmt(tot))}</b></span></div>
+ <div class="ga-plot"><div class="ga-y">${eixo}</div><div class="ga-area"><div class="ga-grid"><i></i><i></i><i></i></div><div class="ga-cols${n>45?' fino':''}">${cols}</div></div><span></span><div class="ga-x">${datas}</div></div></div>`;
 }
+const gaGrafico=dias=>`<div class="ga-charts">${gaBarras(dias,'custo','Custo por dia',v=>eur(v),'ga-cus',v=>v.toLocaleString('pt-PT',{maximumFractionDigits:1})+' €')}${gaBarras(dias,'cliques','Cliques por dia',gaNum,'ga-cli')}</div>`;
 function vGoogleAds(){
  const n=GA.n,d=GA.data[n];
  if((!d||Date.now()-d._t>5*60e3)&&!GA.loading[n]&&!GA.err)gaFetch(n);

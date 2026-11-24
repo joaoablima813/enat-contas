@@ -150,3 +150,10 @@ nav div{grid-template-columns:repeat(9,minmax(0,1fr))}
 .eq-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.eq-kpis .kpi{border:0;text-align:left;cursor:pointer;font:inherit;color:var(--ink);box-shadow:var(--sh1)}
 .eq-b{font-size:11px;padding:2px 8px;margin-bottom:3px}.eq-b.ok{--lc:var(--green)}.eq-b.acabar{--lc:#e8890c}.eq-b.fora{--lc:var(--red)}
 #eqlist .rr{max-width:42%}#eqlist .rr span{font-size:12px;white-space:normal}#eqlist .rt b{white-space:normal;overflow-wrap:anywhere;line-height:1.25}#eqlist .rt span{white-space:normal}
+/* AlphaESS: energia do dia e horários da bateria */
+.al-bt{margin-top:10px}.al-bt .btn{flex:1;min-width:150px;margin:0}
+.al-chart{margin-top:10px;background:var(--card);border-radius:12px;padding:10px}.al-chart svg{width:100%;height:110px;display:block}
+.al-chart polyline{fill:none;stroke-width:1.6;vector-effect:non-scaling-stroke}.al-pv{stroke:#f39200}.al-load{stroke:#48524d}.al-soc{stroke:#2f9e44;stroke-dasharray:3 3}
+.al-h{grid-template-columns:repeat(5,1fr);text-align:left}.al-h span:last-child{text-align:right}
+.al-cfg{background:var(--card);border-radius:14px;padding:12px;margin-bottom:10px}.al-cfg>b{display:block;margin-bottom:2px}
+.al-per{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute)}.al-per input{flex:1;min-width:0;font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--bg);color:var(--ink)}

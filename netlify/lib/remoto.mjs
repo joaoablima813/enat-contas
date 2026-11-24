@@ -14,7 +14,7 @@ const SN = /^[A-Za-z0-9_-]{4,40}$/, TID = /^[A-Za-z0-9]{6,40}$/, CODE = /^[A-Za-
 
 // ---------- AlphaESS ----------
 const ALPHA = 'https://openapi.alphaess.com/api';
-const ALPHA_ERR = { 6002: 'Este número de série não está associado à ENAT.', 6003: 'Este sistema já está associado.', 6004: 'O CheckCode não está certo. Copie-o da etiqueta do inversor («Check Code», junto ao S/N) exatamente como está.', 6005: 'Este sistema não está associado à conta da ENAT.', 6038: 'Este número de série não existe na AlphaESS.', 6042: 'O sistema está offline (sem ligação à internet).', 6046: 'O código do email não está certo (ou já expirou). Peça um novo e use o mais recente.', 6053: 'Pedidos demasiado rápidos. Tente daqui a um minuto.' };
+const ALPHA_ERR = { 6002: 'Este número de série não está associado à ENAT.', 6003: 'Este sistema já está associado.', 6004: 'O CheckCode não está certo. Copie-o da etiqueta do inversor («Check Code», junto ao S/N) exatamente como está.', 6005: 'Este sistema não está associado à conta da ENAT.', 6038: 'Este número de série não existe na AlphaESS.', 6042: 'O sistema está offline (sem ligação à internet).', 6046: 'O código do email não está certo (ou já expirou). Peça um novo e use o mais recente.', 6053: 'Pedidos demasiado rápidos. Tente daqui a um minuto.', 6001: 'A AlphaESS recusou os valores enviados.', 6008: 'A AlphaESS não conseguiu aplicar a alteração. Tente mais tarde.', 6017: 'Este sistema não permite esta operação pela ligação da ENAT.' };
 export function alphaHeaders(appId, secret, now = Date.now()) {
   const timestamp = String(Math.floor(now / 1000));
   const sign = createHash('sha512').update(appId + secret + timestamp).digest('hex');
@@ -197,6 +197,36 @@ export async function handleRemoto(req, path, store, opts = {}) {
       const [list, last] = await Promise.all([alpha('/getEssList', opts), alpha(`/getLastPowerData?sysSn=${encodeURIComponent(sn)}`, opts)]);
       const sys = (Array.isArray(list) ? list : []).find((s) => String(s.sysSn || '').toUpperCase() === sn) || null;
       return json(200, { sistema: sys, ultimo: last, at: Date.now() });
+    }
+    // AlphaESS: energia e gráfico de um dia.
+    if (path === 'remoto/alpha/dia') {
+      const sn = q('sn').toUpperCase(), dia = /^\d{4}-\d{2}-\d{2}$/.test(q('data')) ? q('data') : new Date().toISOString().slice(0, 10);
+      if (!SN.test(sn)) return json(400, { error: 'Número de série inválido.' });
+      const qs = `?sysSn=${encodeURIComponent(sn)}&queryDate=${dia}`;
+      const [energia, potencia] = await Promise.all([alpha('/getOneDateEnergyBySn' + qs, opts), alpha('/getOneDayPowerBySn' + qs, opts).catch(() => [])]);
+      return json(200, { dia, energia: energia || {}, potencia: Array.isArray(potencia) ? potencia : [], at: Date.now() });
+    }
+    // AlphaESS: carregamento da bateria pela rede e descarga (horários e limites).
+    if (path === 'remoto/alpha/config' && req.method === 'GET') {
+      const sn = q('sn').toUpperCase();
+      if (!SN.test(sn)) return json(400, { error: 'Número de série inválido.' });
+      const qs = '?sysSn=' + encodeURIComponent(sn);
+      const [carga, descarga] = await Promise.all([alpha('/getChargeConfigInfo' + qs, opts), alpha('/getDisChargeConfigInfo' + qs, opts)]);
+      return json(200, { carga: carga || {}, descarga: descarga || {} });
+    }
+    if (path === 'remoto/alpha/config' && req.method === 'POST') {
+      const b = await req.json().catch(() => ({})), sn = String(b.sn || '').trim().toUpperCase();
+      const HORA = /^([01]\d|2[0-3]):(00|15|30|45)$/, pct = (v) => Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 100;
+      if (!SN.test(sn)) return json(400, { error: 'Número de série inválido.' });
+      const carga = b.tipo === 'carga', k = carga ? ['timeChaf1', 'timeChae1', 'timeChaf2', 'timeChae2'] : ['timeDisf1', 'timeDise1', 'timeDisf2', 'timeDise2'];
+      const cap = carga ? 'batHighCap' : 'batUseCap', on = carga ? 'gridCharge' : 'ctrDis';
+      if (!['carga', 'descarga'].includes(b.tipo) || !k.every((x) => HORA.test(String(b[x] || ''))) || !pct(b[cap]) || ![0, 1].includes(Number(b[on])))
+        return json(400, { error: 'Valores inválidos. As horas têm de ser de 15 em 15 minutos (ex.: 02:00, 05:30) e a percentagem entre 0 e 100.' });
+      const body = { sysSn: sn, [cap]: Number(b[cap]), [on]: Number(b[on]), ...Object.fromEntries(k.map((x) => [x, b[x]])) };
+      await alpha(carga ? '/updateChargeConfigInfo' : '/updateDisChargeConfigInfo', { method: 'POST', body, ...opts });
+      // Lê de novo para confirmar (a AlphaESS responde sem dados quando grava).
+      const lido = await alpha((carga ? '/getChargeConfigInfo' : '/getDisChargeConfigInfo') + '?sysSn=' + encodeURIComponent(sn), opts).catch(() => null);
+      return json(200, { ok: true, lido });
     }
     // Smart Life: equipamentos das contas ligadas, estado com avarias, e comandos.
     if (path === 'remoto/tuya/dispositivos') {

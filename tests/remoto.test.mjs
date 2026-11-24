@@ -123,3 +123,30 @@ test('AlphaESS binding in two steps: CheckCode asks for the email code, then the
   r = await handleRemoto(req('remoto/alpha/associar', { sn: 'AL123456', code: '1' }), 'remoto/alpha/associar', blobs(), { fetcher: wrong });
   assert.match((await r.json()).error, /email/);
 }));
+
+test('AlphaESS: energy of a day, read and change the battery charge/discharge schedules (15-minute steps, read back)', env({ ALPHAESS_APP_ID: 'a', ALPHAESS_APP_SECRET: 's' }, async () => {
+  const calls = [];
+  let carga = { gridCharge: 0, timeChaf1: '00:00', timeChae1: '00:00', timeChaf2: '00:00', timeChae2: '00:00', batHighCap: 100 };
+  const fetcher = async (url, o) => {
+    calls.push([url, o.method, o.body]);
+    const p = url.replace('https://openapi.alphaess.com/api', '');
+    const data = p.startsWith('/getOneDateEnergyBySn') ? { epv: 21.4, eInput: 3.1, eOutput: 8.2 }
+      : p.startsWith('/getOneDayPowerBySn') ? [{ uploadTime: '2026-11-24 12:00:00', ppv: 3200, load: 800, cbat: 80 }]
+      : p.startsWith('/getChargeConfigInfo') ? carga
+      : p.startsWith('/getDisChargeConfigInfo') ? { ctrDis: 0, timeDisf1: '00:00', timeDise1: '00:00', timeDisf2: '00:00', timeDise2: '00:00', batUseCap: 10 }
+      : p.startsWith('/updateChargeConfigInfo') ? ((carga = { ...JSON.parse(o.body) }), null) : null;
+    return { json: async () => ({ code: 200, msg: 'Success', data }) };
+  };
+  let j = await (await handleRemoto(req('remoto/alpha/dia?sn=al1234&data=2026-11-24'), 'remoto/alpha/dia', blobs(), { fetcher })).json();
+  assert.equal(j.energia.epv, 21.4);assert.equal(j.potencia.length, 1);
+  assert.ok(calls.some(([u]) => u.endsWith('/getOneDateEnergyBySn?sysSn=AL1234&queryDate=2026-11-24')));
+  j = await (await handleRemoto(req('remoto/alpha/config?sn=AL1234'), 'remoto/alpha/config', blobs(), { fetcher })).json();
+  assert.equal(j.carga.batHighCap, 100);assert.equal(j.descarga.batUseCap, 10);
+  const ok = { sn: 'AL1234', tipo: 'carga', gridCharge: 1, timeChaf1: '02:00', timeChae1: '05:30', timeChaf2: '00:00', timeChae2: '00:00', batHighCap: 90 };
+  j = await (await handleRemoto(req('remoto/alpha/config', ok), 'remoto/alpha/config', blobs(), { fetcher })).json();
+  assert.equal(j.ok, true);assert.equal(j.lido.timeChaf1, '02:00');
+  const sent = calls.find(([u]) => u.endsWith('/updateChargeConfigInfo'));assert.equal(sent[1], 'POST');
+  assert.deepEqual(JSON.parse(sent[2]), { sysSn: 'AL1234', batHighCap: 90, gridCharge: 1, timeChaf1: '02:00', timeChae1: '05:30', timeChaf2: '00:00', timeChae2: '00:00' });
+  for (const bad of [{ ...ok, timeChaf1: '02:10' }, { ...ok, batHighCap: 120 }, { ...ok, tipo: 'outro' }, { ...ok, gridCharge: 2 }])
+    assert.equal((await handleRemoto(req('remoto/alpha/config', bad), 'remoto/alpha/config', blobs(), { fetcher })).status, 400);
+}));

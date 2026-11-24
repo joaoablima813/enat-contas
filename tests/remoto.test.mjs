@@ -14,9 +14,9 @@ test('AlphaESS: SHA-512 signature of appId + secret + timestamp in seconds', () 
   assert.equal(h.appId, 'alpha1');
 });
 
-test('remote access without keys says it is not configured yet', env({ ALPHAESS_APP_ID: '', ALPHAESS_APP_SECRET: '', TUYA_ACCESS_ID: '', TUYA_ACCESS_SECRET: '' }, async () => {
+test('remote access without keys says it is not configured yet', env({ ALPHAESS_APP_ID: '', ALPHAESS_APP_SECRET: '', TUYA_ACCESS_ID: '', TUYA_ACCESS_SECRET: '', DAIKIN_CLIENT_ID: '', DAIKIN_CLIENT_SECRET: '' }, async () => {
   const c = await (await handleRemoto(req('remoto/config'), 'remoto/config', blobs())).json();
-  assert.deepEqual(c, { alpha: false, tuya: false });
+  assert.deepEqual(c, { alpha: false, tuya: false, daikin: false });
   const r = await handleRemoto(req('remoto/alpha/estado?sn=AL123456'), 'remoto/alpha/estado', blobs());
   assert.equal(r.status, 503);assert.match((await r.json()).error, /ainda não está configurada/);
 }));
@@ -58,3 +58,52 @@ test('Tuya faults: zero means no fault', () => {
   assert.deepEqual(tuyaFaults([{ code: 'fault', value: 0 }], null), []);
   assert.deepEqual(tuyaFaults([{ code: 'fault', value: 2 }], null), ['Avaria 2']);
 });
+
+test('Daikin: link for the client, one-time authorization, status summary, commands and revocation', env({ DAIKIN_CLIENT_ID: 'dkid', DAIKIN_CLIENT_SECRET: 'dksec', LINK_URL: 'https://propostas.test' }, async () => {
+  const { handleDaikinPublico, daikinAuthorizeUrl } = await import('../netlify/lib/remoto.mjs');
+  const store = blobs(), seen = [];
+  const fetcher = async (url, o = {}) => {
+    seen.push([o.method, url, o.body]);
+    if (url.endsWith('/oidc/token')) return { ok: true, status: 200, json: async () => ({ access_token: 'AT', refresh_token: 'RT', expires_in: 3600 }) };
+    if (url.endsWith('/revoke')) return { ok: true, status: 200, json: async () => ({}) };
+    if (o.method === 'PATCH') return { ok: true, status: 204, json: async () => null };
+    return { ok: true, status: 200, json: async () => ([{ _id: 'gw1', deviceModel: 'Altherma', isCloudConnectionUp: { value: true }, managementPoints: [
+      { embeddedId: '0', managementPointType: 'gateway', errorCode: { value: '' } },
+      { embeddedId: '1', managementPointType: 'climateControl', name: { value: 'Sala' }, onOffMode: { value: 'on', settable: true }, operationMode: { value: 'heating', settable: true, values: ['heating', 'cooling'] }, isInErrorState: { value: true }, errorCode: { value: 'U4-01' },
+        sensoryData: { value: { roomTemperature: { value: 21.5 }, outdoorTemperature: { value: 8 } } },
+        temperatureControl: { value: { operationModes: { heating: { setpoints: { roomTemperature: { value: 22, minValue: 12, maxValue: 30, stepValue: 0.5, settable: true } } } } } } },
+    ] }]) };
+  };
+  // Sem autorização ainda
+  let r = await handleRemoto(req('remoto/daikin/estado?ref=eq12345'), 'remoto/daikin/estado', store, { fetcher });
+  assert.equal(r.status, 409);
+  // Link para o cliente
+  const { url } = await (await handleRemoto(req('remoto/daikin/link', { ref: 'eq12345' }), 'remoto/daikin/link', store)).json();
+  assert.match(url, /^https:\/\/propostas\.test\/api\/daikin\/ligar\?s=[a-f0-9]{32}$/);
+  const s = new URL(url).searchParams.get('s');
+  const go = await handleDaikinPublico(new Request(url), 'daikin/ligar', store);
+  assert.equal(go.status, 302);assert.equal(go.headers.get('location'), daikinAuthorizeUrl(s, 'dkid'));
+  assert.match(go.headers.get('location'), /scope=openid%20onecta%3Abasic\.integration%20offline_access/);
+  // Retorno com o código
+  const back = await handleDaikinPublico(new Request('https://app.test/api/daikin/retorno?code=C1&state=' + s), 'daikin/retorno', store, { fetcher });
+  assert.match(await back.text(), /Obrigado/);
+  assert.match(seen[0][2], /grant_type=authorization_code/);assert.match(seen[0][2], /client_secret=dksec/);
+  // O mesmo link não serve duas vezes
+  assert.match(await (await handleDaikinPublico(new Request('https://app.test/api/daikin/retorno?code=C2&state=' + s), 'daikin/retorno', store, { fetcher })).text(), /expirado/);
+  // Estado resumido
+  const j = await (await handleRemoto(req('remoto/daikin/estado?ref=eq12345'), 'remoto/daikin/estado', store, { fetcher })).json();
+  const m = j.dispositivos[0].unidades;
+  assert.equal(m.length, 1, 'gateway without error is hidden');
+  assert.equal(m[0].erro, 'U4-01');assert.equal(m[0].ligado, true);assert.equal(m[0].sensores.roomTemperature, 21.5);
+  assert.deepEqual(m[0].pontos[0], { code: 'roomTemperature', value: 22, min: 12, max: 30, step: 0.5, settable: true, path: '/operationModes/heating/setpoints/roomTemperature' });
+  // Comando
+  r = await handleRemoto(req('remoto/daikin/comando', { ref: 'eq12345', device: 'gw1', mp: '1', characteristic: 'temperatureControl', path: m[0].pontos[0].path, value: 23 }), 'remoto/daikin/comando', store, { fetcher });
+  assert.equal(r.status, 200);
+  const p = seen.find((x) => x[0] === 'PATCH');
+  assert.match(p[1], /\/gateway-devices\/gw1\/management-points\/1\/characteristics\/temperatureControl$/);assert.deepEqual(JSON.parse(p[2]), { path: '/operationModes/heating/setpoints/roomTemperature', value: 23 });
+  assert.equal((await handleRemoto(req('remoto/daikin/comando', { ref: 'eq12345', device: 'gw1', mp: '1', characteristic: 'firmware', value: 1 }), 'remoto/daikin/comando', store, { fetcher })).status, 400);
+  // Retirar a ligação
+  assert.equal((await handleRemoto(req('remoto/daikin/desligar', { ref: 'eq12345' }), 'remoto/daikin/desligar', store, { fetcher })).status, 200);
+  assert.ok(seen.some((x) => x[1].endsWith('/revoke')));
+  assert.equal((await handleRemoto(req('remoto/daikin/estado?ref=eq12345'), 'remoto/daikin/estado', store, { fetcher })).status, 409);
+}));

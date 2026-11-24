@@ -2,7 +2,8 @@
 import { getStore } from '@netlify/blobs';
 import OpenAI from 'openai';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { segredo, assinar, valido } from '../lib/sessao.mjs';
 
 const CATS = ['Equipamentos', 'Material elétrico', 'Cablagem', 'Cobre', 'Tubagem', 'Acessórios e fixação', 'Outros / consumíveis'];
 const PROMPT = `Esta imagem ou PDF é uma fatura portuguesa de um fornecedor de materiais. Devolve APENAS JSON:
@@ -28,19 +29,6 @@ const json = (status, body) => new Response(body == null ? '' : JSON.stringify(b
 
 // Sessões: token "expira.assinatura" assinado com um segredo guardado nos Blobs.
 const DOZE_H = 12 * 3600e3;
-const segredo = async (store) => {
-  let s = await store.get('auth-segredo');
-  if (!s) { s = randomBytes(32).toString('hex'); await store.set('auth-segredo', s); }
-  return s;
-};
-const assinar = (s, exp) => exp + '.' + createHmac('sha256', s).update(String(exp)).digest('base64url');
-const valido = (s, t) => {
-  const exp = String(t || '').split('.')[0];
-  if (!exp || !(+exp > Date.now())) return false;
-  const a = Buffer.from(assinar(s, exp)), b = Buffer.from(String(t));
-  return a.length === b.length && timingSafeEqual(a, b);
-};
-
 async function auth(req, path, store, autorizado) {
   const u = new URL(req.url), rpID = u.hostname, origin = u.origin;
   const chaves = (await store.get('passkeys', { type: 'json' })) || [];

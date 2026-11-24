@@ -72,7 +72,7 @@ function eqRemoto(e,i){
  if(e.app==='Daikin Onecta')body=dkRemoto(e,i,L);
  else if(e.app==='AlphaCloud'){
   const ok=e.alphaOk;
-  body=(ok?'':`<p class="note">Primeiro associe este sistema à conta da ENAT (precisa do número de série e do CheckCode).</p><button type="button" class="btn alt" data-eqr="alpha-bind" data-i="${i}" ${L.loading?'disabled':''}>Associar à ENAT</button>`)+
+  body=(ok?'':`<p class="note">Primeiro associe este sistema à conta da ENAT. Precisa do número de série e do <b>CheckCode</b>: está na etiqueta do inversor (ou da bateria), junto ao S/N, com o nome «Check Code», e também na etiqueta da caixa. Escreva-o tal e qual, no campo acima.</p><button type="button" class="btn alt" data-eqr="alpha-bind" data-i="${i}" ${L.loading?'disabled':''}>Associar à ENAT</button>`)+
    `<button type="button" class="btn alt" data-eqr="alpha" data-i="${i}" ${L.loading?'disabled':''}>${L.loading?'A ler…':'Ver estado agora'}</button>`;
   if(d){const u=d.ultimo||{},main=['ppv','pload','soc','pbat','pgrid'].filter(k=>u[k]!=null);
    body+=`<div class="eq-live"><div class="eq-kv">${main.map(k=>`<div><span>${esc(eqNome(k))}</span><b>${esc(String(u[k]))}</b></div>`).join('')||'<div><span>Sem dados recentes</span><b>—</b></div>'}</div>
@@ -148,7 +148,7 @@ function eqSection(o){
    <div class="eq-g2"><label class="q-field"><span>Tipo</span><select data-eqf="tipo" data-i="${i}">${opt(EQ_TIPOS,e.tipo)}</select></label>
    <label class="q-field"><span>Marca</span><input data-eqf="marca" data-i="${i}" value="${esc(e.marca||'')}" list="eq-marcas" placeholder="Ex.: Energie"></label></div>
    ${f(i,'modelo','Modelo',e.modelo,'placeholder="Ex.: Aquapura 200"')}
-   <div class="eq-g2">${f(i,'sn','Número de série (SN)',e.sn,'autocapitalize="characters" spellcheck="false"')}${f(i,'check','Código de verificação (opcional)',e.check,'spellcheck="false" placeholder="Ex.: CheckCode AlphaESS"')}</div>
+   <div class="eq-g2">${f(i,'sn','Número de série (SN)',e.sn,'autocapitalize="characters" spellcheck="false"')}${f(i,'check',e.app==='AlphaCloud'||/alpha/i.test(e.marca||'')?'CheckCode (obrigatório na AlphaESS)':'Código de verificação (opcional)',e.check,'spellcheck="false" placeholder="Na etiqueta, junto ao S/N"')}</div>
    <div class="eq-g2"><label class="q-field"><span>Data de instalação</span><input type="date" data-eqf="instalado" data-i="${i}" value="${esc(e.instalado||'')}"></label><label class="q-field"><span>Garantia até</span><input type="date" data-eqf="garantiaAte" data-i="${i}" value="${esc(e.garantiaAte||'')}"></label></div>
    <div class="eq-g2"><label class="q-field"><span>App / portal da marca</span><select data-eqf="app" data-i="${i}">${opt(EQ_APPS,e.app)}</select></label>${f(i,'conta','Conta do cliente na app',e.conta,'placeholder="Email ou utilizador" autocomplete="off"')}</div>
    <label class="row kv eq-chk"><input type="checkbox" data-eqf="remoto" data-i="${i}" ${e.remoto?'checked':''}><div class="rt"><b>O cliente autorizou o acesso remoto</b><span>Peça autorização (de preferência por escrito) e partilhe o equipamento com a conta da ENAT na app da marca.</span></div></label>
@@ -164,7 +164,8 @@ function eqSection(o){
 }
 function eqSet(t,saveNow){
  const o=eqObra(),e=o?.eqs?.[+t.dataset.i];if(!e)return;const k=t.dataset.eqf;
- e[k]=k==='remoto'?t.checked:k==='sn'||k==='check'?t.value.trim().toUpperCase():t.value;
+ e[k]=k==='remoto'?t.checked:k==='sn'?t.value.trim().toUpperCase():k==='check'?t.value.trim():t.value;
+ if(saveNow&&(k==='app'||k==='marca'))setTimeout(render,0);
  // A marca sugere a app; a data de instalação sugere o fim da garantia.
  if(k==='marca'){const m=EQ_MARCAS.find(x=>x.toLowerCase()===String(t.value).trim().toLowerCase());if(m&&!e.app){e.app=EQ_APP_DE[m];const s=document.querySelector(`select[data-eqf="app"][data-i="${t.dataset.i}"]`);if(s)s.value=e.app}}
  if(k==='instalado'&&!e.garantiaAte){e.garantiaAte=eqMais(e.instalado,eqAnos());const g=document.querySelector(`input[data-eqf="garantiaAte"][data-i="${t.dataset.i}"]`);if(g)g.value=e.garantiaAte}

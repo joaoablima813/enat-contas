@@ -14,7 +14,7 @@ const SN = /^[A-Za-z0-9_-]{4,40}$/, TID = /^[A-Za-z0-9]{6,40}$/, CODE = /^[A-Za-
 
 // ---------- AlphaESS ----------
 const ALPHA = 'https://openapi.alphaess.com/api';
-const ALPHA_ERR = { 6002: 'Este número de série não está associado à ENAT.', 6003: 'Este sistema já está associado.', 6004: 'O CheckCode não está certo.', 6005: 'Este sistema não está associado à conta da ENAT.', 6038: 'Este número de série não existe na AlphaESS.', 6042: 'O sistema está offline (sem ligação à internet).', 6046: 'Código de verificação errado.', 6053: 'Pedidos demasiado rápidos. Tente daqui a um minuto.' };
+const ALPHA_ERR = { 6002: 'Este número de série não está associado à ENAT.', 6003: 'Este sistema já está associado.', 6004: 'O CheckCode não está certo. Copie-o da etiqueta do inversor («Check Code», junto ao S/N) exatamente como está.', 6005: 'Este sistema não está associado à conta da ENAT.', 6038: 'Este número de série não existe na AlphaESS.', 6042: 'O sistema está offline (sem ligação à internet).', 6046: 'Código de verificação errado.', 6053: 'Pedidos demasiado rápidos. Tente daqui a um minuto.' };
 export function alphaHeaders(appId, secret, now = Date.now()) {
   const timestamp = String(Math.floor(now / 1000));
   const sign = createHash('sha512').update(appId + secret + timestamp).digest('hex');

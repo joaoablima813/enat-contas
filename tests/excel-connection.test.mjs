@@ -28,18 +28,25 @@ test('installer keeps credentials outside queries and creates a portable macro-f
  // VBScript string literals use doubled quotes. Check all lines balance.
  for(const line of script.split('\r\n'))assert.equal((line.match(/"/g)||[]).length%2,0,line);
 });
-test('workbook has an interactive dashboard: pivots with ENAT colours, shared slicers, KPI cards and charts',()=>{
+test('workbook has a modern interactive dashboard: header with sheet buttons, cards, shared slicers and clear charts',()=>{
  const script=installer('https://example.org');
  for(const s of ['Painel','Compras','Artigos','Obras','Faturas','Materiais','Movimentos','Instruções'])assert.match(script,new RegExp(`Name = "${s}"`));
  assert.equal((script.match(/Table.TransformColumnTypes/g)||[]).length,4);
  for(const t of ['ENAT_Obras','ENAT_Faturas','ENAT_Materiais'])assert.match(script,new RegExp(`PivotCaches.Create\\(1, "${t}", 6\\)`));
- // The chart pivots share the cache of the main pivot, so one slicer filters both.
- assert.equal((script.match(/Set pc = pt.PivotCache/g)||[]).length,2);
- assert.equal((script.match(/sc.PivotTables.AddPivotTable pt2/g)||[]).length,7);
+ // Chart pivots share the main pivot's cache, so one slicer filters table, cards and charts together.
+ assert.equal((script.match(/Set pc = pt.PivotCache/g)||[]).length,5);
+ assert.equal((script.match(/sc.PivotTables.AddPivotTable pt3/g)||[]).length,7);
  for(const f of ['Estado','Cliente','Obra','Loja / fornecedor','Ano','Mês','Categoria'])assert.match(script,new RegExp(`SlicerCaches.Add2\\(pt, "${f}"\\)`));
- assert.match(script,/GETPIVOTDATA\(""Lucro "",\$B\$19\)/);
- assert.match(script,/PivotStyleMedium7/);assert.match(script,/SlicerStyleLight6/);
- assert.match(script,/AddChart2\(-1, 57,/);
+ // Theme in ENAT colours and Segoe UI; built-in styles follow the theme.
+ assert.match(script,/ThemeColorScheme.Colors\(5\).RGB = RGB\(31,122,58\)/);assert.match(script,/MinorFont.Item\(1\).Name = "Segoe UI"/);
+ assert.match(script,/styleSl = "SlicerStyleDark1"/);assert.ok(!script.includes('TableElements'),'VBScript cannot edit style elements');
+ // Header with buttons that jump between sheets, and cards linked to cells.
+ assert.match(script,/Sub Header\(ws, title, subtitle, current\)/);assert.match(script,/ws.Hyperlinks.Add s, "", "'" & n & "'!A1", n/);
+ assert.match(script,/t.DrawingObject.Formula = "=" & cell/);assert.match(script,/GETPIVOTDATA\(""Lucro ""," & pt.TableRange1.Cells\(1, 1\).Address/);
+ // Charts: top 10 and value filters (9 = greater than), labels in the Windows number format.
+ for(const t of ['Lucro por obra (top 10)','Quem me deve (por receber)','Top 10 fornecedores (sem IVA)','Compras por mês (sem IVA)','Top 10 artigos (valor sem IVA)'])assert.ok(script.includes(t),t);
+ assert.match(script,/PivotFilters.Add2 9, df, 0/);assert.match(script,/PivotFilters.Add2 1, df, 10/);
+ assert.match(script,/lblFmt = "#" & xl.International\(4\) & "##0 ""€"""/);
  assert.match(script,/CalculatedFields.Add "PrecoUnidade"/);
  // Captions rename the field, so they come after every other use of the source name.
  const L=script.split('\r\n'),cap=L.findIndex(l=>l.includes('PivotFields("Loja / fornecedor").Caption'));

@@ -14,7 +14,7 @@ const SN = /^[A-Za-z0-9_-]{4,40}$/, TID = /^[A-Za-z0-9]{6,40}$/, CODE = /^[A-Za-
 
 // ---------- AlphaESS ----------
 const ALPHA = 'https://openapi.alphaess.com/api';
-const ALPHA_ERR = { 6002: 'Este número de série não está associado à ENAT.', 6003: 'Este sistema já está associado.', 6004: 'O CheckCode não está certo. Copie-o da etiqueta do inversor («Check Code», junto ao S/N) exatamente como está.', 6005: 'Este sistema não está associado à conta da ENAT.', 6038: 'Este número de série não existe na AlphaESS.', 6042: 'O sistema está offline (sem ligação à internet).', 6046: 'Código de verificação errado.', 6053: 'Pedidos demasiado rápidos. Tente daqui a um minuto.' };
+const ALPHA_ERR = { 6002: 'Este número de série não está associado à ENAT.', 6003: 'Este sistema já está associado.', 6004: 'O CheckCode não está certo. Copie-o da etiqueta do inversor («Check Code», junto ao S/N) exatamente como está.', 6005: 'Este sistema não está associado à conta da ENAT.', 6038: 'Este número de série não existe na AlphaESS.', 6042: 'O sistema está offline (sem ligação à internet).', 6046: 'O código do email não está certo (ou já expirou). Peça um novo e use o mais recente.', 6053: 'Pedidos demasiado rápidos. Tente daqui a um minuto.' };
 export function alphaHeaders(appId, secret, now = Date.now()) {
   const timestamp = String(Math.floor(now / 1000));
   const sign = createHash('sha512').update(appId + secret + timestamp).digest('hex');
@@ -177,11 +177,18 @@ export async function handleRemoto(req, path, store, opts = {}) {
   try {
     if (path === 'remoto/config') return json(200, { alpha: Boolean(process.env.ALPHAESS_APP_ID && process.env.ALPHAESS_APP_SECRET), tuya: Boolean(process.env.TUYA_ACCESS_ID && process.env.TUYA_ACCESS_SECRET), daikin: Boolean(process.env.DAIKIN_CLIENT_ID && process.env.DAIKIN_CLIENT_SECRET) });
     // AlphaESS: associar um sistema à ENAT (SN + CheckCode) e ver o estado.
-    if (path === 'remoto/alpha/associar' && req.method === 'POST') {
+    // Passo 1: a AlphaESS envia um código de verificação para o email da conta onde o sistema está registado.
+    if (path === 'remoto/alpha/codigo' && req.method === 'POST') {
       const b = await req.json().catch(() => ({})), sn = String(b.sn || '').trim().toUpperCase(), check = String(b.check || '').trim();
       if (!SN.test(sn) || !check) return json(400, { error: 'Indique o número de série e o CheckCode.' });
-      const code = await alpha(`/getVerificationCode?sysSn=${encodeURIComponent(sn)}&checkCode=${encodeURIComponent(check)}`, opts);
-      await alpha('/bindSn', { method: 'POST', body: { sysSn: sn, code: code ?? check }, ...opts });
+      await alpha(`/getVerificationCode?sysSn=${encodeURIComponent(sn)}&checkCode=${encodeURIComponent(check)}`, opts);
+      return json(200, { ok: true });
+    }
+    // Passo 2: com o código recebido por email, o sistema fica associado à ENAT.
+    if (path === 'remoto/alpha/associar' && req.method === 'POST') {
+      const b = await req.json().catch(() => ({})), sn = String(b.sn || '').trim().toUpperCase(), code = String(b.code || '').trim();
+      if (!SN.test(sn) || !code) return json(400, { error: 'Indique o número de série e o código que chegou por email.' });
+      await alpha('/bindSn', { method: 'POST', body: { sysSn: sn, code }, ...opts });
       return json(200, { ok: true });
     }
     if (path === 'remoto/alpha/estado') {

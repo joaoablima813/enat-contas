@@ -107,3 +107,19 @@ test('Daikin: link for the client, one-time authorization, status summary, comma
   assert.ok(seen.some((x) => x[1].endsWith('/revoke')));
   assert.equal((await handleRemoto(req('remoto/daikin/estado?ref=eq12345'), 'remoto/daikin/estado', store, { fetcher })).status, 409);
 }));
+
+test('AlphaESS binding in two steps: CheckCode asks for the email code, then the email code binds', env({ ALPHAESS_APP_ID: 'a', ALPHAESS_APP_SECRET: 's' }, async () => {
+  const calls = [];
+  const fetcher = async (url, o) => { calls.push([url, o.method, o.body]); return { json: async () => ({ code: 200, msg: 'Success', data: null }) }; };
+  let r = await handleRemoto(req('remoto/alpha/codigo', { sn: 'al123456', check: 'Ab12Cd' }), 'remoto/alpha/codigo', blobs(), { fetcher });
+  assert.equal(r.status, 200);
+  assert.ok(calls[0][0].endsWith('/getVerificationCode?sysSn=AL123456&checkCode=Ab12Cd'), 'CheckCode keeps its case');
+  assert.equal(calls.length, 1, 'no binding yet');
+  r = await handleRemoto(req('remoto/alpha/associar', { sn: 'AL123456', code: '483920' }), 'remoto/alpha/associar', blobs(), { fetcher });
+  assert.equal(r.status, 200);
+  assert.ok(calls[1][0].endsWith('/bindSn'));assert.deepEqual(JSON.parse(calls[1][2]), { sysSn: 'AL123456', code: '483920' });
+  assert.equal((await handleRemoto(req('remoto/alpha/associar', { sn: 'AL123456', code: '' }), 'remoto/alpha/associar', blobs(), { fetcher })).status, 400);
+  const wrong = async () => ({ json: async () => ({ code: 6046, msg: 'Verification code error' }) });
+  r = await handleRemoto(req('remoto/alpha/associar', { sn: 'AL123456', code: '1' }), 'remoto/alpha/associar', blobs(), { fetcher: wrong });
+  assert.match((await r.json()).error, /email/);
+}));

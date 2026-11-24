@@ -34,7 +34,7 @@ test('workbook has a modern interactive dashboard: header with sheet buttons, ca
  assert.equal((script.match(/Table.TransformColumnTypes/g)||[]).length,4);
  for(const t of ['ENAT_Obras','ENAT_Faturas','ENAT_Materiais'])assert.match(script,new RegExp(`PivotCaches.Create\\(1, "${t}", 6\\)`));
  // Chart pivots share the main pivot's cache, so one slicer filters table, cards and charts together.
- assert.equal((script.match(/Set pc = pt.PivotCache/g)||[]).length,5);
+ assert.equal((script.match(/Set pc = pt.PivotCache/g)||[]).length,6);
  assert.equal((script.match(/sc.PivotTables.AddPivotTable pt3/g)||[]).length,7);
  for(const f of ['Estado','Cliente','Obra','Loja / fornecedor','Ano','Mês','Categoria'])assert.match(script,new RegExp(`SlicerCaches.Add2\\(pt, "${f}"\\)`));
  // Theme in ENAT colours and Segoe UI; built-in styles follow the theme.
@@ -42,9 +42,12 @@ test('workbook has a modern interactive dashboard: header with sheet buttons, ca
  assert.match(script,/styleSl = "SlicerStyleDark1"/);assert.ok(!script.includes('TableElements'),'VBScript cannot edit style elements');
  // Header with buttons that jump between sheets, and cards linked to cells.
  assert.match(script,/Sub Header\(ws, title, subtitle, current\)/);assert.match(script,/ws.Hyperlinks.Add s, "", "'" & n & "'!A1", n/);
- assert.match(script,/t.DrawingObject.Formula = "=" & cell/);assert.match(script,/GETPIVOTDATA\(""Lucro ""," & pt.TableRange1.Cells\(1, 1\).Address/);
+ assert.match(script,/t.DrawingObject.Formula = "=" & cellBig/);assert.match(script,/t.DrawingObject.Formula = "=" & cellSmall/);
+ // Cards: value with VAT in large, without VAT in small, each with its label; sheet buttons next to the title.
+ assert.ok(script.includes('NumberFormat = "#,##0.00 ""€ c/ IVA"""'));assert.ok(script.includes('NumberFormat = "#,##0.00 ""€ s/ IVA"""'));assert.match(script,/nx = 560/);
+ assert.ok(script.includes('GETPIVOTDATA(""Lucro c/ IVA ""," & pt4.TableRange1'));assert.ok(script.includes('GETPIVOTDATA(""Lucro ""," & pt.TableRange1.Cells(1, 1).Address'));
  // Charts: top 10 and value filters (9 = greater than), labels in the Windows number format.
- for(const t of ['Lucro por obra (top 10)','Quem me deve (por receber)','Top 10 fornecedores (sem IVA)','Compras por mês (sem IVA)','Top 10 artigos (valor sem IVA)'])assert.ok(script.includes(t),t);
+ for(const t of ['Lucro por obra (top 10, s/ IVA)','Quem me deve (por receber, c/ IVA)','Top 10 fornecedores (s/ IVA)','Compras por mês (s/ IVA)','Top 10 artigos (s/ IVA)'])assert.ok(script.includes(t),t);
  assert.match(script,/PivotFilters.Add2 9, df, 0/);assert.match(script,/PivotFilters.Add2 1, df, 10/);
  assert.match(script,/lblFmt = "#" & xl.International\(4\) & "##0 ""€"""/);
  assert.match(script,/CalculatedFields.Add "PrecoUnidade"/);
@@ -60,5 +63,6 @@ test('purchases: one name per supplier (accents, case and short names), year and
  const T=excelData(s).tables;
  assert.deepEqual(T.Faturas[0].slice(-2),['Ano','Mês']);
  assert.deepEqual(T.Faturas.slice(1).map(r=>[r[1],r[9],r[10]]),[['ANTONIO MATOS, LDA','2026','2026-10'],['ANTONIO MATOS, LDA','2026','2026-11'],['sanitop','2026','2026-11']],'same NIF read from the ENAT invoice does not merge different suppliers');
- assert.equal(T.Materiais[1][1],'ANTONIO MATOS, LDA');assert.equal(T.Materiais[1][13],'2026');
+ assert.equal(T.Materiais[1][1],'ANTONIO MATOS, LDA');assert.equal(T.Materiais[1][13],'2026');assert.equal(T.Materiais[1][14],123);
+ const O=excelData(s).tables.Obras;assert.deepEqual(O[0].slice(-3),['Custos c/ IVA','Lucro c/ IVA','Por receber s/ IVA']);assert.deepEqual(O[1].slice(-3),[381.3,-281.3,81.3]);
 });

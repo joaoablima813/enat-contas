@@ -66,3 +66,4 @@
 }
 @media (min-width:1600px){.top{max-width:1400px}}
 @media (min-width:1100px){.nl-l{display:inline}.nl-s{display:none}.eq-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:1100px){.ga-ks{grid-template-columns:repeat(3,minmax(0,1fr))}}

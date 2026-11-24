@@ -157,3 +157,11 @@ nav div{grid-template-columns:repeat(9,minmax(0,1fr))}
 .al-h{grid-template-columns:repeat(5,1fr);text-align:left}.al-h span:last-child{text-align:right}
 .al-cfg{background:var(--card);border-radius:14px;padding:12px;margin-bottom:10px}.al-cfg>b{display:block;margin-bottom:2px}
 .al-per{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute)}.al-per input{flex:1;min-width:0;font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--bg);color:var(--ink)}
+
+/* Google Ads */
+.ga-ks{margin-bottom:14px}.ga-ks .dash-k{cursor:default}.ga-ks .dash-k:hover{transform:none}
+.ga-chart svg{display:block;width:100%;height:160px}
+.ga-bar{fill:var(--green);opacity:.75}.ga-line{fill:none;stroke:#f39200;stroke-width:2.5;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.ga-k-c{background:var(--green)}.ga-k-k{background:#f39200}
+.ga-l{display:flex;justify-content:space-between}
+.ga-entry{width:100%;border:0;margin-bottom:14px;box-shadow:var(--sh1);border-radius:16px;background:var(--card);cursor:pointer;font:inherit;color:var(--ink);text-align:left}

@@ -52,7 +52,7 @@ function vAnuncios(){
  const list=AN_LIST||[];list.forEach(x=>anLoad(x.fotos.slice(0,1)));
  const row=x=>`<button class="row invoice-row" data-an="open" data-id="${esc(x.id)}"><div class="av" style="overflow:hidden;padding:0">${x.fotos[0]&&AN_URL[x.fotos[0]]?`<img src="${esc(AN_URL[x.fotos[0]])}" alt="" style="width:100%;height:100%;object-fit:cover">`:ic('cam')}</div><div class="rt"><b>${esc(x.titulo||'Novo anúncio')}</b><span>${esc([x.preco,anState(x)].filter(Boolean).join(' · '))}</span></div><div class="rr">${anVisible(x)?'<span class="lead-badge" style="--lc:var(--green)">No site</span>':ic('chev')}</div></button>`;
  const on=list.filter(anVisible),off=list.filter(x=>!anVisible(x));
- return `<h1>Anúncios</h1><p class="sub" style="margin:-6px 4px 14px">Promoções em destaque no site. Junte uma foto e uma descrição; aparecem logo na secção «Promoções».</p>
+ return `<button class="row kv ga-entry" data-a="tab" data-id="gads"><div class="rt"><b>Google Ads</b><span>Custo, cliques, chamadas e contactos das campanhas</span></div><div class="rr">${ic('chev')}</div></button><h1>Anúncios</h1><p class="sub" style="margin:-6px 4px 14px">Promoções em destaque no site. Junte uma foto e uma descrição; aparecem logo na secção «Promoções».</p>
  <button class="btn" data-an="new" ${AN_BUSY?'disabled':''}>${ic('cam')}Novo anúncio</button>
  ${AN_LIST===null?`<div class="grp" style="margin-top:14px"><div class="empty">${esc(AN_ERR||'A carregar…')}</div></div>`:
  !list.length?`<div class="grp" style="margin-top:14px"><div class="empty">Ainda não há anúncios. Toque em «Novo anúncio» para criar o primeiro.</div></div>`:

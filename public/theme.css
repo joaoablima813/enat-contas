@@ -160,8 +160,21 @@ nav div{grid-template-columns:repeat(9,minmax(0,1fr))}
 
 /* Google Ads */
 .ga-ks{margin-bottom:14px}.ga-ks .dash-k{cursor:default}.ga-ks .dash-k:hover{transform:none}
-.ga-chart svg{display:block;width:100%;height:160px}
-.ga-bar{fill:var(--green);opacity:.75}.ga-line{fill:none;stroke:#f39200;stroke-width:2.5;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-.ga-k-c{background:var(--green)}.ga-k-k{background:#f39200}
-.ga-l{display:flex;justify-content:space-between}
 .ga-entry{width:100%;border:0;margin-bottom:14px;box-shadow:var(--sh1);border-radius:16px;background:var(--card);cursor:pointer;font:inherit;color:var(--ink);text-align:left}
+.ga-charts{display:grid;gap:12px}
+.ga-tot{font-size:13px;color:var(--mute)}.ga-tot b{color:var(--ink);font-variant-numeric:tabular-nums}
+.ga-plot{display:grid;grid-template-columns:auto 1fr;grid-template-rows:150px 16px;column-gap:8px;row-gap:6px}
+.ga-y{display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums;margin:-6px 0}
+.ga-area{position:relative;min-width:0}
+.ga-grid{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}.ga-grid i{border-top:1px solid var(--line)}.ga-grid i:first-child,.ga-grid i:nth-child(2){border-top-style:dashed;opacity:.7}
+.ga-cols{position:absolute;inset:0;display:flex;align-items:flex-end;gap:2px}.ga-cols.fino{gap:1px}
+.ga-c{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;position:relative;outline:0;cursor:default}
+.ga-c i{display:block;width:100%;border-radius:4px 4px 0 0;transition:filter .15s}.ga-cols.fino .ga-c i{border-radius:2px 2px 0 0}
+.ga-cus{background:var(--green)}.ga-cli{background:#f39200}
+.ga-c:hover i,.ga-c:focus i{filter:brightness(.82)}
+.ga-c em{display:none;position:absolute;top:-32px;z-index:3;white-space:nowrap;font-style:normal;font-size:12px;font-weight:600;background:var(--ink);color:var(--card);padding:5px 8px;border-radius:8px;box-shadow:var(--sh1)}
+.ga-c:not(.r) em{left:0;transform:none}.ga-c.r em{left:auto;right:0;transform:none}
+.ga-c:hover em,.ga-c:focus em{display:block}
+.ga-x{position:relative;font-size:11px;color:var(--mute)}
+.ga-x span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.ga-chart .dash-h>b{color:var(--ink)}

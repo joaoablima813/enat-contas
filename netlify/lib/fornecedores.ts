@@ -10,10 +10,11 @@ import * as site from './fornecedores-sites.mjs';
 export const SUPPLIERS: Record<string, { name: string }> = { sanipower: { name: 'Sanipower' }, sanitop: { name: 'Sanitop' } };
 const store = () => getStore({ name: 'fornecedores', consistency: 'strong' });
 const RUN_MS = 13 * 60e3, STALE_MS = 16 * 60e3, PARALLEL = 5;
-// Sanitop family listings: once a day, at most 6 minutes per run so the client prices always get time.
-const LIST_EVERY = 24 * 3600e3, LIST_MS = 6 * 60e3;
-// The schedule runs every 20 minutes: a full refresh every 3 hours, and Sanitop in between while client prices are missing.
-const EVERY_MS = 3 * 3600e3 - 15 * 60e3, RETRY_MS = 60 * 60e3;
+// Sanitop family listings: once a week, at most 6 minutes per run so the client prices always get time.
+const LIST_EVERY = 6 * 24 * 3600e3, LIST_MS = 6 * 60e3;
+// The schedule runs only on Sunday night: a full refresh once a week, and Sanitop on the other ticks of that night
+// while client prices are missing.
+const EVERY_MS = 6 * 24 * 3600e3, RETRY_MS = 60 * 60e3;
 
 type Row = { key: string; ref?: string; model?: string; name: string; brand?: string; path: string[]; url?: string; pvp: number; net?: number | null; discount?: number | null; stock?: boolean | null; seenAt?: Date };
 
@@ -43,7 +44,7 @@ export async function triggerSync(origin: string, suppliers = Object.keys(SUPPLI
   return started;
 }
 
-// A full refresh every 3 hours. Sanitop also runs on every tick of the schedule while there are client prices to read
+// A full refresh once a week. Sanitop also runs on every tick of the schedule while there are client prices to read
 // or a family listing to finish, and waits an hour after a failed run so a wrong password does not lock the account.
 async function due(s: string, st: any) {
   const since = Date.now() - Date.parse(st.finishedAt || st.startedAt || 0);

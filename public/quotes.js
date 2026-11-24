@@ -21,7 +21,7 @@ const quoteBadge=(q,ev=[])=>{
  if(t.switched)return `<span class="q-badge q-expirado">Escolheu outro</span>${fresh}`;
  return `<span class="q-badge q-${s}">${QUOTE_STATUS[s]}</span>${t.views?'<span class="q-badge q-visto">Visto</span>':''}`;
 };
-const quoteEventText=e=>e.kind==='enviado'?'Enviado por '+(e.note||'WhatsApp'):e.kind==='visto'?'O cliente abriu a proposta':e.kind==='pdf'?'O cliente abriu o PDF':e.kind==='duvida'?'O cliente tocou em «Tenho uma dúvida»'+(e.note?' ('+e.note+')':''):e.kind==='trocou'?e.note:'Respondeu: '+QUOTE_ANSWERS[e.kind]+(e.note?' · «'+e.note+'»':'');
+const quoteEventText=e=>e.kind==='enviado'?'Enviado por '+(e.note||'WhatsApp'):e.kind==='visto'?'O cliente abriu a proposta':e.kind==='pdf'?'O cliente abriu o PDF':e.kind==='duvida'?'O cliente tocou em «Tenho uma dúvida»'+(e.note?' ('+e.note+')':''):e.kind==='trocou'?e.note:e.kind==='lembrete'?'Lembrete automático enviado ao cliente'+(e.note?' · '+e.note.replace(/^Lembrete \d /,''):''):'Respondeu: '+QUOTE_ANSWERS[e.kind]+(e.note?' · «'+e.note+'»':'');
 // Shown in the quote editor and refreshed in place when a new answer arrives.
 function quoteTrackHtml(q){
  const ev=(quoteRows||[]).find(r=>r.id===q.id)?.events||[];if(!q.id)return '';

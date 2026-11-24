@@ -32,6 +32,8 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
     try { const { addProposta } = await import('./pedido.mjs'); portal = await addProposta(store, q.lead, q.client, { token, quote: row.id, numero: number, titulo: (q.topics || []).join(', ') || 'Orçamento', total: await quoteTotal(q) }); }
     catch (e: any) { console.error('página do cliente', e?.message); }
   }
+  // Link mais recente de cada orçamento, usado nos lembretes automáticos.
+  await store.setJSON('proposta-link-' + row.id, { token, at: Date.now() });
   await store.set('pdf-' + token, Buffer.from(b.pdf, 'base64'), { metadata: { filename, quote: row.id, ...(group ? { group } : {}), ...(portal ? { portal } : {}) } });
   if (group) {
     const list = (await store.get('grupo-' + group, { type: 'json' })) || [];

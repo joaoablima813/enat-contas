@@ -228,7 +228,7 @@ export async function avisarProposta(to, nome, numero, link, origin) {
     return 'enviado';
   } catch (e) { console.error('aviso orçamento', e?.message); return 'falhou'; }
 }
-async function sendEmail(to, subject, text, origin, label = 'Responder às perguntas') {
+export async function sendEmail(to, subject, text, origin, label = 'Responder às perguntas') {
   const c = { host: process.env.SMTP_HOST || 'mail.enat.pt', port: Number(process.env.SMTP_PORT || 465), user: process.env.SMTP_USER || 'pontedelima@enat.pt', pass: process.env.SMTP_PASSWORD, from: process.env.EMAIL_FROM || 'pontedelima@enat.pt' };
   if (!c.pass) throw new Error('smtp not configured');
   const { createTransport } = await import('nodemailer');

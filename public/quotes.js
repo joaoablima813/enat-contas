@@ -278,6 +278,7 @@ async function quoteToObra(){
  if(!window.confirm('Marcar o orçamento como aceite e criar a obra?'))return;
  await saveQuote(false);const q=quoteDraft;if(!q?.id||quoteError!=='Orçamento guardado.')return;
  const o=EnatQuoteObra.obraFromQuote({...q,lines:q.lines.filter(l=>!quoteLineBlank(l))},q.id,uid(),new Date().toISOString().slice(0,10));
+ if(typeof matFromQuote==='function')o.material=matFromQuote(q);
  S.obras.push(o);save();
  Object.assign(quoteDraft,{status:'aceite',obra:o.id});await saveQuote(false);
  quoteDraft=null;V.obra=o.id;V.seg='contas';window.scrollTo?.(0,0);render();

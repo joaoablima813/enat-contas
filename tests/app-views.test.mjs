@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -275,4 +275,13 @@ test('leads that answered the questionnaire get their own section until opened',
  assert.match(run('vHome()'),/Novidades dos clientes/);
  run("leadOpen('L5');leadDraft=null");
  assert.doesNotMatch(run('vLeads()'),/Novidades dos clientes/,'gone once opened');
+});
+
+test('installed equipment per job: serial number, warranty, brand app, remote access consent, and search by serial number',()=>{
+ const st=JSON.parse(JSON.stringify(state));st.obras=[{id:'o9',name:'Casa Silva',client:'Ana Silva',status:'concluida',valor:2000,equip:[],eqs:[{id:'e1',tipo:'Bomba de calor AQS',marca:'Energie',modelo:'Aquapura 200',sn:'ENG123XY',check:'',instalado:'2026-11-01',garantiaAte:'2029-11-01',app:'Smart Life',conta:'ana@x.pt',remoto:true,notas:''}]}];
+ const {run}=app(st);
+ const html=run("V.tab='obras';V.obra='o9';V.seg='equip';vObra()");
+ assert.match(html,/Equipamentos \(1\)/);assert.match(html,/Bomba de calor AQS · Energie Aquapura 200/);assert.match(html,/SN ENG123XY/);assert.match(html,/Garantia até/);assert.match(html,/Acesso remoto/);
+ assert.match(html,/abra a app <b>Smart Life<\/b>/);
+ const r=run("EnatGestao.search(S,[],'eng123xy')");assert.equal(r.obras.length,1,'found by serial number');
 });

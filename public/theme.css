@@ -90,3 +90,5 @@ a{color:var(--blue)}
 .eq-raw{margin-top:8px;font-size:13px}.eq-raw div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:4px 0}.eq-raw span{color:var(--mute)}
 .eq-pick{margin-top:10px}
 .eq-chk .rt b,.eq-chk .rt span{white-space:normal;overflow:visible}
+
+.eq-dk{margin:10px 0}.eq-dk>b{display:block;margin:0 0 6px}.eq-link input{width:100%;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg);color:var(--ink);margin:6px 0}.eq-row{display:flex;gap:8px;flex-wrap:wrap}

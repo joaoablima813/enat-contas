@@ -10,23 +10,67 @@ const EQ_APP_DE={Ekallor:'Smart Life',Energie:'Smart Life',Proteu:'AC Freedom',D
 // Portais no navegador (as outras só existem como app no telemóvel).
 const EQ_PORTAL={AlphaCloud:'https://cloud.alphaess.com/','SEMS Portal':'https://www.semsportal.com/',MELCloud:'https://app.melcloud.com/'};
 // Plataformas que a app poderá ler mais tarde (estado e avarias).
-const EQ_LIGAVEL=new Set(['Smart Life','AlphaCloud']);
+const EQ_LIGAVEL=new Set(['Smart Life','AlphaCloud','Daikin Onecta']);
 // Tipo do equipamento → tipo usado na Manutenção.
 const EQ_MANUT={Inversor:'UPAC (fotovoltaico)',Bateria:'UPAC (fotovoltaico)','Painéis fotovoltaicos':'UPAC (fotovoltaico)'};
 let EQ_OPEN=null;
-// ---- Acesso remoto (AlphaESS e Smart Life) ----
+// ---- Acesso remoto (AlphaESS, Smart Life e Daikin) ----
 const EQ_LIVE={};let EQ_TUYA=null;
 const EQ_NOMES={switch:'Ligado',switch_1:'Ligado',temp_set:'Temperatura pretendida',temp_current:'Temperatura atual',temp_top:'Temperatura do depósito',mode:'Modo',work_mode:'Modo',fault:'Avarias',fan_speed_enum:'Ventilação',eco:'Modo eco',sleep:'Modo noite',heat:'Aquecimento',power:'Potência',countdown:'Temporizador',child_lock:'Bloqueio',
  ppv:'Produção solar (W)',pload:'Consumo da casa (W)',soc:'Bateria (%)',pbat:'Bateria (W, + descarrega / − carrega)',pgrid:'Rede (W, + compra / − vende)',pev:'Carregador (W)',emsStatus:'Estado',sysSn:'Número de série',popv:'Potência dos painéis (kW)',cobat:'Capacidade da bateria (kWh)',poinv:'Potência do inversor (kW)'};
 const eqNome=k=>EQ_NOMES[k]||String(k).replace(/_/g,' ');
 const eqEscala=(f,v)=>{let x={};try{x=JSON.parse(f?.values||'{}')}catch{}return {s:Number(x.scale)||0,min:x.min,max:x.max,step:x.step,unit:x.unit||'',range:x.range||[]}};
+// ---- Daikin (Onecta): o cliente autoriza com um link; depois vê-se o estado e as avarias aqui ----
+const DK_TIPO={climateControl:'Climatização',climateControlMainZone:'Climatização',domesticHotWaterTank:'Água quente (depósito)',domesticHotWaterFlowThrough:'Água quente',indoorUnitHydro:'Unidade interior',indoorUnit:'Unidade interior',outdoorUnit:'Unidade exterior',userInterface:'Comando',gateway:'Adaptador Wi-Fi'};
+const DK_NOMES={roomTemperature:'Temperatura da divisão',outdoorTemperature:'Temperatura exterior',tankTemperature:'Temperatura do depósito',leavingWaterTemperature:'Temperatura de saída da água',domesticHotWaterTemperature:'Água quente pretendida',leavingWaterOffset:'Ajuste da água de saída',roomHumidity:'Humidade',
+ heating:'Aquecimento',cooling:'Arrefecimento',auto:'Automático',dry:'Desumidificar',fanOnly:'Só ventilação'};
+const dkNome=k=>DK_NOMES[k]||String(k).replace(/([A-Z])/g,' $1').toLowerCase();
+function dkRemoto(e,i,L){
+ const d=L.data;
+ let h='';
+ if(L.link)h+=`<div class="eq-link"><p class="note">Envie este link ao cliente (válido ${L.link.validade} dias). Ele entra com a conta da app Onecta e carrega em «Permitir».</p><input readonly value="${esc(L.link.url)}" onclick="this.select()"><div class="eq-row"><a class="btn alt" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Olá! Para a ENAT poder acompanhar o seu equipamento Daikin e ajudar mais depressa em caso de avaria, abra este link, entre com a sua conta da app Onecta e carregue em «Permitir»: '+L.link.url)}">Enviar por WhatsApp</a><button type="button" class="btn alt" data-eqr="dk-copy" data-i="${i}">Copiar</button></div></div>`;
+ if(!e.dkOk&&!L.link)h+=`<p class="note">O cliente autoriza uma vez, com a conta da app Onecta (Daikin ID). Crie o link e envie-lho, ou abra-o no telemóvel dele durante a instalação.</p><button type="button" class="btn alt" data-eqr="dk-link" data-i="${i}" ${L.loading?'disabled':''}>Criar link de autorização</button>`;
+ h+=`<button type="button" class="btn alt" data-eqr="dk" data-i="${i}" ${L.loading?'disabled':''}>${L.loading?'A ler…':e.dkOk?'Ver estado agora':'Já autorizou? Ver estado'}</button>`;
+ if(d){
+  h+=(d.dispositivos||[]).map(g=>`<div class="eq-live"><p class="eq-on ${g.online?'ok':'off'}">${g.online?'● Online':'● Offline (sem ligação ao Wi-Fi)'}${g.modelo?' · '+esc(g.modelo):''}</p>
+  ${g.unidades.map(m=>{
+   const id=`data-i="${i}" data-dev="${esc(g.id)}" data-mp="${esc(m.id)}"`;
+   return `<div class="eq-dk"><b>${esc(m.nome||DK_TIPO[m.tipo]||m.tipo)}</b>
+   ${m.avaria||m.erro?`<div class="eq-faults"><b>Avaria</b><span>${esc(m.erro||'Em erro')}</span></div>`:m.aviso?'<div class="eq-faults"><b>Aviso</b><span>Veja na app Onecta</span></div>':''}
+   <div class="eq-kv">
+    ${m.ligado!=null?`<div><span>Ligado</span><b>${m.ligado?'Sim':'Não'}</b>${g.online&&m.ligarOk?`<button type="button" class="mini" data-eqr="dk-onoff" ${id} data-v="${m.ligado?'off':'on'}">${m.ligado?'Desligar':'Ligar'}</button>`:''}</div>`:''}
+    ${m.modo?`<div><span>Modo</span>${g.online&&m.modoOk&&m.modos.length?`<select data-eqr-dkmodo="1" ${id}>${m.modos.map(x=>`<option value="${esc(x)}"${x===m.modo?' selected':''}>${esc(dkNome(x))}</option>`).join('')}</select>`:`<b>${esc(dkNome(m.modo))}</b>`}</div>`:''}
+    ${Object.entries(m.sensores).map(([k,x])=>`<div><span>${esc(dkNome(k))}</span><b>${esc(String(x))}${typeof x==='number'&&/emperature/.test(k)?' °C':''}</b></div>`).join('')}
+    ${m.pontos.map(p=>`<div><span>${esc(dkNome(p.code))}</span>${g.online&&p.settable?`<input type="number" data-dk-sp="${esc(p.path)}" ${id} value="${esc(String(p.value))}" ${p.min!=null?'min="'+p.min+'"':''} ${p.max!=null?'max="'+p.max+'"':''} step="${p.step||0.5}" style="width:80px"><button type="button" class="mini" data-eqr="dk-sp" ${id} data-path="${esc(p.path)}">Aplicar</button>`:`<b>${esc(String(p.value))} °C</b>`}</div>`).join('')}
+   </div></div>`}).join('')}</div>`).join('')||'<p class="note">Nenhum equipamento Daikin nesta conta.</p>';
+  h+=`<p class="note">Lido às ${new Date(d.at).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}. A Daikin permite até 200 leituras por dia por cliente.</p>`;
+ }
+ if(e.dkOk)h+=`<button type="button" class="link neg" data-eqr="dk-off" data-i="${i}">Retirar a ligação Daikin</button>`;
+ return h;
+}
+async function dkAcao(a,b,e,i,L){
+ const ref=e.id;
+ if(a==='dk-link'){L.link=await eqApi('remoto/daikin/link',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ref})});return}
+ if(a==='dk'){L.data=await eqApi('remoto/daikin/estado?ref='+encodeURIComponent(ref));L.link=null;if(!e.dkOk){e.dkOk=true;save()}return}
+ if(a==='dk-off'){if(!confirm('Retirar a ligação à conta Daikin deste cliente? Para voltar a ver o equipamento, o cliente terá de autorizar outra vez.'))return;await eqApi('remoto/daikin/desligar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ref})});e.dkOk=false;L.data=null;save();L.msg='Ligação Daikin retirada.';return}
+ let characteristic,value,path,label;
+ if(a==='dk-onoff'){characteristic='onOffMode';value=b.dataset.v;label=value==='on'?'Ligar':'Desligar'}
+ else if(a==='dk-modo'){characteristic='operationMode';value=b.value;label='Modo = '+dkNome(value)}
+ else if(a==='dk-sp'){const n=document.querySelector(`[data-dk-sp="${b.dataset.path}"][data-mp="${b.dataset.mp}"][data-i="${i}"]`);value=Number(n?.value);if(!Number.isFinite(value))throw new Error('Valor inválido.');characteristic='temperatureControl';path=b.dataset.path;label=dkNome(path.split('/').pop())+' = '+value+' °C'}
+ else return;
+ if(!confirm('Enviar ao equipamento: '+label+'?'))return;
+ await eqApi('remoto/daikin/comando',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ref,device:b.dataset.dev,mp:b.dataset.mp,characteristic,value,path})});
+ e.notas=(e.notas?e.notas+'\n':'')+new Date().toLocaleString('pt-PT')+' · remoto Daikin: '+label;save();
+ L.msg='Enviado. A ler o estado de novo…';await new Promise(r=>setTimeout(r,3000));L.data=await eqApi('remoto/daikin/estado?ref='+encodeURIComponent(ref));L.msg='Alteração enviada e registada nas notas.';
+}
 async function eqApi(path,opts){const r=await API(path,opts);const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Não foi possível ligar ao equipamento.');return j}
 function eqRemoto(e,i){
- if(e.app!=='AlphaCloud'&&e.app!=='Smart Life')return '';
+ if(!EQ_LIGAVEL.has(e.app))return '';
  if(!e.remoto)return '<div class="eq-remote"><b>Acesso remoto</b><p class="note">Marque acima que o cliente autorizou, para ver o estado do equipamento a partir daqui.</p></div>';
  const L=EQ_LIVE[e.id]||{},d=L.data;
  let body='';
- if(e.app==='AlphaCloud'){
+ if(e.app==='Daikin Onecta')body=dkRemoto(e,i,L);
+ else if(e.app==='AlphaCloud'){
   const ok=e.alphaOk;
   body=(ok?'':`<p class="note">Primeiro associe este sistema à conta da ENAT (precisa do número de série e do CheckCode).</p><button type="button" class="btn alt" data-eqr="alpha-bind" data-i="${i}" ${L.loading?'disabled':''}>Associar à ENAT</button>`)+
    `<button type="button" class="btn alt" data-eqr="alpha" data-i="${i}" ${L.loading?'disabled':''}>${L.loading?'A ler…':'Ver estado agora'}</button>`;
@@ -64,9 +108,11 @@ async function eqRemotoAcao(b){
  L.err='';L.msg='';
  if(a==='tuya-pick'){e.tuyaId=b.dataset.id;e.tuyaNome=b.dataset.nome;EQ_TUYA=null;save();render();return}
  if(a==='tuya-unpick'){e.tuyaId='';e.tuyaNome='';L.data=null;save();render();return}
+ if(a==='dk-copy'){navigator.clipboard?.writeText(L.link?.url||'').then(()=>{L.msg='Link copiado.';render()},()=>{});return}
  L.loading=true;render();
  try{
-  if(a==='alpha-bind'){if(!e.sn||!e.check)throw new Error('Preencha o número de série e o código de verificação (CheckCode).');await eqApi('remoto/alpha/associar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,check:e.check})});e.alphaOk=true;save();L.msg='Sistema associado à ENAT.'}
+  if(a.startsWith('dk'))await dkAcao(a,b,e,i,L);
+  else   if(a==='alpha-bind'){if(!e.sn||!e.check)throw new Error('Preencha o número de série e o código de verificação (CheckCode).');await eqApi('remoto/alpha/associar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sn:e.sn,check:e.check})});e.alphaOk=true;save();L.msg='Sistema associado à ENAT.'}
   else if(a==='alpha'){if(!e.sn)throw new Error('Preencha o número de série.');L.data=await eqApi('remoto/alpha/estado?sn='+encodeURIComponent(e.sn));if(!e.alphaOk){e.alphaOk=true;save()}}
   else if(a==='tuya-list'){EQ_TUYA=(await eqApi('remoto/tuya/dispositivos')).dispositivos||[]}
   else if(a==='tuya')L.data=await eqApi('remoto/tuya/estado?id='+encodeURIComponent(e.tuyaId));
@@ -85,7 +131,7 @@ async function eqRemotoAcao(b){
  L.loading=false;render();
 }
 document.addEventListener('click',ev=>{const b=ev.target.closest('[data-eqr]');if(b)eqRemotoAcao(b)});
-document.addEventListener('change',ev=>{const s=ev.target.closest('[data-eqr-sel]');if(s){s.dataset.eqr='tuya-sel';s.dataset.code=s.dataset.eqrSel;eqRemotoAcao(s)}});
+document.addEventListener('change',ev=>{const k=ev.target.closest('[data-eqr-dkmodo]');if(k){k.dataset.eqr='dk-modo';eqRemotoAcao(k);return}const s=ev.target.closest('[data-eqr-sel]');if(s){s.dataset.eqr='tuya-sel';s.dataset.code=s.dataset.eqrSel;eqRemotoAcao(s)}});
 const eqObra=()=>S.obras.find(o=>o.id===V.obra);
 const eqAnos=()=>parseInt(String(globalThis.ENAT_EMPRESA?.garantiaEquip||'3'),10)||3;
 const eqMais=(d,anos)=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(d||''))return '';const x=new Date(d+'T12:00:00');x.setFullYear(x.getFullYear()+anos);return x.toISOString().slice(0,10)};

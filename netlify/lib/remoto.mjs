@@ -3,6 +3,8 @@
 //   Cada sistema é associado à conta da ENAT com o número de série (SN) e o CheckCode.
 // - Smart Life / Tuya (Energie, Ekallor R290, Proteu piscina): Tuya Cloud (iot.tuya.com), com as contas Smart Life dos
 //   clientes ligadas ao projeto da ENAT. Chaves: TUYA_ACCESS_ID, TUYA_ACCESS_SECRET e TUYA_ENDPOINT (por omissão Europa Central).
+// - Daikin (Onecta): ONECTA Cloud API (developer.cloud.daikineurope.com), autorização de cada cliente pelo Daikin ID.
+//   Chaves: DAIKIN_CLIENT_ID e DAIKIN_CLIENT_SECRET.
 // As chaves ficam só no servidor (variáveis secretas do Netlify); a app nunca as vê.
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { request } from 'node:https';
@@ -84,11 +86,96 @@ export function tuyaFaults(status, specs) {
   return out;
 }
 
+// ---------- Daikin (Onecta) ----------
+// Cada cliente autoriza a ENAT uma vez, com o seu Daikin ID (OpenID Connect). As sessões ficam guardadas por equipamento
+// (blob «daikin-conta-<ref>»); a sessão dura 1 ano e o refresh token muda a cada uso. Limite da Daikin: 200 pedidos/dia por cliente.
+const DK_IDP = 'https://idp.onecta.daikineurope.com/v1/oidc', DK_API = 'https://api.onecta.daikineurope.com/v1';
+const REF = /^[A-Za-z0-9_-]{4,60}$/, STATE = /^[a-f0-9]{32}$/, DK_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const DK_CHAR = new Set(['onOffMode', 'temperatureControl', 'operationMode', 'powerfulMode']);
+export const DAIKIN_RETORNO = 'https://enat-contas.netlify.app/api/daikin/retorno';
+const dkKeys = () => {
+  const id = process.env.DAIKIN_CLIENT_ID, secret = process.env.DAIKIN_CLIENT_SECRET;
+  if (!id || !secret) throw Object.assign(new Error('A ligação à Daikin ainda não está configurada.'), { status: 503 });
+  return { id, secret };
+};
+export function daikinAuthorizeUrl(state, clientId) {
+  const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: DAIKIN_RETORNO, scope: 'openid onecta:basic.integration offline_access', state });
+  return DK_IDP + '/authorize?' + q.toString().replace(/\+/g, '%20');
+}
+async function dkToken(params, fetcher = fetch) {
+  const { id, secret } = dkKeys();
+  const r = await fetcher(DK_IDP + '/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ ...params, client_id: id, client_secret: secret }).toString() });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) throw Object.assign(new Error(j.error === 'invalid_grant' ? 'A autorização do cliente expirou ou foi retirada. Envie-lhe um novo link.' : 'A Daikin não aceitou a autorização.'), { status: 502, code: j.error });
+  return j;
+}
+const dkGuardar = (store, ref, t, now) => store.setJSON('daikin-conta-' + ref, { access: t.access_token, refresh: t.refresh_token, exp: now + Number(t.expires_in || 3600) * 1000, desde: now });
+async function dkAcesso(store, ref, opts = {}) {
+  const now = opts.now || Date.now();
+  const c = await store.get('daikin-conta-' + ref, { type: 'json' }).catch(() => null);
+  if (!c?.refresh && !c?.access) throw Object.assign(new Error('O cliente ainda não autorizou. Envie-lhe o link de autorização.'), { status: 409 });
+  if (c.access && c.exp - now > 60e3) return c.access;
+  const t = await dkToken({ grant_type: 'refresh_token', refresh_token: c.refresh }, opts.fetcher);
+  await store.setJSON('daikin-conta-' + ref, { ...c, access: t.access_token, refresh: t.refresh_token || c.refresh, exp: now + Number(t.expires_in || 3600) * 1000 });
+  return t.access_token;
+}
+async function daikin(store, ref, method, path, opts = {}) {
+  const fetcher = opts.fetcher || fetch;
+  const r = await fetcher(DK_API + path, { method, headers: { authorization: 'Bearer ' + (await dkAcesso(store, ref, opts)), 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  if (r.status === 429) throw Object.assign(new Error('A Daikin só deixa 200 leituras por dia por cliente. Tente mais tarde.'), { status: 429 });
+  if (r.status === 401) throw Object.assign(new Error('A autorização do cliente expirou. Envie-lhe um novo link.'), { status: 409 });
+  if (!r.ok) throw Object.assign(new Error('A Daikin não respondeu (' + r.status + ').'), { status: 502 });
+  return r.status === 204 ? null : r.json().catch(() => null);
+}
+const v = (c) => (c && typeof c === 'object' && 'value' in c ? c.value : c);
+// Resumo legível de cada unidade: ligado, modo, temperaturas, avarias e temperaturas pretendidas (com limites).
+export function daikinResumo(devices) {
+  return (Array.isArray(devices) ? devices : []).map((d) => {
+    const mps = (d.managementPoints || []).map((m) => {
+      const modo = v(m.operationMode);
+      const ops = v(m.temperatureControl)?.operationModes || {};
+      const sp = ops[modo] || ops.heating || Object.values(ops)[0];
+      const sensores = Object.fromEntries(Object.entries(v(m.sensoryData) || {}).map(([k, x]) => [k, v(x)]).filter(([, x]) => x != null && typeof x !== 'object'));
+      const pontos = Object.entries(sp?.setpoints || {}).map(([k, x]) => ({ code: k, value: x.value, min: x.minValue, max: x.maxValue, step: x.stepValue, settable: Boolean(x.settable), path: '/operationModes/' + (ops[modo] ? modo : ops.heating ? 'heating' : Object.keys(ops)[0]) + '/setpoints/' + k }));
+      const erro = v(m.errorCode);
+      return {
+        id: m.embeddedId, tipo: m.managementPointType, nome: v(m.name) || '', modelo: v(m.modelInfo) || '',
+        ligado: m.onOffMode ? v(m.onOffMode) === 'on' : null, ligarOk: Boolean(m.onOffMode?.settable), modo: modo || '', modos: m.operationMode?.values || [], modoOk: Boolean(m.operationMode?.settable),
+        sensores, pontos, avaria: Boolean(v(m.isInErrorState)), aviso: Boolean(v(m.isInWarningState) || v(m.isInCautionState)), erro: erro && erro !== '' ? String(erro) : '',
+      };
+    }).filter((m) => m.tipo !== 'gateway' || m.erro || m.avaria);
+    return { id: d._id || d.id, modelo: d.deviceModel || '', online: Boolean(v(d.isCloudConnectionUp)), unidades: mps };
+  });
+}
+const pagina = (titulo, texto) => new Response(`<!doctype html><html lang="pt"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${titulo}</title><style>body{font-family:system-ui,sans-serif;background:#f4f7f2;color:#1d2b1f;margin:0;display:grid;place-items:center;min-height:100vh;padding:16px}main{background:#fff;border-radius:16px;padding:28px;max-width:420px;box-shadow:0 6px 24px rgba(0,0,0,.08);text-align:center}h1{font-size:1.3rem;color:#2f7d32}</style><main><h1>${titulo}</h1><p>${texto}</p><p><small>ENAT Ponte de Lima</small></p></main></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+
+// Rotas públicas (sem sessão da app): /api/daikin/ligar?s=… leva o cliente à Daikin; /api/daikin/retorno recebe a autorização.
+export async function handleDaikinPublico(req, path, store, opts = {}) {
+  const u = new URL(req.url), s = u.searchParams.get('s') || u.searchParams.get('state') || '', now = opts.now || Date.now();
+  const st = STATE.test(s) ? await store.get('daikin-estado-' + s, { type: 'json' }).catch(() => null) : null;
+  if (!st || st.exp < now) return pagina('Link expirado', 'Este link já não é válido. Peça à ENAT um link novo.');
+  try {
+    if (path === 'daikin/ligar') return Response.redirect(daikinAuthorizeUrl(s, dkKeys().id), 302);
+    if (path === 'daikin/retorno') {
+      const code = u.searchParams.get('code');
+      if (!code) return pagina('Autorização cancelada', 'Não foi dada autorização. Se mudar de ideias, abra outra vez o link que a ENAT lhe enviou.');
+      const t = await dkToken({ grant_type: 'authorization_code', code, redirect_uri: DAIKIN_RETORNO }, opts.fetcher);
+      await dkGuardar(store, st.ref, t, now);
+      await store.delete('daikin-estado-' + s).catch(() => {});
+      return pagina('Obrigado!', 'A ENAT já pode acompanhar o seu equipamento Daikin e ajudar mais depressa se houver uma avaria. Pode fechar esta página. Pode retirar esta autorização quando quiser, na app Onecta ou pedindo à ENAT.');
+    }
+  } catch (e) {
+    console.error('daikin', path, e?.code || '', e?.message);
+    return pagina('Não foi possível ligar', 'Houve um problema com a Daikin. Tente outra vez daqui a pouco ou fale com a ENAT.');
+  }
+  return pagina('Link inválido', 'Este link não é válido.');
+}
+
 // ---------- Rotas (/api/remoto/...) ----------
 export async function handleRemoto(req, path, store, opts = {}) {
   const u = new URL(req.url), q = (k) => u.searchParams.get(k) || '';
   try {
-    if (path === 'remoto/config') return json(200, { alpha: Boolean(process.env.ALPHAESS_APP_ID && process.env.ALPHAESS_APP_SECRET), tuya: Boolean(process.env.TUYA_ACCESS_ID && process.env.TUYA_ACCESS_SECRET) });
+    if (path === 'remoto/config') return json(200, { alpha: Boolean(process.env.ALPHAESS_APP_ID && process.env.ALPHAESS_APP_SECRET), tuya: Boolean(process.env.TUYA_ACCESS_ID && process.env.TUYA_ACCESS_SECRET), daikin: Boolean(process.env.DAIKIN_CLIENT_ID && process.env.DAIKIN_CLIENT_SECRET) });
     // AlphaESS: associar um sistema à ENAT (SN + CheckCode) e ver o estado.
     if (path === 'remoto/alpha/associar' && req.method === 'POST') {
       const b = await req.json().catch(() => ({})), sn = String(b.sn || '').trim().toUpperCase(), check = String(b.check || '').trim();
@@ -126,6 +213,39 @@ export async function handleRemoto(req, path, store, opts = {}) {
       const b = await req.json().catch(() => ({}));
       if (!TID.test(String(b.id || '')) || !CODE.test(String(b.code || '')) || !['boolean', 'number', 'string'].includes(typeof b.value)) return json(400, { error: 'Comando inválido.' });
       await tuya(store, 'POST', `/v1.0/devices/${b.id}/commands`, { ...opts, body: { commands: [{ code: b.code, value: b.value }] } });
+      return json(200, { ok: true });
+    }
+    // Daikin: link de autorização para o cliente, estado, comandos e retirar a ligação.
+    if (path === 'remoto/daikin/link' && req.method === 'POST') {
+      const b = await req.json().catch(() => ({})), ref = String(b.ref || '');
+      if (!REF.test(ref)) return json(400, { error: 'Equipamento inválido.' });
+      dkKeys();
+      const s = randomBytes(16).toString('hex'), now = opts.now || Date.now();
+      await store.setJSON('daikin-estado-' + s, { ref, exp: now + 14 * 864e5 });
+      const base = String(process.env.LINK_URL || '').replace(/\/+$/, '') || u.origin;
+      return json(200, { url: base + '/api/daikin/ligar?s=' + s, validade: 14 });
+    }
+    if (path === 'remoto/daikin/estado') {
+      const ref = q('ref');
+      if (!REF.test(ref)) return json(400, { error: 'Equipamento inválido.' });
+      return json(200, { dispositivos: daikinResumo(await daikin(store, ref, 'GET', '/gateway-devices', opts)), at: Date.now() });
+    }
+    if (path === 'remoto/daikin/comando' && req.method === 'POST') {
+      const b = await req.json().catch(() => ({}));
+      const ok = REF.test(String(b.ref || '')) && DK_ID.test(String(b.device || '')) && DK_ID.test(String(b.mp || '')) && DK_CHAR.has(b.characteristic) && ['boolean', 'number', 'string'].includes(typeof b.value) && (b.path == null || /^(\/[A-Za-z0-9_]{1,40}){1,6}$/.test(b.path));
+      if (!ok) return json(400, { error: 'Comando inválido.' });
+      await daikin(store, b.ref, 'PATCH', `/gateway-devices/${b.device}/management-points/${b.mp}/characteristics/${b.characteristic}`, { ...opts, body: b.path ? { path: b.path, value: b.value } : { value: b.value } });
+      return json(200, { ok: true });
+    }
+    if (path === 'remoto/daikin/desligar' && req.method === 'POST') {
+      const b = await req.json().catch(() => ({})), ref = String(b.ref || '');
+      if (!REF.test(ref)) return json(400, { error: 'Equipamento inválido.' });
+      const c = await store.get('daikin-conta-' + ref, { type: 'json' }).catch(() => null);
+      if (c?.refresh) {
+        const { id, secret } = dkKeys();
+        for (const [token, hint] of [[c.refresh, 'refresh_token'], [c.access, 'access_token']]) if (token) await (opts.fetcher || fetch)(DK_IDP + '/revoke', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, token_type_hint: hint, client_id: id, client_secret: secret }).toString() }).catch(() => {});
+      }
+      await store.delete('daikin-conta-' + ref).catch(() => {});
       return json(200, { ok: true });
     }
     return json(404, { error: 'Pedido inválido.' });

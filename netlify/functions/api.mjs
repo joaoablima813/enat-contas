@@ -119,6 +119,11 @@ export default async (req) => {
     return servePdf(path, store);
   }
   if (path.startsWith('auth/')) return auth(req, path, store, autorizado);
+  // Autorização Daikin do cliente (links públicos, protegidos por um código de uso único).
+  if (path === 'daikin/ligar' || path === 'daikin/retorno') {
+    const { handleDaikinPublico } = await import('../lib/remoto.mjs');
+    return handleDaikinPublico(req, path, store);
+  }
   if (!autorizado) return json(401);
 
   if (path.startsWith('fornecedores/')) {

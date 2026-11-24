@@ -71,9 +71,10 @@ export function pausas(events, rows, now = Date.now()) {
   return out;
 }
 
-export async function sendWhatsapp(to, template, { token = process.env.WHATSAPP_TOKEN, phone = process.env.WHATSAPP_PHONE_ID, version = process.env.WHATSAPP_API_VERSION || 'v25.0' } = {}) {
+// Endereço da API: Meta direta (graph.facebook.com) ou um parceiro com o mesmo formato (ex.: WHATSAPP_API_BASE=https://api.dualhook.com).
+export async function sendWhatsapp(to, template, { token = process.env.WHATSAPP_TOKEN, phone = process.env.WHATSAPP_PHONE_ID, version = process.env.WHATSAPP_API_VERSION || 'v25.0', base = process.env.WHATSAPP_API_BASE || 'https://graph.facebook.com' } = {}) {
   if (!token || !phone) throw new Error('whatsapp not configured');
-  const r = await fetch('https://graph.facebook.com/' + version + '/' + encodeURIComponent(phone) + '/messages', {
+  const r = await fetch(String(base).replace(//+$/, '') + '/' + version + '/' + encodeURIComponent(phone) + '/messages', {
     method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'template', template }),
     signal: AbortSignal.timeout(15000),

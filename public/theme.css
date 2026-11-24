@@ -79,3 +79,14 @@ a{color:var(--blue)}
 .eq-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media (max-width:420px){.eq-g2{grid-template-columns:1fr}}
 .eq-chk{gap:10px;cursor:pointer;margin:12px 0 0;padding:10px 0}.eq-chk input{width:22px;height:22px;flex:none}
 .eq-portal{display:inline-block;width:auto;margin:6px 0 0;padding:10px 18px;text-decoration:none}
+
+/* Equipamentos: acesso remoto */
+.eq-remote{margin:14px 0 6px;padding:12px;border-radius:14px;background:var(--tint,var(--chip));border:1px solid var(--line)}.eq-remote>b{display:block;margin-bottom:6px}
+.eq-remote .btn{margin-top:8px}
+.eq-live{margin-top:12px}.eq-kv{display:grid;gap:6px}.eq-kv div{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-radius:10px;padding:8px 10px;font-size:14px}.eq-kv span{color:var(--mute)}.eq-kv b{margin-left:auto}
+.eq-kv select,.eq-kv input{font:inherit;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--bg);color:var(--ink)}
+.eq-on{font-weight:700;margin:0 0 8px}.eq-on.ok{color:var(--green)}.eq-on.off{color:var(--red)}
+.eq-faults{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:color-mix(in srgb,var(--red) 10%,var(--card));border:1px solid color-mix(in srgb,var(--red) 40%,var(--line));border-radius:12px;padding:10px;margin:0 0 10px}.eq-faults b{color:var(--red);width:100%}.eq-faults span{background:var(--card);border-radius:8px;padding:3px 8px;font-size:13px}
+.eq-raw{margin-top:8px;font-size:13px}.eq-raw div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:4px 0}.eq-raw span{color:var(--mute)}
+.eq-pick{margin-top:10px}
+.eq-chk .rt b,.eq-chk .rt span{white-space:normal;overflow:visible}

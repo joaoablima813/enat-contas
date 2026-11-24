@@ -9,7 +9,7 @@ const sample={client:'Cliente de teste',address:'Rua da Instalação, 12',contac
 const browser=()=>{const c=vm.createContext({window:{},navigator:{},document:{addEventListener(){},querySelector:()=>null},S:{vat:23},TOPICS:sample.topics,esc:s=>String(s),eur:n=>Number(n).toFixed(2)+' €',ic:()=>'',fd:s=>s,render(){},V:{tab:'orc'}});vm.runInContext(math+'\n'+ui,c);c.sample=sample;return c};
 const server=rows=>{
  const source=readFileSync(new URL('../netlify/lib/whatsapp.ts',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/export /g,'');
- const blobs=new Map(),store={set:async(k,v,o)=>blobs.set(k,{data:v,metadata:o.metadata}),getWithMetadata:async k=>blobs.get(k)||null};
+ const blobs=new Map(),store={set:async(k,v,o)=>blobs.set(k,{data:v,metadata:o.metadata}),setJSON:async(k,v)=>blobs.set(k,{data:v}),getWithMetadata:async k=>blobs.get(k)||null};
  const c=vm.createContext({db:{select:()=>({from:()=>({where:async()=>rows})})},quotes:{},eq:()=>null,Response,Buffer,URL,randomBytes:n=>Buffer.alloc(n,7),store,process:{env:{}}});
  vm.runInContext(stripTypeScriptTypes(source),c);return c;
 };

@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { runAlerts } from '../lib/push.mjs';
 import { runQuoteFollowups } from '../lib/followup.mjs';
+import { runLembretes } from '../lib/lembretes.mjs';
 import { runAutoPedidos, limparAnexos } from '../lib/pedido.mjs';
 import { atualizarOpinioes } from '../lib/google-opinioes.mjs';
 
@@ -12,6 +13,9 @@ export default async () => {
   catch (e) { console.error('push-avisos falhou', e?.message || e); }
   try { const r = await runQuoteFollowups(store); if (r.sent) console.log('seguimento', r); }
   catch (e) { console.error('seguimento falhou', e?.message || e); }
+  // Lembretes ao cliente (email e WhatsApp) aos 4 e 10 dias sem resposta.
+  try { const r = await runLembretes(store); if (r.sent || r.avisos) console.log('lembretes', r); }
+  catch (e) { console.error('lembretes falhou', e?.message || e); }
   // Questionário enviado automaticamente por email às leads novas.
   try { const n = await limparAnexos(store); if (n) console.log('orçamentos de outras empresas apagados', n); } catch (e) { console.error('limpeza anexos', e?.message); }
   // Opiniões do Google para o site (uma vez por dia).

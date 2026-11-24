@@ -99,6 +99,13 @@ async function record(req: Request, found: any, store: any) {
     return Response.json({ ok: true });
   }
   let note = comment;
+  // «Preciso de mais tempo»: o cliente escolhe a data; os lembretes param e nesse dia chega um aviso para voltar a contactar.
+  if (kind === 'tempo') {
+    const ate = String(b?.ate || ''), t = Date.parse(ate + 'T12:00:00Z'), hoje = Date.now();
+    if (!/^d{4}-d{2}-d{2}$/.test(ate) || !(t > hoje) || t > hoje + 366 * 864e5) return fail(400, 'Escolha a data a partir da qual podemos voltar a falar.');
+    kind = 'mais_tarde';
+    note = ['Volta a falar a partir de ' + day(ate), comment].filter(Boolean).join(' · ');
+  }
   if (kind === 'nao') {
     const m = MOTIVOS[String(b?.motivo || '')];
     if (!m) return fail(400, 'Escolha o motivo.');
@@ -168,6 +175,7 @@ const ICONS: Record<string, string> = {
   duvida: '<path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5M12 16.5h.01"/>',
   revisao: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   nao: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  tempo: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   pdf: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   shield: '<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/>',
@@ -180,9 +188,10 @@ const ICONS: Record<string, string> = {
 const icon = (k: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
 const OPTIONS: [string, string, string][] = [
   ['adjudicar', 'Quero avançar', 'Aceito a proposta e quero marcar a instalação'],
-  ['duvida', 'Tenho uma dúvida', 'Falar já com a nossa equipa'],
-  ['revisao', 'Pedir um ajuste', 'Gostava de alterar alguma coisa'],
-  ['nao', 'Ainda não vou avançar', 'Diga-nos porquê, ajuda-nos a melhorar'],
+  ['revisao', 'Quero uma revisão', 'Gostava de alterar alguma coisa na proposta'],
+  ['duvida', 'Tenho dúvidas', 'Falar já com a nossa equipa'],
+  ['tempo', 'Preciso de mais tempo', 'Diga-nos até quando e voltamos a falar nessa altura'],
+  ['nao', 'Não vou avançar', 'Diga-nos porquê, ajuda-nos a melhorar'],
 ];
 
 function body(token: string, row: any, answer: any, others: any[], e: any, views: number, works: any[] = [], portal = '') {
@@ -262,7 +271,8 @@ ${portal ? `<section class="card"><h2>A sua página ENAT</h2><p class="muted">To
  <form id="form">
   <div id="fields" hidden>
   <div id="terms" hidden>${weeks.length ? `<h3>Que semana prefere para a instalação?</h3><div class="chips" role="radiogroup">${[...weeks, 'A combinar'].map((w, i) => `<label class="chip"><input type="radio" name="semana" value="${esc(w)}" ${i ? '' : 'checked'}><span>${esc(w)}</span></label>`).join('')}</div><p class="fine">Confirmamos a data consigo antes de a marcar.</p>` : ''}<h3>Condições da proposta</h3><ul>${terms.map(t => `<li>${esc(t)}</li>`).join('')}</ul><label class="check"><input type="checkbox" id="accept"> Li e aceito a proposta ${esc(number)} e as condições acima.</label></div>
-  <div id="why" hidden><h3>Qual o motivo?</h3><div class="chips" role="radiogroup">${Object.entries(MOTIVOS).map(([k, [, l]]) => `<label class="chip"><input type="radio" name="motivo" value="${k}"><span>${esc(l)}</span></label>`).join('')}</div></div>
+  <div id="why" hidden><h3>Qual o motivo?</h3><div class="chips" role="radiogroup">${Object.entries(MOTIVOS).filter(([k]) => k !== 'tempo' && k !== 'mais_tarde').map(([k, [, l]]) => `<label class="chip"><input type="radio" name="motivo" value="${k}"><span>${esc(l)}</span></label>`).join('')}</div></div>
+  <div id="until" hidden><h3>A partir de quando podemos voltar a falar?</h3><label class="field"><span>Data</span><input type="date" id="ate" min="${new Date(Date.now() + 864e5).toISOString().slice(0, 10)}" max="${new Date(Date.now() + 365 * 864e5).toISOString().slice(0, 10)}"></label><p class="fine">Até lá não lhe enviamos lembretes.</p></div>
   <label class="field"><span id="note-label">Comentário (opcional)</span><textarea id="note" rows="3" maxlength="2000"></textarea></label>
   </div>
   <p class="error" id="error" role="alert"></p>
@@ -273,8 +283,8 @@ ${portal ? `<section class="card"><h2>A sua página ENAT</h2><p class="muted">To
 ${faqHtml}
 ${reviewCard(e.google?.avaliar || undefined)}
 <footer><span class="logo sm"><img src="/enat-logo.png" alt="" width="84" height="30"></span><p><b>${COMPANY.name}</b><br>${esc(person)}${tel ? ' · <a href="tel:+' + esc(wa) + '">' + esc(tel) + '</a>' : ''} · <a href="mailto:${COMPANY.email}">${COMPANY.email}</a></p></footer>
-<div class="bar" id="bar"${answer ? ' hidden' : ''}><button type="button" class="btn ghost" data-pick="duvida">Tenho uma dúvida</button><button type="button" class="btn go" data-pick="adjudicar">Quero avançar</button></div>
-<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-t"><div class="sheet-in"><b id="sheet-t">Já viu o orçamento?</b><p class="muted">Diga-nos o que achou. Um toque chega.</p><button type="button" class="btn go" data-pick="adjudicar">Quero avançar</button><button type="button" class="btn ghost" data-pick="duvida">Tenho uma dúvida</button><button type="button" class="btn ghost" data-pick="revisao">Pedir um ajuste</button><button type="button" class="btn ghost" data-pick="nao">Ainda não vou avançar</button><button type="button" class="link" id="sheet-x">Agora não</button></div></div>
+<div class="bar" id="bar"${answer ? ' hidden' : ''}><button type="button" class="btn ghost" data-pick="duvida">Tenho dúvidas</button><button type="button" class="btn go" data-pick="adjudicar">Quero avançar</button></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-t"><div class="sheet-in"><b id="sheet-t">Já viu o orçamento?</b><p class="muted">Diga-nos o que achou. Um toque chega.</p><button type="button" class="btn go" data-pick="adjudicar">Quero avançar</button><button type="button" class="btn ghost" data-pick="duvida">Tenho dúvidas</button><button type="button" class="btn ghost" data-pick="revisao">Quero uma revisão</button><button type="button" class="btn ghost" data-pick="tempo">Preciso de mais tempo</button><button type="button" class="btn ghost" data-pick="nao">Não vou avançar</button><button type="button" class="link" id="sheet-x">Agora não</button></div></div>
 <script>
 (function(){
  var url=location.pathname.replace(/\\/$/,''),owner=false,kind='',answered=${answer ? 'true' : 'false'},sawPdf=false,asked=false;
@@ -295,12 +305,12 @@ ${reviewCard(e.google?.avaliar || undefined)}
  // The bar stays out of the way while the decision itself is on screen.
  if('IntersectionObserver' in window)new IntersectionObserver(function(en){$('bar').classList.toggle('away',en[0].isIntersecting)}).observe($('decide'));
  all('[data-goto]').forEach(function(b){b.onclick=function(){$('decide').scrollIntoView({behavior:'smooth'})}});
- var LABELS={adjudicar:['Comentário (opcional)','Confirmar: quero avançar','Ex.: prefiro de manhã'],revisao:['O que gostaria de alterar?','Pedir ajuste','Ex.: trocar para 2 splits, outra marca…'],nao:['Comentário (opcional)','Enviar resposta','Ex.: decido até ao fim do mês']};
+ var LABELS={adjudicar:['Comentário (opcional)','Confirmar: quero avançar','Ex.: prefiro de manhã'],revisao:['O que gostaria de alterar?','Pedir revisão','Ex.: trocar para 2 splits, outra marca…'],tempo:['Comentário (opcional)','Enviar resposta','Ex.: estou à espera do apoio do Fundo Ambiental'],nao:['Comentário (opcional)','Enviar resposta','Ex.: decido até ao fim do mês']};
  var choose=function(k){
   kind=k;all('.opt').forEach(function(x){x.setAttribute('aria-checked',String(x.dataset.kind===k))});
   $('error').textContent='';$('thanks').hidden=true;$('ask').hidden=k!=='duvida';
   if(k==='duvida'){$('fields').hidden=true;$('send').hidden=true;$('ask').scrollIntoView({behavior:'smooth',block:'nearest'});return}
-  var l=LABELS[k];$('fields').hidden=false;$('send').hidden=false;$('send').disabled=false;$('terms').hidden=k!=='adjudicar';$('why').hidden=k!=='nao';
+  var l=LABELS[k];$('fields').hidden=false;$('send').hidden=false;$('send').disabled=false;$('terms').hidden=k!=='adjudicar';$('why').hidden=k!=='nao';$('until').hidden=k!=='tempo';
   $('note-label').textContent=l[0];$('send').textContent=l[1];$('note').placeholder=l[2];$('note').required=k==='revisao';
   $('send').className='btn'+(k==='adjudicar'?' go':'');$('fields').scrollIntoView({behavior:'smooth',block:'start'});
  };
@@ -313,11 +323,12 @@ ${reviewCard(e.google?.avaliar || undefined)}
   if(kind==='adjudicar'&&!$('accept').checked){$('error').textContent='Confirme que aceita as condições para avançar.';return}
   var note=$('note').value.trim(),motivo=picked('motivo');
   if(kind==='revisao'&&!note){$('error').textContent='Diga-nos o que gostaria de alterar.';return}
+  var ate=$('ate').value;if(kind==='tempo'&&!ate){$('error').textContent='Escolha a data.';return}
   if(kind==='nao'&&!motivo){$('error').textContent='Escolha o motivo. É só um toque.';return}
   if(kind==='nao'&&motivo==='outro'&&!note){$('error').textContent='Escreva o motivo no comentário.';return}
   var label=$('send').textContent;$('send').disabled=true;$('send').textContent='A enviar…';
-  fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:kind,note:note,motivo:motivo,semana:picked('semana')})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw Error(j.error||'');return j})}).then(function(j){
-   var T={adjudicar:'<b>Obrigado pela confiança!</b> Vamos ligar-lhe para confirmar a data da instalação.',revisao:'<b>Pedido recebido.</b> Vamos rever a proposta e enviamos-lhe uma nova versão.',pensar:'<b>Obrigado pela resposta.</b> Fica registado. Se tiver alguma dúvida, fale connosco: estamos aqui para ajudar.',mais_tarde:'<b>Fica registado.</b> Quando for altura, fale connosco e atualizamos a proposta.',rejeitar:'<b>Obrigado por nos dizer.</b> A sua resposta ajuda-nos a melhorar. Se mudar de ideias, pode voltar a esta página.'};
+  fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:kind,note:note,motivo:motivo,ate:ate,semana:picked('semana')})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw Error(j.error||'');return j})}).then(function(j){
+   var T={adjudicar:'<b>Obrigado pela confiança!</b> Vamos ligar-lhe para confirmar a data da instalação.',revisao:'<b>Pedido recebido.</b> Vamos rever a proposta e enviamos-lhe uma nova versão.',pensar:'<b>Obrigado pela resposta.</b> Fica registado. Se tiver alguma dúvida, fale connosco: estamos aqui para ajudar.',mais_tarde:'<b>Combinado.</b> Voltamos a falar consigo na data que escolheu. Até lá não enviamos lembretes.',rejeitar:'<b>Obrigado por nos dizer.</b> A sua resposta ajuda-nos a melhorar. Se mudar de ideias, pode voltar a esta página.'};
    answered=true;$('bar').hidden=true;var w=$('welcome');if(w)w.hidden=true;
    $('fields').hidden=true;$('send').hidden=true;$('thanks').hidden=false;$('thanks').innerHTML=T[j.kind]+(j.pay||'')+'<small>Pode mudar a sua resposta a qualquer momento nesta página.</small>';
    var c=$('current');c.className='answer a-'+j.kind;c.innerHTML='<span class="dot"></span><div><b>A sua resposta: '+safe(j.label)+'</b><small>Agora mesmo'+(j.note?' · «'+safe(j.note)+'»':'')+'</small></div>';

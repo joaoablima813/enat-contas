@@ -174,15 +174,15 @@ function leadQuote(){
  V.tab='orc';V.obra=null;window.scrollTo?.(0,0);
 }
 
-// Os orçamentos ligados fazem avançar a fase: guardado, enviado, aceite ou adjudicado pelo cliente. Nunca recua nem mexe numa lead perdida.
+// Os orçamentos ligados fazem avançar a fase: guardado, enviado, aceite ou adjudicado pelo cliente; «Não vou avançar» na página do cliente passa a lead a perdida (se ainda não estiver ganha). Nunca recua nem mexe numa lead perdida.
 const LEAD_RANK=['nova','contacto','triagem','visita','orcamento','enviada','ganho'];
 function leadFromQuote(doc,stage){
  const l=doc?.lead&&(S.leads||[]).find(x=>x.id===doc.lead);
- if(!l||l.stage==='perdido'||LEAD_RANK.indexOf(l.stage)>=LEAD_RANK.indexOf(stage))return false;
+ if(!l||l.stage==='perdido'||(stage==='perdido'?l.stage==='ganho':LEAD_RANK.indexOf(l.stage)>=LEAD_RANK.indexOf(stage)))return false;
  l.stage=stage;if(leadDraft?.id===l.id){leadDraft.stage=stage;leadOrig=JSON.stringify({...JSON.parse(leadOrig),stage})}
  save();return true;
 }
-const leadQuoteStage=(doc,events)=>quoteTrack(events).answer?.kind==='adjudicar'||doc.status==='aceite'?'ganho':doc.status==='enviado'||quoteTrack(events).sent.length?'enviada':'orcamento';
+const leadQuoteStage=(doc,events)=>quoteTrack(events).answer?.kind==='adjudicar'||doc.status==='aceite'?'ganho':quoteTrack(events).answer?.kind==='rejeitar'?'perdido':doc.status==='enviado'||quoteTrack(events).sent.length?'enviada':'orcamento';
 function leadSyncQuotes(){let changed=false;for(const r of quoteRows||[])if(r.document.lead&&leadFromQuote(r.document,leadQuoteStage(r.document,r.events)))changed=true;return changed}
 function leadEnsureQuotes(){
  if(quoteRows===null&&!quoteLoading&&SESS())loadQuotes().then(()=>{leadSyncQuotes();if(V.tab==='leads'&&!V.obra&&!document.activeElement?.matches?.('input,textarea,select'))render()});

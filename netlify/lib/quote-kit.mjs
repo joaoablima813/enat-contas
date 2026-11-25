@@ -147,33 +147,37 @@ function kit(input) {
   }
 
   // ---------- Bomba de calor AQS ----------
+  // Kit ENAT fixo (o material que a ENAT compra à Sanitop para cada instalação): a máquina, este material, o cabo 3G
+  // e a mão de obra. Nada mais (sem condutas, sem isolamento, sem esgoto, sem circuito à parte nem deslocação).
   const aq = s.aqs;
   if (aq) {
     const T = 'Bomba de calor AQS';
     if (aq.pessoas == null && aq.volume_l == null) pres.push('Bomba de calor AQS: 4 pessoas (não indicado).');
     const c = aqsCalc({ pessoas: aq.pessoas ?? 4, distancia_m: aq.distancia_m ?? 3 });
-    const V = aq.volume_l ?? c.volume_l, vaso = V <= 150 ? 8 : V <= 300 ? 12 : 18;
+    const V = aq.volume_l ?? c.volume_l;
     calcs.push({ nome: 'aqs', nota: c.nota });
-    dim.push({ titulo: 'Águas quentes', detalhe: aq.volume_l ? `${V} L (indicado no pedido)` : `${c.nota} Vaso de expansão ${vaso} L.` });
-    add({ tipologia: T, categoria: 'Equipamento', ck: 'Bomba de calor AQS', descricao: `Bomba de calor para AQS ${V} L${marca ? ' ' + marca : ''}`, especificacao: `bomba de calor AQS ${V} litros`, quantidade: 1, pesquisa: eqTerms(aq.modelo, [`${marca} bomba calor ${V}`, `bomba de calor aqs ${V} l`, `termoacumulador bomba calor ${V}`, `bomba calor ${V} litros`, `bomba calor klin ${V}`]), exige: [[nRe(V), `kl0?${Math.round(V / 10)}`]], grupo: 'bomba de calor aqs|bombas de calor aqs', evita: ['anodo', 'kit solar', 'kit fotovoltaico', 'acessorio', 'modulo wi-?fi', 'sonda'] });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Grupo de segurança', descricao: 'Grupo de segurança hidráulico 7 bar 3/4"', quantidade: 1, pesquisa: ['grupo seguranca hidraulico', 'grupo seguranca termoacumulador', 'grupo seguranca 3/4'], exige: [['grupo']], evita: ['horizontal'] });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Grupo de segurança', descricao: 'Sifão / funil de descarga da válvula de segurança', quantidade: 1, pesquisa: ['sifao funil descarga', 'funil descarga valvula seguranca', 'sifao grupo seguranca'] });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Vaso de expansão sanitário', descricao: `Vaso de expansão sanitário ${vaso} L`, quantidade: 1, pesquisa: [`vaso expansao sanitario ${vaso}`, `vaso expansao ${vaso} l agua sanitaria`, `vaso expansao ${vaso}`], exige: [[nRe(vaso) + '\\s?l']] });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Vaso de expansão sanitário', descricao: 'Suporte de vaso de expansão com ligação', quantidade: 1, pesquisa: ['suporte vaso expansao', 'kit fixacao vaso expansao'] });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Válvula misturadora termostática', descricao: 'Válvula misturadora termostática 3/4"', quantidade: 1, pesquisa: ['valvula misturadora termostatica 3/4', 'misturadora termostatica', 'valvula termostatica aqs'] });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Válvulas de corte e manguitos dielétricos', descricao: 'Válvula de esfera 3/4"', quantidade: 2, pesquisa: ['valvula esfera 3/4', 'torneira esfera 3/4', 'torneira passagem 3/4'], exige: [['3\\/4']], evita: ['jardim', 'mangueira', 'lavatorio', 'maquina'] });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Válvulas de corte e manguitos dielétricos', descricao: 'Manguito dielétrico 3/4"', quantidade: 2, pesquisa: ['manguito dieletrico 3/4', 'uniao dieletrica 3/4', 'casquilho dieletrico 3/4'], exige: [['3\\/4'], ['dieletric']] });
-    add({ tipologia: T, categoria: 'Material', chave: 'multicamada', ck: 'Tubagem e isolamento', descricao: 'Tubo multicamada 20×2 mm', quantidade: aq.tubo_m ?? c.tubagem_multicamada_m, unidade: 'm', pesquisa: ['tubo multicamada 20x2', 'multicamada 20', 'tubo multicamada 20 mm'], exige: [['20\\s?x\\s?2']], grupo: 'multicamada|tubo', evita: FITTINGS });
-    add({ tipologia: T, categoria: 'Acessórios', ck: 'Tubagem e isolamento', descricao: 'Acessórios de multicamada 20 mm (uniões, curvas, tês)', quantidade: 4, pesquisa: ['uniao multicamada 20', 'curva multicamada 20', 'acessorio multicamada 20'] });
-    add({ tipologia: T, categoria: 'Material', chave: 'isolamento', ck: 'Tubagem e isolamento', descricao: 'Isolamento térmico para tubo 20 mm (água quente)', quantidade: Math.ceil((aq.tubo_m ?? c.tubagem_multicamada_m) / 2), unidade: 'm', pesquisa: ['isolamento tubo 22', 'isolamento isopipe 22', 'isolamento armaflex 22', 'isolamento tubo 20'], grupo: 'isolament', exige: [['(^|[^0-9])2[02](?![0-9])']] });
-    add({ tipologia: T, categoria: 'Material', chave: 'condensados', ck: 'Esgoto de condensados', descricao: 'Tubo de esgoto PVC 32 mm (condensados e válvula de segurança) com acessórios', quantidade: 3, unidade: 'm', pesquisa: ['tubo pvc 32', 'tubo esgoto 32', 'tubo pvc esgoto 32 mm'] });
-    if (aq.espaco_fechado) add({ tipologia: T, categoria: 'Acessórios', ck: 'Kit de condutas de ar', descricao: 'Kit de condutas de ar (admissão e expulsão) para bomba de calor AQS', quantidade: 1, pesquisa: [`${marca} kit conduta bomba calor`, 'kit condutas bomba calor aqs', 'conduta 160 bomba calor'] });
-    else na(T, 'Kit de condutas de ar', 'instalada em espaço com renovação de ar (confirmar)');
-    const dq = quadroDefault(T, aq.distancia_quadro_m);
-    electric(T, caboEletrico({ potencia_w: V >= 260 ? 2500 : 2000, distancia_m: dq }), 'Bomba de calor AQS');
-    labour(T, 'bc_aqs', 'Instalação de bomba de calor AQS (ligações hidráulicas e arranque)', 1, 'un.');
+    dim.push({ titulo: 'Águas quentes', detalhe: aq.volume_l ? `${V} L (indicado no pedido)` : c.nota });
+    add({ tipologia: T, categoria: 'Equipamento', ck: 'Bomba de calor AQS', descricao: `Bomba de calor para AQS ${V} L${marca ? ' ' + marca : ''}`, especificacao: `bomba de calor AQS ${V} litros`, quantidade: 1, pesquisa: eqTerms(aq.modelo, [`${marca} bomba calor ${V}`, `bomba de calor aqs ${V} l`, `termoacumulador bomba calor ${V}`]) });
+    const kitAqs = [
+      ['Misturadora termostática solar Honeywell TM200 3/4"', 1, ['misturadora termostatica solar honeywell tm200', 'misturadora termostatica honeywell', 'misturadora termostatica 3/4']],
+      ['Válvula redutora de pressão Caleffi 3/4" FF com manómetro', 1, ['valvula redutora pressao caleffi 3/4', 'redutora pressao caleffi', 'valvula redutora pressao 3/4']],
+      ['Grupo de segurança Caleffi 3/4" para termoacumulador', 1, ['grupo seguranca caleffi 3/4', 'grupo seguranca termoacumulador', 'grupo seguranca 3/4']],
+      ['Suporte para vaso de expansão', 1, ['suporte para vaso expansao', 'suporte vaso expansao']],
+      ['Vaso de expansão AQS Reflex 25 L', 1, ['vaso expansao aqs reflex 25', 'vaso expansao reflex 25', 'vaso expansao aqs 25']],
+      ['Válvula de esfera borboleta Atusa 3/4" MF', 2, ['valvula esfera borboleta atusa 3/4', 'valvula esfera borboleta 3/4 mf', 'valvula esfera 3/4']],
+      ['Joelho latão 3/4" FF', 3, ['joelho latao 3/4 ff', 'joelho latao 3/4']],
+      ['Tê simples latão 3/4" F', 2, ['te simples latao 3/4', 'te latao 3/4']],
+      ['Junção cónica latão 3/4" MF', 2, ['juncao conica latao 3/4', 'juncao conica 3/4']],
+      ['Casquilho duplo latão 3/4"', 5, ['casquilho duplo latao 3/4', 'casquilho duplo 3/4']],
+      ['União simples latão 3/4" MF', 5, ['uniao simples latao 3/4', 'uniao latao 3/4 mf']],
+    ];
+    for (const [descricao, quantidade, pesquisa] of kitAqs) add({ tipologia: T, categoria: 'Acessórios', ck: 'Material de ligação (kit ENAT)', descricao, quantidade, pesquisa });
+    add({ tipologia: T, categoria: 'Material', chave: 'multicamada', ck: 'Material de ligação (kit ENAT)', descricao: 'Tubo multicamada Permatubo 20×2 mm', quantidade: aq.tubo_m ?? 4, unidade: 'm', pesquisa: ['tubo multicamada permatubo 20', 'tubo multicamada 20x2', 'multicamada 20'], exige: [['20\\s?x\\s?2']] });
+    const dq = quadroDefault(T, aq.distancia_quadro_m), cab = caboEletrico({ potencia_w: V >= 260 ? 2500 : 2000, distancia_m: dq });
+    calcs.push({ nome: 'cabo_eletrico', nota: 'Bomba de calor AQS: ' + cab.nota });
+    add({ tipologia: T, categoria: 'Material', chave: 'cabo_alimentacao', ck: 'Cabo 3G', descricao: 'Cabo ' + cab.cabo, especificacao: cab.tipo_cabo, quantidade: cab.metros, unidade: 'm', pesquisa: ['cabo ' + String(cab.cabo).replace(/ mm²/, '').replace(',', '.').toLowerCase(), 'cabo 3g' + String(cab.seccao_mm2).replace('.', ','), 'cabo 3g' + cab.seccao_mm2] });
+    labour(T, 'bc_aqs', 'Instalação de bomba de calor AQS (ligações hidráulicas, elétricas e arranque)', 1, 'un.');
     if (aq.remover_antigo) labour(T, 'desmontagem', 'Desmontagem e remoção do equipamento antigo', 1, 'un.', 'Desmontagem do equipamento antigo');
-    else na(T, 'Desmontagem do equipamento antigo', aq.remover_antigo === false ? 'não há equipamento a remover' : 'confirmar se existe termoacumulador/esquentador a remover');
     if (aq.remover_antigo == null) ask.push('Há termoacumulador ou esquentador antigo para remover?');
   }
 
@@ -330,7 +334,7 @@ function kit(input) {
   for (let i = lines.length - 1; i >= 0; i--) if (lines[i].tipologia === 'Bomba de calor AQS' && /in[ée]rcia/i.test(lines[i].descricao)) lines.splice(i, 1);
 
   // Regra ENAT: o diferencial nunca entra no orçamento (usa-se o do quadro existente).
-  if (lines.length && !ex.has('deslocacao')) labour(lines[0].tipologia, 'deslocacao', 'Deslocação', 1, 'serviço');
+  if (lines.length && !ex.has('deslocacao') && !lines.every((l) => l.tipologia === 'Bomba de calor AQS')) labour(lines[0].tipologia, 'deslocacao', 'Deslocação', 1, 'serviço');
 
   // Quantidades indicadas pelo utilizador substituem as calculadas (repartidas pelas linhas da mesma família).
   for (const [k, v] of Object.entries(s.quantidades)) {

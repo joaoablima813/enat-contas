@@ -53,8 +53,8 @@ test('the server builds the full kit from the request data, with no AI round tri
  assert.ok(d(/^Tubo de cobre isolado para refrigeração 1\/4"/).length&&d(/^Tubo de cobre isolado para refrigeração 3\/8"/).length,'copper is sold tube by tube, not as a pair');assert.ok(d(/Cabo de interligação/).length);assert.equal(d(/^Bomba de condensados/)[0].quantidade,1,'only the room without drain gets a pump');
  assert.equal(d(/calha/i).length,0,'trunking, its cover and accessories are never quoted');
  assert.ok(d(/Suporte de parede/).length&&d(/antivibráticos/).length);assert.equal(d(/Consumíveis/).length,0,'excluded parts are left out');
- assert.ok(d(/^Bomba de calor para AQS 200 L/).length&&d(/Grupo de segurança/).length&&d(/Vaso de expansão sanitário 12 L/).length&&d(/misturadora/).length);
- assert.equal(d(/disjuntor|diferencial/i).length,0,'no breaker nor RCD');assert.ok(d(/^Cabo de alimentação/).length>=2);assert.equal(d(/Deslocação/).length,1);assert.ok(d(/Depósito de inércia 100 L/).length);
+ assert.ok(d(/^Bomba de calor para AQS 200 L/).length&&d(/Grupo de segurança Caleffi/).length&&d(/Vaso de expansão AQS Reflex 25 L/).length&&d(/Misturadora termostática solar Honeywell/).length);assert.equal(d(/Grelha/).length,0);assert.ok(d(/^Cabo 3G2,5/).length,'DHW heat pump gets the 3G cable');
+ assert.equal(d(/disjuntor|diferencial/i).length,0,'no breaker nor RCD');assert.ok(d(/^Cabo de alimentação/).length>=1);assert.equal(d(/Deslocação/).length,1);assert.ok(d(/Depósito de inércia 100 L/).length);
  assert.equal(d(/Instalação de unidade interior/)[0].preco_indicado,120);
  assert.ok(p.pressupostos.some(x=>/Quarto 2: 5 m de linha/.test(x)));assert.ok(p.verificacao.some(c=>c.estado==='incluido'&&c.itens.length));
  assert.ok(p.itens.every(i=>i.pesquisa.length||i.categoria==='Mão de obra'));
@@ -70,6 +70,15 @@ test('the server builds the full kit from the request data, with no AI round tri
  assert.equal(readPlanInput({texto:'curto'}),null);
  assert.equal(readPlanInput({texto:'Sala de 30 m² com split',maoObra:[{id:'a',nome:'X',preco:-3}]}).maoObra[0].preco,0);
  assert.equal(readPickInput({itens:[{id:'i1',candidatos:[]}]}),null);
+});
+
+test('DHW heat pump quote: only the machine, the ENAT Sanitop kit, the 3G cable and the labour', async () => {
+ const { cleanSpec, buildPlan } = await import('../netlify/lib/quote-kit.mjs');
+ const p = buildPlan(cleanSpec({ tipologias: ['Bomba de calor AQS'], aqs: { volume_l: 200, espaco_fechado: true } }));
+ assert.equal(p.itens.length, 15);
+ assert.equal(p.itens.filter((i) => i.categoria === 'Mão de obra').length, 1, 'one labour line, no travel nor separate circuit');
+ assert.equal(p.itens.filter((i) => /conduta|isolamento|esgoto|grelha|deslocação|sifão|dielétrico/i.test(i.descricao)).length, 0);
+ assert.equal(p.itens.find((i) => /Casquilho duplo/.test(i.descricao)).quantidade, 5);
 });
 
 // App side: search the price tables and build the quote lines with prices from the tables only.

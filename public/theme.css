@@ -180,3 +180,4 @@ nav div{grid-template-columns:repeat(9,minmax(0,1fr))}
 .ga-x{position:relative;font-size:10.5px;color:var(--mute)}
 .ga-x span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .ga-chart .dash-h>b{color:var(--ink)}
+nav div{grid-template-columns:repeat(10,minmax(0,1fr))}

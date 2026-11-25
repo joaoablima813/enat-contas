@@ -24,7 +24,7 @@ export async function sendPush(store, payload) {
   let ok = 0;
   await Promise.all(list.map(async (s) => {
     try { await webpush.sendNotification(s.sub, JSON.stringify(payload), { TTL: 6 * 3600, urgency: 'high' }); ok++; }
-    catch (e) { if (e?.statusCode === 404 || e?.statusCode === 410) gone.add(s.sub.endpoint); else console.error('push', e?.statusCode || e?.message); }
+    catch (e) { if (e?.statusCode === 404 || e?.statusCode === 410) gone.add(s.sub.endpoint); else console.error('push falhou', e?.statusCode || '', String(e?.body || e?.message || '').slice(0, 160), new URL(s.sub.endpoint).host); }
   }));
   if (gone.size) await store.setJSON(SUBS, (await subs(store)).filter((s) => !gone.has(s.sub.endpoint)));
   return ok;
@@ -58,6 +58,17 @@ export function dueAlerts(state, inbox, now = Date.now()) {
       const t = localMs(l.visitAt);
       if (t - now <= 30 * 60e3 && t - now > -30 * 60e3) out.push({ key: 'visit|' + l.id + '|' + l.visitAt, title: 'Visita: ' + name(l), body: when(t) + (l.address ? ' · ' + l.address : ''), tag: 'visit-' + l.id, lead: l.id });
     }
+  }
+  for (const a of state?.agenda || []) {
+    if (!a?.id || a.feito || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.data || ''))) continue;
+    const titulo = 'Obra: ' + (String(a.titulo || '').trim() || 'marcação'), onde = (a.local ? ' · ' + a.local : ''), ate = (a.ate && a.ate > a.data ? ' (até ' + a.ate.slice(8, 10) + '/' + a.ate.slice(5, 7) + ')' : '');
+    const hora = /^\d{2}:\d{2}$/.test(a.hora || '') ? a.hora : '';
+    // Na véspera, às 18h (hora de Lisboa).
+    const vespera = new Date(Date.parse(a.data + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10), tv = localMs(vespera + 'T18:00');
+    if (tv <= now && now - tv < 5 * 3600e3) out.push({ key: 'agv|' + a.id + '|' + a.data, title: 'Amanhã · ' + titulo, body: (hora ? 'Amanhã às ' + hora : 'Amanhã') + ate + onde, tag: 'agv-' + a.id });
+    // No próprio dia: 30 minutos antes da hora, ou às 8h se não tiver hora.
+    const t = localMs(a.data + 'T' + (hora || '08:00'));
+    if (t - now <= (hora ? 30 * 60e3 : 0) && now - t < 3 * 3600e3) out.push({ key: 'ag|' + a.id + '|' + a.data + '|' + hora, title: titulo, body: (hora ? 'Hoje às ' + hora : 'Hoje') + ate + onde, tag: 'ag-' + a.id });
   }
   for (const l of inbox || []) {
     if (!l?.id || del['leads:' + l.id]) continue;

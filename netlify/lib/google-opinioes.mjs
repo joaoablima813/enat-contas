@@ -46,8 +46,9 @@ export async function atualizarOpinioes(store, now = Date.now(), fetcher = fetch
 
 // Dados do Google a mostrar (site e propostas). Com a sincronização ativa, usa a nota, o número e as opiniões reais;
 // sem ela, o que foi escrito na app (Empresa → Google). Nunca mostra a opinião do próprio comercial.
+// Ordem: primeiro as que têm comentário escrito, depois as mais recentes.
 export function googleFor(e, op) {
   const g = e?.google || {}, me = String(e?.contacto?.nome || 'João Lima').trim().toLowerCase();
-  if (op?.total) return { ...g, nota: Number(op.nota).toFixed(1), total: String(op.total), link: g.link || op.link, reviews: (op.reviews || []).filter((r) => r.autor.trim().toLowerCase() !== me) };
+  if (op?.total) return { ...g, nota: Number(op.nota).toFixed(1), total: String(op.total), link: g.link || op.link, reviews: (op.reviews || []).filter((r) => r.autor.trim().toLowerCase() !== me).sort((x, y) => (y.texto ? 1 : 0) - (x.texto ? 1 : 0) || String(y.data).localeCompare(String(x.data))) };
   return g.nota ? { ...g, reviews: [] } : { ...g, reviews: [] };
 }

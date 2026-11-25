@@ -222,7 +222,7 @@ function body(token: string, row: any, answer: any, others: any[], e: any, views
  ${e.google?.link ? `<a class="link" href="${esc(e.google.link)}" target="_blank" rel="noopener">${icon('star')}Ver as opiniões dos nossos clientes no Google</a>` : ''}</section>`;
 
   // 2b. Local proof: finished jobs near the client, with the client's consent (type of work, town and month only).
-  const near = nearby(works, q.address, q.topics || []);
+  const near = nearby(works, q.address, q.topics || [], 4);
   const proof = near.items.length ? `<section class="card" id="obras"><h2>${esc(near.title)}</h2><div class="works">${near.items.map((w: any) => `<figure><div class="shots${w.fotos.length > 1 ? ' many' : ''}">${w.fotos.map((f: string) => `<img src="${img(f)}" alt="${esc(w.titulo)} em ${esc(w.local)}" loading="lazy">`).join('')}</div><figcaption><b>${esc(w.titulo)}</b><small>${esc(w.local)}${w.mes ? ' · ' + esc(monthLabel(w.mes)) : ''}</small></figcaption></figure>`).join('')}</div></section>` : '';
 
   // 3. What the client gains and what is included, before any figure.

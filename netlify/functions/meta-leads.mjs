@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { checkMetaLeads } from '../lib/meta-leads.mjs';
 import { runAutoPedidos } from '../lib/pedido.mjs';
 
-// A cada minuto procura leads novas da Meta no email; quando há, envia logo o questionário por email (se estiver ligado).
+// De 5 em 5 minutos (das 6h às 23h, hora UTC; poupa créditos do Netlify) procura leads novas da Meta no email; quando há, envia logo o questionário por email (se estiver ligado).
 export default async () => {
   const store = getStore({ name: 'enat', consistency: 'strong' });
   let r = {};
@@ -14,4 +14,4 @@ export default async () => {
   }
 };
 
-export const config = { schedule: '* * * * *' };
+export const config = { schedule: '*/5 6-22 * * *' };

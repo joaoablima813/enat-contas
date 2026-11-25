@@ -39,7 +39,7 @@ test('the app saves promotions, removed photos are deleted, and the site gets th
   await handlePromocoes(req('PUT', { promocoes: [{ id: 'a1', titulo: 'Promo AC', descricao: 'Inclui instalação', preco: '899 €', precoAntes: '1 099 €', fotos: ['fotoum123'] }, { id: 'a2', titulo: 'Escondida', fotos: ['fotodois1'], ativo: false }] }), 'promocoes', store);
   const site = await (await handleSite(new Request('https://app.test/site-api/promocoes', { headers: { origin: 'https://enat-pontedelima.pt' } }), 'promocoes', store)).json();
   assert.deepEqual(site.promocoes.map((p) => [p.titulo, p.preco, p.precoAntes]), [['Promo AC', '899 €', '1 099 €']]);
-  assert.equal(site.promocoes[0].fotos[0], 'https://app.test/site-api/img/fotoum123');
+  assert.equal(site.promocoes[0].fotos[0], '/site-api/img/fotoum123');
   const img = await handleSite(new Request('https://app.test/site-api/img/fotoum123'), 'img/fotoum123', store);
   assert.equal(img.status, 200, 'photo of a visible promotion is public');
   assert.equal((await handleSite(new Request('https://app.test/site-api/img/fotodois1'), 'img/fotodois1', store)).status, 404, 'photo of a hidden promotion is not public');

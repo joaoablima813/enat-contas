@@ -45,6 +45,6 @@ test('the site shows only finished jobs with consent, with their public photos',
   await store.setJSON('empresa', { google: { nota: '4.9', total: '62', link: 'https://g.page/x' } });
   const b = await (await call(store, 'GET', 'obras')).json();
   assert.deepEqual(b.obras.map((o) => o.titulo), ['AC em moradia']);
-  assert.equal(b.obras[0].fotos[0], 'https://enat-contas.netlify.app/site-api/img/abcdefgh1');assert.equal(b.obras[0].mes, 'maio de 2026');
+  assert.equal(b.obras[0].fotos[0], '/site-api/img/abcdefgh1');assert.equal(b.obras[0].mes, 'maio de 2026');
   assert.equal(b.google.nota, '4.9');
 });

@@ -33,29 +33,39 @@ async function pushEnable(quiet){
 }
 async function pushDisable(){
  try{const r=await navigator.serviceWorker.getRegistration();const s=await r?.pushManager?.getSubscription();if(s){await pushPost('push/remover',{endpoint:s.endpoint}).catch(()=>{});await s.unsubscribe()}}catch(e){}
- localStorage.removeItem('enat-push');PUSH_ST='off';PUSH_MSG='Notificações desativadas neste dispositivo.';
+ localStorage.setItem('enat-push','0');PUSH_ST='off';PUSH_MSG='Notificações desativadas neste dispositivo.';
 }
-// Ao entrar, volta a enviar a subscrição deste dispositivo (se já estava ativo) para o servidor a manter.
+// Ao entrar: se as notificações já estão autorizadas neste dispositivo, (re)cria a subscrição e envia-a ao servidor.
+// Assim o servidor nunca fica sem este dispositivo (mesmo que a lista se perca ou o navegador renove a subscrição).
 async function pushRefresh(){
  PUSH_ST=await pushStatus();
- if(PUSH_ST==='on'&&localStorage.getItem('enat-push')==='1')pushEnable(true).catch(()=>{});
- pushPaint();
+ const desligado=(()=>{try{return localStorage.getItem('enat-push')==='0'}catch(e){return false}})();
+ if(pushSupported()&&Notification.permission==='granted'&&!desligado){try{await pushEnable(true)}catch(e){}}
+ PUSH_ST=await pushStatus();
+ pushPaint();if(typeof V!=='undefined'&&V.tab==='home'&&typeof render==='function'&&(typeof idle!=='function'||idle()))render();
 }
 function pushHtml(){
  const st=PUSH_ST,btn=(a,t,c='btn')=>`<button class="${c}" data-pu="${a}">${t}</button>`;
  const txt=st==='on'?'Ativas neste dispositivo. Recebe os avisos mesmo com a app fechada.':st==='denied'?'Bloqueadas. Autorize as notificações para a Enat app nas definições do telemóvel (ou do navegador) e volte aqui.':st==='ios-install'?'No iPhone / iPad: toque em Partilhar › «Adicionar ao ecrã principal», abra a app a partir do ícone e ative aqui.':st==='unsupported'?'Este navegador não suporta notificações push. No Android use o Chrome; no iPhone, a app instalada no ecrã principal.':st===null?'A verificar…':'Desativadas neste dispositivo.';
  return`<div class="grp">${kv('Estado',txt,'wrap')}</div>${st==='on'?btn('test','Enviar notificação de teste','btn alt')+btn('off','Desativar neste dispositivo','link'):st==='off'?btn('on','Ativar notificações neste dispositivo'):''}<p id="push-msg" role="status" class="note">${esc(PUSH_MSG)}</p><p class="note">Avisa das chamadas em hora (leads «Não atendeu»), das visitas 30 minutos antes, das leads novas do email e das respostas dos clientes aos orçamentos. Ative em cada telemóvel ou computador onde quer receber.</p>`;
 }
+// Aviso no Início enquanto este dispositivo não recebe notificações com a app fechada.
+function pushBanner(){
+ const st=PUSH_ST;if(!st||st==='on'||st==='unsupported')return'';
+ try{if(localStorage.getItem('enat-push')==='0')return''}catch(e){}
+ const t=st==='denied'?'As notificações estão bloqueadas neste dispositivo. Autorize-as para a Enat app nas definições do navegador ou do telemóvel.':st==='ios-install'?'No iPhone: Partilhar › «Adicionar ao ecrã principal» e abra a app pelo ícone para receber avisos.':'Ative para receber chamadas, visitas, obras marcadas, leads novas e respostas de clientes mesmo com a app fechada.';
+ return`<div class="push-ban"><div><b>Notificações neste dispositivo</b><span>${t}</span></div>${st==='off'?'<button class="btn" data-pu="on">Ativar</button>':''}</div>`;
+}
 function pushPaint(){const b=typeof document!=='undefined'&&document.querySelector?.('#pushbox');if(b)b.innerHTML=pushHtml()}
 if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('click',async e=>{
  const b=e.target.closest?.('[data-pu]');if(!b)return;e.stopImmediatePropagation();
  const a=b.dataset.pu;b.disabled=true;PUSH_MSG='';
  try{
-  if(a==='on')await pushEnable();
+  if(a==='on'){await pushEnable();try{await pushPost('push/teste')}catch(e){}PUSH_MSG='Notificações ativas. Enviámos uma notificação de teste.'}
   else if(a==='off')await pushDisable();
   else if(a==='test'){const r=await pushPost('push/teste');const j=await r.json().catch(()=>({}));PUSH_MSG=j.sent?'Notificação de teste enviada. Deve chegar dentro de segundos.':'Nenhum dispositivo ativo. Ative de novo neste dispositivo.';if(!j.sent)PUSH_ST='off'}
  }catch(err){PUSH_MSG=err.message||'Não foi possível concluir.'}
- pushPaint();
+ pushPaint();if(typeof V!=='undefined'&&V.tab==='home'&&typeof render==='function')render();
 },true);
 
 // Ao tocar numa notificação com a app fechada, a app abre em /?lead=… ou /?orc=…

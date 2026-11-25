@@ -54,6 +54,9 @@
  }
  // Pré-preenchido no ecrã Empresa; o utilizador confirma ou altera (só deve ficar o que é verdade em todas as obras).
  const INCLUDED=['Equipamentos e materiais indicados na proposta','Mão de obra de instalação','Testes e arranque do sistema','Explicação do funcionamento no fim da obra','Limpeza do local de trabalho'];
+ // Incluído só em certos tipos de obra: junta-se à lista da empresa quando o orçamento tem essa tipologia.
+ const INCLUDED_BY_TOPIC={'UPAC (fotovoltaico)':['Registo da UPAC na DGEG']};
+ const includedFor=(base,topics)=>{const out=[...(base||[])];for(const t of topics||[])for(const x of INCLUDED_BY_TOPIC[t]||[])if(!out.some(y=>y.toLowerCase()===x.toLowerCase()))out.push(x);return out};
  const CREDENTIALS=['Técnico certificado em gases fluorados','Técnico registado na DGEG','Alvará / certificado IMPIC','Seguro de responsabilidade civil'];
  // Perguntas frequentes feitas com os dados da empresa; uma pergunta sem resposta não aparece.
  function faq(e,weeks){
@@ -74,5 +77,5 @@
   const now=monday(today);
   return [...new Set((list||[]).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).map(monday))].filter(d=>d>=now).sort().slice(0,4);
  }
- root.EnatSolucoes={BENEFITS,benefits,INCLUDED,CREDENTIALS,faq,weekLabel,nextWeeks};
+ root.EnatSolucoes={BENEFITS,benefits,INCLUDED,INCLUDED_BY_TOPIC,includedFor,CREDENTIALS,faq,weekLabel,nextWeeks};
 })(globalThis);

@@ -28,7 +28,8 @@ Não inventes valores; usa null se não existir.`;
 const json = (status, body) => new Response(body == null ? '' : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 // Sessões: token "expira.assinatura" assinado com um segredo guardado nos Blobs.
-const DOZE_H = 12 * 3600e3;
+// Validade da sessão de um dispositivo (fica guardada no dispositivo; a chave de acesso só é pedida de novo ao fim deste tempo).
+const DOZE_H = 30 * 864e5;
 async function auth(req, path, store, autorizado) {
   const u = new URL(req.url), rpID = u.hostname, origin = u.origin;
   const chaves = (await store.get('passkeys', { type: 'json' })) || [];

@@ -11,7 +11,7 @@
 </main><script type="module">
 import {installer} from '/excel-connect.js';
 const $=s=>document.querySelector(s);
-async function access(method){const r=await fetch('/api/excel/acesso',{method,headers:{'x-session':sessionStorage.getItem('enat-sess')||''}});if(!r.ok)throw Error(r.status===401?'Entre na app primeiro e volte a abrir esta página.':'Não foi possível configurar a ligação. Tente novamente.');return r.json()}
+async function access(method){const r=await fetch('/api/excel/acesso',{method,headers:{'x-session':localStorage.getItem('enat-sess')||sessionStorage.getItem('enat-sess')||''}});if(!r.ok)throw Error(r.status===401?'Entre na app primeiro e volte a abrir esta página.':'Não foi possível configurar a ligação. Tente novamente.');return r.json()}
 async function action(button,fn){button.disabled=true;$('#message').textContent='';try{await fn()}catch(e){$('#message').textContent=e.message}finally{button.disabled=false}}
 $('#create').onclick=e=>action(e.target,async()=>{if($('#status').dataset.active==='true'&&!confirm('Criar outro acesso desliga a palavra-passe anterior em todos os computadores. Continuar?'))return;const data=await access('POST');$('#password').value=data.password;$('#credentials').hidden=false;$('#status').dataset.active='true';$('#status').textContent='Acesso criado. Use esta palavra-passe na janela de ligação do Excel.'});
 $('#copy').onclick=e=>action(e.target,async()=>{await navigator.clipboard.writeText($('#password').value);$('#message').textContent='Palavra-passe copiada. Cole-a apenas na janela de ligação do Excel.'});

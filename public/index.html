@@ -344,7 +344,8 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').r
 const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const match=(n,q)=>{const h=norm(n);return norm(q).split(/\s+/).filter(Boolean).every(w=>h.includes(w))};
 function mats(){const m={};S.inv.forEach(v=>v.items.forEach(i=>{const k=norm(i.name);(m[k]=m[k]||{name:i.name,cat:i.cat,buys:[]}).buys.push({store:v.store,date:v.date,p:i.unit_price,pv:i.unit_price*(1+i.vat/100),unit:i.unit})}));return Object.values(m)}
-const SESS=()=>sessionStorage.getItem('enat-sess')||'';
+// Sessão guardada no dispositivo (30 dias): abrir a app não volta a pedir a chave de acesso.
+const SESS=()=>{try{return localStorage.getItem('enat-sess')||sessionStorage.getItem('enat-sess')||''}catch(e){return sessionStorage.getItem('enat-sess')||''}};
 const API=(p,o={})=>fetch('/api/'+p,{...o,headers:{'x-session':SESS(),...(o.headers||{})}}).then(r=>{if(r.status===401)bloquear();return r});
 let LB,LM;
 const r2=n=>Math.round((n||0)*100)/100;
@@ -748,7 +749,7 @@ function pullState(d){
 /* ---------- entrada com Face ID / Touch ID (passkeys) ---------- */
 const post=async(p,b,code)=>{const r=await fetch('/api/'+p,{method:'POST',headers:{'content-type':'application/json','x-session':SESS(),...(code?{'x-code':code}:{})},body:JSON.stringify(b||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'falha ('+r.status+')');return j};
 let LIGADO=false;
-function bloquear(m){sessionStorage.removeItem('enat-sess');$('#lock').classList.add('on');ecraLock(m)}
+function bloquear(m){sessionStorage.removeItem('enat-sess');try{localStorage.removeItem('enat-sess')}catch(e){}$('#lock').classList.add('on');ecraLock(m)}
 const CRED=()=>localStorage.getItem('enat-cred')||'';
 // Pedido de login preparado antes do toque: o Windows Hello / Face ID aparece logo, sem esperar pelo servidor.
 let PRE=null;
@@ -774,7 +775,7 @@ async function entrarOffline(){
 window.addEventListener('online',()=>{if(OFFLINE){OFFLINE=false;bloquear('A ligação voltou. Faça login para sincronizar as alterações feitas sem rede.')}else if(SESS())pull()});
 window.addEventListener('offline',()=>setSync('off'));
 
-function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill();quoteRefresh()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render();if(typeof pushReady==='function')pushReady();if(typeof supplierStart==='function')supplierStart()}
+function desbloquear(t){OFFLINE=false;sessionStorage.setItem('enat-sess',t);try{localStorage.setItem('enat-sess',t)}catch(e){}$('#lock').classList.remove('on');if(!LIGADO){LIGADO=true;setInterval(()=>{pull();syncPill();quoteRefresh()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&SESS())pull()})}pull();render();if(typeof pushReady==='function')pushReady();if(typeof supplierStart==='function')supplierStart()}
 async function registar(code){const o=await post('auth/registo-opcoes',{},code);const response=await SWA.startRegistration({optionsJSON:o.options});const t=(await post('auth/registo',{cid:o.cid,response},code)).token;localStorage.setItem('enat-cred',response.id);desbloquear(t)}
 // Face ID: vai direto à chave guardada neste dispositivo. Touch ID: deixa o sistema escolher qualquer chave (outro sensor ou dispositivo).
 async function entrar(local){const pre=local&&CRED()&&PRE&&Date.now()-PRE.at<4*60e3?await PRE.p:null;PRE=null;const o=pre||await post('auth/entrar-opcoes',local&&CRED()?{id:CRED()}:{});const response=await SWA.startAuthentication({optionsJSON:o.options});const t=(await post('auth/entrar',{cid:o.cid,response})).token;if(response.authenticatorAttachment!=='cross-platform')localStorage.setItem('enat-cred',response.id);desbloquear(t)}

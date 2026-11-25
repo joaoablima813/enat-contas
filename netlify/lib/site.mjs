@@ -97,7 +97,7 @@ export async function handleSite(req, path, store) {
   }
   if (path === 'obras' && req.method === 'GET') {
     const [works, e] = await Promise.all([getPortfolio(store), store.get('empresa', { type: 'json' }).catch(() => null)]);
-    const base = new URL(req.url).origin + '/site-api/img/';
+    const base = '/site-api/img/'; // relativo: o site serve as fotos pelo seu próprio domínio (enat-pontedelima.pt/site-api/…)
     const obras = shown(works).sort((a, b) => b.mes.localeCompare(a.mes)).slice(0, 24).map((w) => ({ titulo: w.titulo, tipo: w.tipo, local: w.local, mes: monthLabel(w.mes), descricao: w.descricao, fotos: w.fotos.map((f) => base + f) }));
     const g = e?.google || {};
     // Opiniões do Google sincronizadas (uma vez por dia); sem elas, os dados escritos na app (Empresa).
@@ -109,7 +109,7 @@ export async function handleSite(req, path, store) {
   // Anúncios / promoções em destaque no site.
   if (path === 'promocoes' && req.method === 'GET') {
     const { getPromocoes, visiveis } = await import('./promocoes.mjs');
-    const base = new URL(req.url).origin + '/site-api/img/';
+    const base = '/site-api/img/'; // relativo: o site serve as fotos pelo seu próprio domínio (enat-pontedelima.pt/site-api/…)
     const promocoes = visiveis(await getPromocoes(store)).map((p) => ({ id: p.id, titulo: p.titulo, descricao: p.descricao, preco: p.preco, precoAntes: p.precoAntes, ate: p.ate, fotos: p.fotos.map((f) => base + f) }));
     return new Response(JSON.stringify({ promocoes }), { headers: { 'content-type': 'application/json', ...cors(req), 'cache-control': 'public, max-age=60' } });
   }

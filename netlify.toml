@@ -10,3 +10,9 @@
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+# A app (e as páginas dos clientes) não aparecem nas pesquisas do Google: só o site enat-pontedelima.pt.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

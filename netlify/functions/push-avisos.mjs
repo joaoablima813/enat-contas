@@ -5,7 +5,7 @@ import { runLembretes } from '../lib/lembretes.mjs';
 import { runAutoPedidos, limparAnexos } from '../lib/pedido.mjs';
 import { atualizarOpinioes } from '../lib/google-opinioes.mjs';
 
-// A cada minuto envia as notificações push devidas (chamadas em hora, visitas e leads novas), mesmo com a app fechada.
+// De 5 em 5 minutos (das 6h às 23h, hora UTC; poupa créditos do Netlify) envia as notificações push devidas (chamadas em hora, visitas e leads novas), mesmo com a app fechada.
 // Também lembra o seguimento das propostas sem resposta (no máximo a cada 15 minutos, só de dia).
 export default async () => {
   const store = getStore({ name: 'enat', consistency: 'strong' });
@@ -24,4 +24,4 @@ export default async () => {
   catch (e) { console.error('pedido automático falhou', e?.message || e); }
 };
 
-export const config = { schedule: '* * * * *' };
+export const config = { schedule: '*/5 6-22 * * *' };

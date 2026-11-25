@@ -200,3 +200,9 @@ nav div{grid-template-columns:repeat(10,minmax(0,1fr))}
  body.menu-open .menu-veil{display:block;position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.42)}
  body.menu-open{overflow:hidden}
 }
+
+/* Meta Ads: lista de campanhas (tocar filtra os gráficos). */
+.ma-camp{width:100%;border:0;background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer}.ma-camp.on{background:color-mix(in srgb,var(--green) 10%,transparent)}
+.ma-num{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-variant-numeric:tabular-nums}.ma-num small{color:var(--mute);font-size:12px}
+.ma-st{font-style:normal;font-weight:600}.ma-st.pos{color:var(--green)}.ma-st.neg{color:var(--red,#d33)}
+.ma-all{border:0;background:none;color:var(--green);font:inherit;font-size:13px;font-weight:600;cursor:pointer;margin-left:6px}

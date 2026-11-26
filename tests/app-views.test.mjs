@@ -364,3 +364,11 @@ test('lead page: emails exchanged with the client and the WhatsApps opened from 
  run("leadWaMark('966000000','Outra')"); assert.equal(run('S.leads[0].wa.length'), 1, 'other numbers do not count');
  run("leadDraft={...leadDraft,email:''}"); assert.match(run('leadEmailsHtml(leadDraft)'), /Preencha o email do cliente/);
 });
+test('quotes page: search finds quotes by client, number or equipment', () => {
+ const {run} = app(state);
+ run(`quoteRows=[{id:54,document:{client:'Filipa Fernandes',contact:'912000111',email:'filipa@x.pt',date:'2026-11-09',topics:['Ar condicionado'],brand:'Daikin',lines:[{description:'Daikin Perfera 3,5 kW',quantity:1,value:900}],vat:23,margin:20},events:[]},{id:60,document:{client:'Rui Costa',contact:'933',date:'2026-11-12',topics:['Bomba de calor AQS'],lines:[{description:'Bomba de calor 200 L',quantity:1,value:1500}],vat:23,margin:20},events:[]}]`);
+ run("V.tab='orc';V.qq=''");assert.match(run('vQuotes()'), /id="qq"/);assert.match(run('vQuotes()'), /<h2>Clientes<\/h2>/);
+ run("V.qq='perfera'");const a=run('vQuotes()');assert.match(a,/Resultados \(1\)/);assert.match(a,/Filipa Fernandes/);assert.doesNotMatch(a,/Rui Costa/);
+ run("V.qq='0060'");assert.match(run('vQuotes()'),/Rui Costa/);
+ run("V.qq='nada disto'");assert.match(run('vQuotes()'),/Nenhum orçamento encontrado/);
+});

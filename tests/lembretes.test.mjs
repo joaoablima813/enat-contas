@@ -74,3 +74,13 @@ test('run: old proposals find their link in the sent PDF, and a reminder that co
   assert.match(mails[0][2], /\/proposta\/tokvelho/);
   assert.equal((await runLembretes(store, now + 40 * 60e3, deps)).sent, 0, 'and only once');
 });
+
+test('run: old unanswered proposals (still valid) get the 10-day reminder, one email per client', async () => {
+  const blobs = new Map([['proposta-link-5', { token: 't5' }], ['proposta-link-6', { token: 't6' }]]), store = { get: async (k) => blobs.get(k) ?? null, setJSON: async (k, v) => blobs.set(k, v) };
+  const mails = [], recs = [];
+  const velho = { ...doc(), date: '2026-11-01', validity: 60 };
+  const deps = { load: async () => ({ rows: [{ id: 5, document: velho }, { id: 6, document: velho }], events: [{ quoteId: 5, kind: 'enviado', at: at(22) }, { quoteId: 6, kind: 'enviado', at: at(22) }] }), mail: async (...a) => mails.push(a), waOn: false, record: async (...a) => recs.push(a), push: async () => {} };
+  assert.equal((await runLembretes(store, now, deps)).sent, 1, 'two proposals for the same client → one email');
+  assert.match(mails[0][1], /Ainda está interessado/);
+  assert.equal((await runLembretes(store, now + 20 * 60e3, deps)).sent, 0, 'the other one is not sent later either');
+});

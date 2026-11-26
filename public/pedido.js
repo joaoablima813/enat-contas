@@ -94,6 +94,7 @@ document.addEventListener('click',async e=>{
   const r=await API('pedido',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({lead:l.id,nome:l.name,sol:l.solutions})});
   const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Não foi possível criar o link.');
   const text=pedText(l,j.url);
+  if(ch==='whatsapp'&&typeof leadWaMark==='function')leadWaMark(l.contact,'Link do pedido de orçamento');
   if(ch==='whatsapp'){const href='https://wa.me/'+waTel(l.contact)+'?text='+encodeURIComponent(text);win?win.location.href=href:window.open(href,'_blank')}
   else location.href='mailto:'+encodeURIComponent(l.email.trim())+'?subject='+encodeURIComponent('O seu pedido de orçamento · Enat - Ponte de Lima')+'&body='+encodeURIComponent(text);
   const saved=(S.leads||[]).find(x=>x.id===l.id);saved.pedido={...(saved.pedido||{}),token:j.token,sent:Date.now()};

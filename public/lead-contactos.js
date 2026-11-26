@@ -11,7 +11,10 @@ async function leFetch(email){
   if(!r.ok)throw new Error(j.error||'Não foi possível ler os emails.');
   LE[k]={emails:j.emails||[],configurado:j.configurado!==false,t:Date.now()};
  }catch(e){LE[k]={err:e.message||'Sem ligação ao servidor.',t:Date.now()}}
- if(V.tab==='leads'&&leadDraft&&idle())render();
+ if(V.tab!=='leads'||!leadDraft)return;
+ if(idle()){render();return}
+ // A escrever noutro campo: atualiza só a lista de emails, sem redesenhar a ficha.
+ const el=document.querySelector('.le-list');if(el){const t=document.createElement('div');t.innerHTML=leadEmailsHtml(leadDraft);const nl=t.querySelector('.le-list');if(nl)el.innerHTML=nl.innerHTML}
 }
 const leDia=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',',' às')};
 function leadEmailsHtml(l){

@@ -25,18 +25,24 @@ export async function emailsDoCliente(email, { limite = 30, imap } = {}) {
   const client = new ImapFlow({ host: process.env.IMAP_HOST || process.env.SMTP_HOST || 'mail.enat.pt', port, secure: port === 993, auth: { user: process.env.SMTP_USER || 'pontedelima@enat.pt', pass }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 25000 });
   await client.connect();
   const emails = [], vistos = new Set();
-  let pastasEnviados = [];
+  let pastasEnviados = [], pastasTodas = [];
+  const eu = String(process.env.SMTP_USER || 'pontedelima@enat.pt').toLowerCase();
   try {
     const list = await client.list();
-    // Todas as pastas de enviados: a do servidor e a do Outlook podem ser diferentes (ex.: «Sent» e «Itens Enviados»).
     pastasEnviados = [...new Set(list.filter((f) => f.specialUse === '\\Sent' || SENT_RE.test(f.path) || SENT_RE.test(f.name || '')).map((f) => f.path))];
-    const pastas = [['INBOX', 'recebido', { from: email }], ...pastasEnviados.map((p) => [p, 'enviado', { to: email }])];
-    for (const [pasta, tipo, filtro] of pastas) {
-      const lock = await client.getMailboxLock(pasta);
+    // Procura em todas as pastas da caixa (o Outlook pode guardar os enviados ou arquivar em pastas com outros nomes),
+    // menos lixo, eliminados e rascunhos. Enviado/recebido decide-se pelo remetente.
+    const fora = /(junk|spam|lixo|trash|deleted|eliminad|draft|rascunho)/i;
+    pastasTodas = list.filter((f) => !f.flags?.has?.('\\Noselect') && !['\\Junk', '\\Trash', '\\Drafts'].includes(f.specialUse) && !fora.test(f.path)).map((f) => f.path);
+    for (const pasta of pastasTodas) {
+      const lock = await client.getMailboxLock(pasta).catch(() => null);
+      if (!lock) continue;
       try {
-        const uids = (await client.search(filtro, { uid: true })) || [];
+        const uids = (await client.search({ or: [{ from: email }, { to: email }, { cc: email }] }, { uid: true })) || [];
         for await (const m of client.fetch(uids.slice(-limite), { envelope: true, internalDate: true, source: true }, { uid: true })) {
           const p = await simpleParser(m.source);
+          const de = String(p.from?.value?.[0]?.address || '').toLowerCase();
+          const tipo = de === email ? 'recebido' : de === eu || pastasEnviados.includes(pasta) ? 'enviado' : 'recebido';
           const mid = p.messageId || pasta + '|' + m.uid;
           if (vistos.has(mid)) continue;
           vistos.add(mid);
@@ -53,7 +59,7 @@ export async function emailsDoCliente(email, { limite = 30, imap } = {}) {
     await client.logout().catch(() => client.close());
   }
   emails.sort((a, b) => b.data.localeCompare(a.data));
-  return { configurado: true, pastasEnviados, emails: emails.slice(0, limite) };
+  return { configurado: true, pastasEnviados, pastasTodas, emails: emails.slice(0, limite) };
 }
 
 export async function handleLeadEmails(req) {

@@ -1,6 +1,6 @@
 /* Funcionamento sem rede: a app abre a partir da cópia guardada quando não há ligação.
    Com rede, vai sempre buscar a versão mais recente (primeiro a rede, depois a cópia). Os dados (/api) nunca ficam em cache. */
-const CACHE = 'enat-app-v62';
+const CACHE = 'enat-app-v63';
 const SHELL = ['/', '/enat-logo.png', '/logo-claro.svg', '/manifest.json', '/quotes.css', '/app.css', '/theme.css', '/desktop.css', '/sync.js', '/gestao.js', '/contabilista.js', '/quote-math.js', '/quote-obra.js', '/toc-invoice.js', '/toc.js', '/price-tables.js', '/supplier-catalog.js', '/solucoes.js', '/quotes.js', '/empresa.js', '/portfolio.js', '/anuncios.js', '/google-ads.js', '/meta-ads.js', '/equipamentos.js', '/material.js', '/dashboard.js', '/pedido-perguntas.js', '/pedido.js', '/quote-ai.js', '/leads.js', '/lead-contactos.js', '/push.js', '/agenda.js', '/pv-sizing.js', '/pv.js', '/excel-export.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js', '/vendor/exceljs.min.js', '/vendor/simplewebauthn-browser.umd.min.js', '/apple-touch-icon.png', '/favicon-32x32.png', '/pwa-192x192.png'];
 
 self.addEventListener('install', (e) => {

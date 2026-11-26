@@ -159,6 +159,10 @@ export default async (req) => {
     const { handlePv } = await import('../lib/pv.mjs');
     return handlePv(req, path);
   }
+  if (path === 'email/conversa' && req.method === 'GET') {
+    const { handleLeadEmails } = await import('../lib/lead-emails.mjs');
+    return handleLeadEmails(req);
+  }
   if (path.startsWith('email/')) {
     const { handleEmail } = await import('../lib/whatsapp.ts');
     return handleEmail(req, path, store);

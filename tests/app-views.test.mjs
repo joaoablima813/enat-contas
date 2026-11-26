@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','material.js','dashboard.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','material.js','dashboard.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','lead-contactos.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -345,4 +345,22 @@ test('leads search finds a lead in any tab or stage and says where it is', () =>
  run("V.lt='no';V.lq='bruno'");
  assert.match(run('leadsNoHtml()'), /Bruno Costa[\s\S]*Está em: <b>Novas<\/b>/);
  run("V.lq=''");assert.doesNotMatch(run('leadsNoHtml()'), /Resultados em todas/);
+});
+test('lead page: emails exchanged with the client and the WhatsApps opened from the app', async () => {
+ const fetch = async (u) => String(u).includes('/api/email/conversa?email=ana%40exemplo.pt')
+  ? new Response(JSON.stringify({configurado: true, emails: [{id: 'enviado-7', tipo: 'enviado', data: '2026-11-24T10:00:00Z', assunto: 'Proposta ORC 2026/0090', texto: 'Segue a proposta.', anexos: ['Orcamento.pdf']}, {id: 'recebido-3', tipo: 'recebido', data: '2026-11-25T09:00:00Z', assunto: 'Re: Proposta', texto: 'Obrigada, vou ver.', anexos: []}]}))
+  : Promise.reject(new Error('offline'));
+ const {run} = app({...state, leads: [{id: 'la', name: 'Ana', email: 'ana@exemplo.pt', contact: '+351 912 111 222', stage: 'enviada', solutions: []}]}, {fetch});
+ run("V.tab='leads';leadDraft=structuredClone(S.leads[0])");
+ assert.match(run('leadEmailsHtml(leadDraft)'), /A procurar emails/);
+ await new Promise((r) => setTimeout(r, 20));
+ const h = run('leadEmailsHtml(leadDraft)');
+ assert.match(h, /Emails \(2\)/); assert.match(h, /Proposta ORC 2026\/0090/); assert.match(h, /Enviado ·/); assert.match(h, /Recebido ·/); assert.match(h, /📎 1/);
+ run("LE_OPEN.add('recebido-3')"); assert.match(run('leadEmailsHtml(leadDraft)'), /Obrigada, vou ver\./);
+ assert.match(run('leadWaHtml(leadDraft)'), /Ainda não abriu o WhatsApp/);
+ run("leadWaMark('351912111222','Proposta')");
+ assert.equal(run('S.leads[0].wa.length'), 1);
+ assert.match(run('leadWaHtml(leadDraft)'), /WhatsApp \(1\)[\s\S]*Proposta[\s\S]*Aberto para envio/);
+ run("leadWaMark('966000000','Outra')"); assert.equal(run('S.leads[0].wa.length'), 1, 'other numbers do not count');
+ run("leadDraft={...leadDraft,email:''}"); assert.match(run('leadEmailsHtml(leadDraft)'), /Preencha o email do cliente/);
 });

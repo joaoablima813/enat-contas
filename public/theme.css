@@ -210,3 +210,11 @@ nav div{grid-template-columns:repeat(10,minmax(0,1fr))}
 /* Pesquisa nas leads: cada resultado diz em que separador/fase está. */
 .lead-hit{display:flex;flex-direction:column}.lead-hit .lead-row{width:100%}
 .lead-where{display:block;padding:0 16px 10px 64px;font-size:12.5px;color:var(--mute)}.lead-where b{color:var(--green);font-weight:700}
+
+/* Ficha da lead: emails trocados com o cliente e WhatsApps abertos pela app. */
+.le-ref{border:0;background:none;color:var(--green);font:inherit;font-size:13px;font-weight:600;cursor:pointer;margin-left:6px}
+.le-row{width:100%;border:0;background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.le-row .av{font-weight:700}.le-env{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}.le-rec{background:color-mix(in srgb,#3b82f6 16%,transparent);color:#3b82f6}
+.le-prev{color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.le-body{white-space:pre-wrap;padding:4px 16px 14px 64px;font-size:14px;line-height:1.5;color:var(--ink);overflow-wrap:anywhere}
+.le-wa{background:color-mix(in srgb,#25d366 18%,transparent)}

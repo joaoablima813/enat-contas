@@ -82,7 +82,7 @@ const bcCabo=(kw,tri,m)=>{const P=kw*1000/2.5,I=tri?P/(Math.sqrt(3)*400*0.9):P/(
 function bcKitItens(k,b){
  const bom=k.bomba,dist=Math.max(1,num(b.dist,5)),tubo=Math.ceil(2*(dist+1)),tri=Number(b.fase)===3,kw=bom.kw,mono=!bom.split&&!bom.exterior,c=bcCabo(kw,tri,Math.max(2,num(b.distQ,10))),vaso=kw<=10?18:kw<=16?25:35,its=[];
  const add=(categoria,descricao,quantidade,pesquisa,extra={})=>its.push({id:'bc'+its.length,tipologia:'Bomba de calor climatização',categoria,descricao,quantidade,unidade:extra.unidade||'un.',pesquisa,...extra});
- add('Acessórios',`Vaso de expansão de aquecimento ${vaso} L`,1,[`vaso expansao aquecimento ${vaso}`,`vaso expansao ${vaso} l`],{exige:[['(^|[^0-9])'+vaso+' ?l']]});
+ add('Acessórios',`Vaso de expansão de aquecimento ${vaso} L`,1,[`vaso expansao aquecimento ${vaso}`,`vaso expansao ${vaso} l`],{exige:[['(^|[^0-9])'+vaso+' ?l']],evita:['sanit','aqs','solar']});
  add('Acessórios','Válvula de segurança 3 bar e manómetro',1,['valvula seguranca 3 bar','valvula seguranca aquecimento 1/2','valvula seguranca 3bar'],{exige:[['(^|[^0-9])3 ?bar']]});
  add('Acessórios','Filtro magnético / separador de sujidades 1"',1,['filtro magnetico 1','separador sujidades magnetico','filtro magnetico aquecimento']);
  add('Acessórios','Válvula de esfera 1"',4,['valvula esfera 1"','torneira esfera 1"','valvula esfera 1 polegada'],{exige:[['(^|[^0-9/.])1(?![0-9/.,])','(^|[^0-9/])1 ?pol']],evita:['jardim','mangueira','lavatorio','maquina']});
@@ -96,7 +96,7 @@ function bcKitItens(k,b){
  if(b.aqs&&!k.allInOne){
   add('Acessórios','Válvula de 3 vias desviadora AQS/aquecimento',1,['valvula 3 vias desviadora','valvula 3 vias 1','valvula desviadora aqs']);
   add('Acessórios','Grupo de segurança sanitário 7 bar',1,['grupo seguranca 3/4','grupo seguranca termoacumulador']);
-  add('Acessórios','Vaso de expansão sanitário 12 L',1,['vaso expansao sanitario 12','vaso expansao aqs 12']);
+  add('Acessórios','Vaso de expansão sanitário 12 L',1,['vaso expansao sanitario 12','vaso expansao aqs 12'],{exige:[['sanit|aqs|agua quente']]});
   add('Acessórios','Misturadora termostática AQS 3/4"',1,['misturadora termostatica 3/4','misturadora termostatica solar']);
  }
  add('Material',`Cabo de alimentação ${c.cabo} mm²`,c.metros,[`cabo ${c.cabo.toLowerCase()}`,`cabo h07rn-f ${c.cabo.toLowerCase()}`,`cabo xv ${c.cabo.toLowerCase()}`],{unidade:'m'});

@@ -24,20 +24,25 @@ export async function emailsDoCliente(email, { limite = 30, imap } = {}) {
   const port = Number(process.env.IMAP_PORT || 993);
   const client = new ImapFlow({ host: process.env.IMAP_HOST || process.env.SMTP_HOST || 'mail.enat.pt', port, secure: port === 993, auth: { user: process.env.SMTP_USER || 'pontedelima@enat.pt', pass }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 25000 });
   await client.connect();
-  const emails = [];
+  const emails = [], vistos = new Set();
+  let pastasEnviados = [];
   try {
     const list = await client.list();
-    const enviados = list.find((f) => f.specialUse === '\\Sent')?.path || list.find((f) => SENT_RE.test(f.path))?.path;
-    const pastas = [['INBOX', 'recebido', { from: email }], ...(enviados ? [[enviados, 'enviado', { to: email }]] : [])];
+    // Todas as pastas de enviados: a do servidor e a do Outlook podem ser diferentes (ex.: «Sent» e «Itens Enviados»).
+    pastasEnviados = [...new Set(list.filter((f) => f.specialUse === '\\Sent' || SENT_RE.test(f.path) || SENT_RE.test(f.name || '')).map((f) => f.path))];
+    const pastas = [['INBOX', 'recebido', { from: email }], ...pastasEnviados.map((p) => [p, 'enviado', { to: email }])];
     for (const [pasta, tipo, filtro] of pastas) {
       const lock = await client.getMailboxLock(pasta);
       try {
         const uids = (await client.search(filtro, { uid: true })) || [];
         for await (const m of client.fetch(uids.slice(-limite), { envelope: true, internalDate: true, source: true }, { uid: true })) {
           const p = await simpleParser(m.source);
+          const mid = p.messageId || pasta + '|' + m.uid;
+          if (vistos.has(mid)) continue;
+          vistos.add(mid);
           const texto = limparTexto(p.text || '');
           emails.push({
-            id: tipo + '-' + m.uid, tipo, data: (m.internalDate || p.date || new Date()).toISOString(),
+            id: tipo + '-' + pasta + '-' + m.uid, pasta, tipo, data: (m.internalDate || p.date || new Date()).toISOString(),
             assunto: String(p.subject || '(sem assunto)').slice(0, 300), texto,
             anexos: (p.attachments || []).filter((a) => !a.related).map((a) => String(a.filename || 'anexo')).slice(0, 10),
           });
@@ -48,7 +53,7 @@ export async function emailsDoCliente(email, { limite = 30, imap } = {}) {
     await client.logout().catch(() => client.close());
   }
   emails.sort((a, b) => b.data.localeCompare(a.data));
-  return { configurado: true, emails: emails.slice(0, limite) };
+  return { configurado: true, pastasEnviados, emails: emails.slice(0, limite) };
 }
 
 export async function handleLeadEmails(req) {

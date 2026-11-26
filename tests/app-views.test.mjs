@@ -390,3 +390,20 @@ test('heat pump sizing: losses, radiators at the flow temperature, DHW tank and 
  run("quoteDraft.bc={...newBc(),aqs:true,pessoas:4}");
  const h = run('quoteEditor()'); assert.match(h, /Potência necessária/); assert.match(h, /Acumulador mínimo/); assert.match(h, /Adicionar conjunto completo ao orçamento/);
 });
+test('heat pump sizing: supplier catalogues count (power/litres in the model) and the installation kit comes from the material suppliers', () => {
+ const {run} = app(state);
+ run("globalThis.priceDisc=globalThis.priceDisc||((t,p)=>p&&p.disc!=null?Number(p.disc):Number(t.discount||0));globalThis.priceNet=globalThis.priceNet||((t,p)=>p&&p.net!=null?Number(p.net):Math.round(Number(p.price)*(1-Number(t.discount||0)/100)*100)/100)");
+ run(`PRICE_TABLES.push({brand:'Sanipower',supplier:'sanipower',live:true,discount:0,products:[
+  {group:['Bomba de calor climatização','Bombas de Calor'],maker:'Proteu',name:'Proteu Bomba Calor Queen Monobloco Monofásica R32',model:'AR101PA 10kW',price:3000,net:1500},
+  {group:['Bomba de calor climatização','Bombas de Calor','Acumuladores'],maker:'Proteu',name:'Proteu Acumulador Báltico Inox Ligações Laterais',model:'1 Serpentina 200L',price:900,net:450},
+  {group:['Aquecimento','Vasos'],maker:'Zilmet',name:'Vaso expansão aquecimento 18 L',price:60,net:30},
+  {group:['Aquecimento','Segurança'],maker:'Caleffi',name:'Válvula segurança aquecimento 1/2 3 bar',price:20,net:10},
+  {group:['Tubo','Multicamada'],maker:'X',name:'Tubo multicamada 32x3 rolo 50 m',price:250,net:125}]})`);
+ const k = JSON.parse(run(`(()=>{const b={...newBc(),area:110,pisos:2,tida:45,fase:'1',aqs:true,pessoas:3};const cat=bcCatalog(quoteTables()),c=bcCalc(b),k=bcPick(c,cat,b);return JSON.stringify({bombas:cat.bombas.filter(x=>x.t.live).map(x=>x.kw),aqs:cat.aqs.filter(x=>x.t.live).map(x=>x.litros)})})()`));
+ assert.deepEqual(k.bombas, [10]); assert.deepEqual(k.aqs, [200]);
+ run("V.tab='orc';quoteDraft=newQuote();quoteDraft.topics=['Bomba de calor climatização'];quoteDraft.bc={...newBc(),area:110,pisos:2,tida:45,aqs:true,pessoas:3}");
+ const lines = JSON.parse(run(`(()=>{const bc=quoteDraft.bc,c=bcCalc(bc),k=bcPick(c,bcCatalog(quoteTables()),bc);return JSON.stringify(aiResolve(bcKitItens(k,bc)).lines.map(l=>[l.description,l.value,l.quantity,l.kind,!!l.semPreco]))})()`));
+ const vaso = lines.find((l) => /vaso/i.test(l[0]) && !/sanit/i.test(l[0])); assert.ok(vaso && vaso[1] > 0 && /Zilmet|18 L/.test(vaso[0]), 'expansion vessel priced from Sanipower: ' + JSON.stringify(vaso));
+ const tubo = lines.find((l) => /multicamada 32/i.test(l[0])); assert.ok(tubo && tubo[1] > 0 && tubo[2] >= 12, 'pipe priced per metre');
+ assert.ok(lines.some((l) => l[3] === 'Mão de obra'), 'labour line at the end');
+});

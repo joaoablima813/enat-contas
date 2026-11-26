@@ -134,6 +134,14 @@
   for(let ti=0;ti<tables.length;ti++){const t=tables[ti];if(tableName(t)!==m.src)continue;const pi=t.products.findIndex(p=>(m.ref&&p.ref===m.ref)||(!m.ref&&p.name===m.name));if(pi>=0)return {ti,pi,s:2,ok:true}}
   return null;
  }
+ // Material de uma lista já calculada (ex.: dimensionamento da bomba de calor): procura local nos fornecedores, sem IA.
+ root.aiResolve=(itens,gama='')=>{
+  const found={},picks={},T=quoteTables();
+  for(const it of itens){if(it.categoria==='Mão de obra')continue;
+   const hit=learned(learnKey(it,gama));if(hit){found[it.id]=[hit];picks[it.id]={id:it.id,candidato:0,quantidade:null,unidade:null};continue}
+   const only=allowed(it.categoria,gama,T,it.aux),f=search(it,quoteDraft?.brand||'',T,only);found[it.id]=f;const p=autoPick(it,f,gama,prices(f));if(p)picks[it.id]=p}
+  return buildLines({itens},picks,found,labour(),gama);
+ };
  root.quoteAiLearn=(line,t,p)=>{if(!line?.aiKey||!t||!p)return;S.iaAprendido={...(S.iaAprendido||{}),[line.aiKey]:{src:tableName(t),ref:p.ref||'',name:p.name}};if(typeof save==='function')save()};
  const prices=f=>f.map(c=>{const t=quoteTables()[c.ti];return priceNet(t,t.products[c.pi])});
  // Marca/série do produto: nos catálogos online é a marca do fabricante (ou a 1.ª palavra do nome, ex.: Proteu); nas tabelas, a marca da tabela.

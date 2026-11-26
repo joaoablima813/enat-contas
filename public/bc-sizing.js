@@ -20,7 +20,7 @@ const BC_AQS_L=[150,200,250,300,400,500];
 const num=(v,d=0)=>{const n=Number(String(v??'').replace(',','.'));return isFinite(n)?n:d};
 const r=(v,d=2)=>Math.round(v*10**d)/10**d;
 
-function newBc(){return {local:BC_LOCAIS[1][0],text:3,expo:'1.05',fase:'1',area:120,pisos:1,pe:2.6,paredes:0,janelas:0,janPct:15,pav:'0.45',uParede:'0.85',uTelhado:'0.55',uJanela:'2.8',estore:'0.9',rph:'0.5',tida:55,rads:[{tipo:'al600',qtd:6,elem:10,w:0}],aqs:false,pessoas:3,sel:''}}
+function newBc(){return {local:BC_LOCAIS[1][0],text:3,expo:'1.05',fase:'1',area:120,pisos:1,pe:2.6,paredes:0,janelas:0,janPct:15,pav:'0.45',uParede:'0.85',uTelhado:'0.55',uJanela:'2.8',estore:'0.9',rph:'0.5',tida:55,rads:[{tipo:'al600',qtd:6,elem:10,w:0}],aqs:false,pessoas:3,sel:'',dist:5,distQ:10}}
 
 // Volume comercial do acumulador AQS: 50 L por pessoa, mínimo 150 L, arredondado à capacidade standard seguinte.
 function bcAqsLitros(pessoas){const v=Math.max(150,Math.max(1,num(pessoas,1))*50);return BC_AQS_L.find(l=>l>=v)||Math.ceil(v/100)*100}
@@ -59,19 +59,52 @@ const kwDe=s=>{const m=String(s).match(/(\d+(?:[.,]\d+)?)\s*kW/i);return m?num(m
 const litrosDe=s=>{const m=String(s).match(/(\d{2,4})\s*L\b/);return m?num(m[1]):0};
 function bcCatalog(tables){
  const bombas=[],interiores=[],aqs=[],inercia=[];
- (tables||[]).forEach((t,ti)=>(t.products||[]).forEach((p,pi)=>{
-  const g=(p.group||[]).join(' › '),nome=String(p.name||''),txt=g+' '+nome,base={t,ti,pi,p,brand:t.brand,nome,preco:net(t,p)};
-  if(/^dep[óo]sito inox \d/i.test(nome)&&/dep[óo]sitos inox/i.test(g)){aqs.push({...base,litros:litrosDe(nome)});return}
-  if(/in[ée]rcia/i.test(nome)&&/^(dep[óo]sito|tanque)/i.test(nome)&&litrosDe(nome)&&!/AQS \+/i.test(nome)){inercia.push({...base,litros:litrosDe(nome)});return}
-  if(/^(dep[óo]sito|acumulador|termoacumulador)/i.test(nome)&&litrosDe(nome)&&/AQS|serpentina|bomba de calor|sanit/i.test(txt)&&!/in[ée]rcia|caldeira, sem|piscina/i.test(nome)){aqs.push({...base,litros:litrosDe(nome)});return}
-  if((p.group||[])[0]!=='Bomba de calor climatização'||/Acess[óo]rios|Resist[êe]ncias|piscina|Tanques/i.test(g))return;
+ (tables||[]).forEach((t,ti)=>{if(t.invoices)return;(t.products||[]).forEach((p,pi)=>{
+  const g=(p.group||[]).join(' › '),nome=String(p.name||'')+(p.model&&!String(p.name||'').includes(p.model)?' '+p.model:''),txt=g+' '+nome;
+  const base={t,ti,pi,p,brand:t.live?(t.brand+(p.maker?' · '+p.maker:'')):t.brand,nome,preco:net(t,p)};
+  if(!(base.preco>0))return;
+  const L=litrosDe(nome);
+  if(/in[ée]rcia/i.test(nome)&&L&&/^(.{0,25}\b)?(dep[óo]sito|tanque|acumulador)/i.test(nome)&&!/AQS \+|v[áa]lvula|sonda|kit|acess/i.test(nome)){inercia.push({...base,litros:L});return}
+  if(/^dep[óo]sito inox \d/i.test(nome)&&/dep[óo]sitos inox/i.test(g)){aqs.push({...base,litros:L});return}
+  if(L&&/(acumulador|dep[óo]sito|termoacumulador)/i.test(nome)&&/AQS|serpentina|bomba de calor|p\/ ?b\.?c|Acumuladores/i.test(txt)&&!/in[ée]rcia|caldeira, sem|piscina|el[ée]tric|g[áa]s|solar t[ée]rmico compacto/i.test(nome)&&!/^Bomba de calor AQS/i.test(g)){aqs.push({...base,litros:L});return}
+  if((p.group||[])[0]!=='Bomba de calor climatização'||/Acess[óo]rios|Resist[êe]ncias|piscina|Tanques|Acumuladores|Ventilo|Fotovolt/i.test(g)||/ventilo|acumulador|termostato|controlador|kit /i.test(nome))return;
   const fase=/trif[áa]sic/i.test(nome)?3:1,temp=(nome.match(/(\d{2})\s*[º°]\s*C/)||g.match(/(\d{2})\s*[º°]\s*C/)||[])[1];
   const tmax=temp?num(temp):/R-?290|\bHT\b|Thermolux|alta temperatura/i.test(txt)?65:55;
-  if(/Unidade interior|Unidade hidro/i.test(txt)){interiores.push({...base,serie:serieDe(p.group),fase:/trif[áa]sic/i.test(nome)&&!/mono/i.test(nome)?3:1,litros:/dep[óo]sito/i.test(nome)?litrosDe(nome):0});return}
+  if(/Unidade interior|Unidade hidro/i.test(txt)){interiores.push({...base,serie:serieDe(p.group),fase:/trif[áa]sic/i.test(nome)&&!/mono/i.test(nome)?3:1,litros:/dep[óo]sito/i.test(nome)?L:0});return}
   const kw=kwDe(nome);if(!kw)return;
-  bombas.push({...base,kw,fase,tmax,serie:serieDe(p.group),exterior:/Unidade exterior/i.test(txt)&&!/Conjunto|c\/ kit|monobloco .*c\/ BUH/i.test(nome),litros:/DUO|dep[óo]sito/i.test(nome)?litrosDe(nome):0});
- }));
+  bombas.push({...base,kw,fase,tmax,serie:serieDe(p.group),exterior:/Unidade exterior/i.test(txt)&&!/Conjunto|c\/ kit|monobloco .*c\/ BUH/i.test(nome),split:/split/i.test(nome)&&!/monobloco|hidrosplit/i.test(nome)||/Unidade exterior split/i.test(nome),litros:/DUO|dep[óo]sito/i.test(nome)?L:0});
+ })});
  return {bombas,interiores,aqs,inercia};
+}
+
+// Material de instalação, como no orçamento automático: procurado nos catálogos dos fornecedores de material (Sanipower, Sanitop).
+const bcCabo=(kw,tri,m)=>{const P=kw*1000/2.5,I=tri?P/(Math.sqrt(3)*400*0.9):P/(230*0.9),D=[10,16,20,25,32,40,50,63],d=D.find(x=>x>=I*1.15)||63,S=d<=16?2.5:d<=25?4:d<=32?6:d<=40?10:16;return {sec:S,disj:d,cabo:(tri?5:3)+'G'+String(S).replace('.',','),metros:Math.ceil(m*1.1+1)}};
+function bcKitItens(k,b){
+ const bom=k.bomba,dist=Math.max(1,num(b.dist,5)),tubo=Math.ceil(2*(dist+1)),tri=Number(b.fase)===3,kw=bom.kw,mono=!bom.split&&!bom.exterior,c=bcCabo(kw,tri,Math.max(2,num(b.distQ,10))),vaso=kw<=10?18:kw<=16?25:35,its=[];
+ const add=(categoria,descricao,quantidade,pesquisa,extra={})=>its.push({id:'bc'+its.length,tipologia:'Bomba de calor climatização',categoria,descricao,quantidade,unidade:extra.unidade||'un.',pesquisa,...extra});
+ add('Acessórios',`Vaso de expansão de aquecimento ${vaso} L`,1,[`vaso expansao aquecimento ${vaso}`,`vaso expansao ${vaso} l`],{exige:[['(^|[^0-9])'+vaso+' ?l']]});
+ add('Acessórios','Válvula de segurança 3 bar e manómetro',1,['valvula seguranca 3 bar','valvula seguranca aquecimento 1/2','valvula seguranca 3bar'],{exige:[['(^|[^0-9])3 ?bar']]});
+ add('Acessórios','Filtro magnético / separador de sujidades 1"',1,['filtro magnetico 1','separador sujidades magnetico','filtro magnetico aquecimento']);
+ add('Acessórios','Válvula de esfera 1"',4,['valvula esfera 1"','torneira esfera 1"','valvula esfera 1 polegada'],{exige:[['(^|[^0-9/.])1(?![0-9/.,])','(^|[^0-9/])1 ?pol']],evita:['jardim','mangueira','lavatorio','maquina']});
+ add('Acessórios','Ligação flexível antivibrática 1"',2,['flexivel antivibratico 1','ligacao flexivel antivibratica','tubo flexivel bomba calor','manga antivibratica 1'],{evita:['cromad','lavatorio','torneira','autoclismo']});
+ add('Acessórios','Apoios antivibráticos / base para a unidade exterior',1,['suporte chao bomba calor','kit antivibratico chao','apoio chao unidade exterior','base apoio bomba calor']);
+ if(mono)add('Acessórios','Válvula anticongelação 1"',2,['valvula anticongelacao 1','valvula anti gelo bomba calor','valvula anticongelamento']);
+ add('Material','Tubo multicamada 32×3 mm (ida e retorno)',tubo,['tubo multicamada 32x3','multicamada 32','tubo multicamada 32 mm'],{unidade:'m',exige:[['32\\s?x\\s?3']]});
+ add('Material','Isolamento para exterior tubo 32 mm (com proteção UV)',tubo,['isolamento tubo 35','isolamento isopipe 35','armaflex 35','isolamento tubo 32'],{unidade:'m'});
+ add('Acessórios','Acessórios de multicamada 32 mm',8,['uniao multicamada 32','curva multicamada 32','acessorio multicamada 32']);
+ add('Material','Purgadores automáticos e aditivo inibidor para o circuito',1,['inibidor aquecimento','purgador automatico 1/2','aditivo inibidor corrosao']);
+ if(b.aqs&&!k.allInOne){
+  add('Acessórios','Válvula de 3 vias desviadora AQS/aquecimento',1,['valvula 3 vias desviadora','valvula 3 vias 1','valvula desviadora aqs']);
+  add('Acessórios','Grupo de segurança sanitário 7 bar',1,['grupo seguranca 3/4','grupo seguranca termoacumulador']);
+  add('Acessórios','Vaso de expansão sanitário 12 L',1,['vaso expansao sanitario 12','vaso expansao aqs 12']);
+  add('Acessórios','Misturadora termostática AQS 3/4"',1,['misturadora termostatica 3/4','misturadora termostatica solar']);
+ }
+ add('Material',`Cabo de alimentação ${c.cabo} mm²`,c.metros,[`cabo ${c.cabo.toLowerCase()}`,`cabo h07rn-f ${c.cabo.toLowerCase()}`,`cabo xv ${c.cabo.toLowerCase()}`],{unidade:'m'});
+ add('Material',`Disjuntor ${c.disj} A curva C ${tri?'tetrapolar':'bipolar (1P+N)'}`,1,[`disjuntor ${c.disj}a ${tri?'4p':'2p'}`,`disjuntor ${c.disj} a curva c`,`disjuntor ${tri?'tetrapolar':'bipolar'} ${c.disj}a`]);
+ add('Mão de obra','Instalação de bomba de calor de climatização (enchimento, purga e arranque)',1,[],{});
+ add('Mão de obra','Tubagem hidráulica',tubo,[],{unidade:'m'});
+ add('Mão de obra','Circuito elétrico dedicado e ligação ao quadro',1,[],{});
+ return its;
 }
 
 // Escolhe o conjunto: bomba de calor (com unidade interior quando é preciso), acumulador AQS e depósito de inércia.
@@ -106,7 +139,7 @@ function bcPick(c,cat,b,selKey=''){
  const total=(bomba?bomba.total:0)+(aqs?aqs.preco:0)+(inercia?inercia.preco:0);
  return {bomba,opcoes:opcoes.slice(0,4),aqs,allInOne,inercia,inMin,inMax,corr,avisos,total};
 }
-Object.assign(root,{BC_LOCAIS,BC_EXPO,BC_U,BC_ESTORE,BC_RPH,BC_RAD,BC_TIDA,newBc,bcAqsLitros,bcCalc,bcCatalog,bcPick});
+Object.assign(root,{BC_LOCAIS,BC_EXPO,BC_U,BC_ESTORE,BC_RPH,BC_RAD,BC_TIDA,newBc,bcAqsLitros,bcCalc,bcCatalog,bcPick,bcKitItens});
 })(globalThis);
 
 // ---------- Ecrã, dentro do editor de orçamentos ----------
@@ -126,6 +159,7 @@ function bcSection(){
 <h3 class="pv-sub">Local e instalação elétrica</h3>
 <label class="q-field"><span>Localidade / concelho</span><select data-bc="local">${BC_LOCAIS.map(([n,t])=>`<option value="${esc(n)}" ${b.local===n?'selected':''}>${esc(n)} · ${t} °C</option>`).join('')}</select></label>
 <div class="pv-2">${bcNum('Temperatura exterior de projeto (°C)','text','min="-15" max="15" step="0.5"','Pode ajustar à mão.')}${bcSel('Exposição','expo',BC_EXPO)}</div>
+<div class="pv-2">${bcNum('Unidade exterior até à casa das máquinas (m)','dist','min="1" max="60" step="1"')}${bcNum('Distância ao quadro elétrico (m)','distQ','min="2" max="100" step="1"')}</div>
 <label class="q-field"><span>Alimentação elétrica do cliente</span><select data-bc="fase"><option value="1" ${String(b.fase)==='1'?'selected':''}>Monofásico (230 V)</option><option value="3" ${String(b.fase)==='3'?'selected':''}>Trifásico (400 V)</option></select></label>
 <h3 class="pv-sub">Casa</h3>
 <div class="pv-2">${bcNum('Área útil aquecida (m²)','area','min="0" step="1"')}${bcNum('Número de pisos','pisos','min="1" max="3" step="1"')}</div>
@@ -154,7 +188,7 @@ function bcResults(){
 ${row('ΔT de projeto',bcF(c.dT)+' °C ('+bcF(c.tExt)+' °C exterior)')}${row('Perdas pela envolvente',bcF(c.qTrans/1000,2)+' kW')}${row('Perdas por ventilação',bcF(c.qVent/1000,2)+' kW · '+bcF(c.vol,0)+' m³')}${row('Paredes / janelas / cobertura / pavimento',`${bcF(c.aPar,0)} / ${bcF(c.aJan,0)} / ${bcF(c.aCob,0)} / ${bcF(c.aPav,0)} m²`)}
 ${radAviso}${k.avisos.map(a=>`<p class="note neg">${esc(a)}</p>`).join('')}
 <h3 class="pv-sub">Conjunto recomendado</h3>${kit||'<p class="note">Indique a área da casa para ver a recomendação.</p>'}${alt}
-${k.bomba?'<button type="button" class="btn" data-bca="apply">Adicionar conjunto completo ao orçamento</button>':''}`;
+${k.bomba?'<p class="note">Junta também o material de instalação (vaso de expansão, válvulas, filtro, tubo multicamada e isolamento, cabo e disjuntor'+(quoteDraft.bc.aqs&&!k.allInOne?', válvula de 3 vias e grupo de segurança AQS':'')+') dos fornecedores de material (Sanipower, Sanitop) e a mão de obra.</p><button type="button" class="btn" data-bca="apply">Adicionar conjunto completo ao orçamento</button>':''}`;
 }
 const bcR2=v=>Math.round(v*100)/100;
 const bcRefresh=()=>{const el=document.querySelector('#bc-card');if(el)el.outerHTML=bcSection().replace(/^<h2>[^<]*<\/h2>/,'')};
@@ -183,11 +217,13 @@ document.addEventListener('click',e=>{
  if(a==='apply'){
   const bc=quoteDraft.bc,c=bcCalc(bc),k=bcPick(c,bcCatalogNow(),bc,bc.sel);if(!k.bomba)return;
   const linha=x=>({...quoteCatalogLine(x.t,x.p),quantity:1,bc:true});
-  const novas=[k.bomba,k.bomba.interior,k.aqs,k.inercia].filter(Boolean).map(linha);
+  const kit=typeof aiResolve==='function'?aiResolve(bcKitItens(k,bc)).lines.map(l=>({...l,bc:true})):[];
+  const novas=[...[k.bomba,k.bomba.interior,k.aqs,k.inercia].filter(Boolean).map(linha),...kit];
   const keep=quoteDraft.lines.filter(l=>!l.bc&&!quoteLineBlank(l));
   quoteDraft.lines=[...novas,...keep];quoteEnsureBlank();
   if(!quoteDraft.brand.trim())quoteDraft.brand=k.bomba.brand;
-  quoteError='Conjunto da bomba de calor adicionado ('+novas.length+' linhas). Reveja as linhas e guarde o orçamento.';render();
+  const semPreco=novas.filter(l=>l.semPreco&&l.kind!=='Mão de obra').length;
+  quoteError='Conjunto da bomba de calor adicionado: '+novas.length+' linhas (equipamentos, material de instalação dos fornecedores e mão de obra).'+(semPreco?' '+semPreco+' sem preço, a vermelho: escolha-as na tabela de preços.':'')+' Reveja e guarde o orçamento.';render();
   document.querySelector('#quote-lines')?.scrollIntoView?.({behavior:'smooth',block:'start'});
  }
 });

@@ -14,7 +14,7 @@ function app(state,opts={}){
   fetch:opts.fetch||(()=>Promise.reject(new Error('offline'))),
   document:{querySelector:s=>s.startsWith('#')?el(s.slice(1)):null,querySelectorAll:()=>[],addEventListener(){},activeElement:{tagName:'BODY'},hidden:false,createElement:()=>el('x')}});
  c.window=c;c.addEventListener=()=>{};
- for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','material.js','dashboard.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','lead-contactos.js','push.js','agenda.js','pv-sizing.js','pv.js'])vm.runInContext(read(f),c);
+ for(const f of ['quote-math.js','sync.js','gestao.js','quote-obra.js','contabilista.js','price-tables.js','solucoes.js','quotes.js','empresa.js','portfolio.js','anuncios.js','equipamentos.js','material.js','dashboard.js','pedido-perguntas.js','pedido.js','quote-ai.js','leads.js','lead-contactos.js','push.js','agenda.js','pv-sizing.js','pv.js','bc-sizing.js'])vm.runInContext(read(f),c);
  vm.runInContext(main,c);return{c,run:s=>vm.runInContext(s,c),els};
 }
 const state={vat:23,ts:5,obras:[
@@ -371,4 +371,22 @@ test('quotes page: search finds quotes by client, number or equipment', () => {
  run("V.qq='perfera'");const a=run('vQuotes()');assert.match(a,/Resultados \(1\)/);assert.match(a,/Filipa Fernandes/);assert.doesNotMatch(a,/Rui Costa/);
  run("V.qq='0060'");assert.match(run('vQuotes()'),/Rui Costa/);
  run("V.qq='nada disto'");assert.match(run('vQuotes()'),/Nenhum orçamento encontrado/);
+});
+test('heat pump sizing: losses, radiators at the flow temperature, DHW tank and the package from the price tables', () => {
+ const {run} = app(state);
+ const c = JSON.parse(run(`JSON.stringify(bcCalc({...newBc(),text:0,expo:'1',area:100,pisos:1,pe:2.5,paredes:100,janelas:20,uParede:'1',uTelhado:'1',uJanela:'2',estore:'1',pav:'0.5',rph:'0.5',tida:55,aqs:true,pessoas:3,rads:[{tipo:'al600',qtd:10,elem:10}]}))`));
+ assert.equal(Math.round(c.qTrans), 5400); assert.equal(Math.round(c.qVent), 850);
+ assert.equal(Math.round(c.pAquec * 1000), 6875); assert.equal(Math.round(c.pNec * 1000), 7625);
+ assert.equal(Math.round(c.pRadReal * 100), 714); assert.equal(c.aqsLitros, 150);
+ assert.equal(run('bcAqsLitros(1)'), 150); assert.equal(run('bcAqsLitros(4)'), 200); assert.equal(run('bcAqsLitros(6)'), 300); assert.equal(run('bcAqsLitros(8)'), 400);
+ // Mono client never gets a three-phase machine; at 65 °C only high-temperature machines; capacity × 0,85 above 45 °C.
+ const k = JSON.parse(run(`(()=>{const b={...newBc(),area:150,pisos:2,tida:65,fase:'1',aqs:true,pessoas:4};const c=bcCalc(b),k=bcPick(c,bcCatalog(PRICE_TABLES),b);return JSON.stringify({p:c.pNec,n:k.bomba.nome,kw:k.bomba.kw,cap:k.bomba.cap,t:k.bomba.tmax,f:k.bomba.fase,aqs:k.aqs&&k.aqs.litros,all:k.allInOne,in:k.inercia&&k.inercia.litros,inMin:k.inMin,ops:k.opcoes.map(o=>o.fase+'/'+o.tmax)})})()`));
+ assert.ok(k.cap >= k.p && Math.abs(k.cap - k.kw * 0.85) < 0.01); assert.equal(k.f, 1); assert.ok(k.t >= 65);
+ assert.ok(k.ops.every((o) => o.startsWith('1/') && Number(o.split('/')[1]) >= 65));
+ assert.ok(k.all || k.aqs >= 200, 'DHW tank of at least 200 L for 4 people'); assert.ok(k.in >= k.inMin);
+ // Screen inside the quote: shown with the topic, adds the package as quote lines.
+ run("V.tab='orc';quoteDraft=newQuote();quoteDraft.topics=['Bomba de calor climatização']");
+ assert.match(run('quoteEditor()'), /Dimensionar bomba de calor/);
+ run("quoteDraft.bc={...newBc(),aqs:true,pessoas:4}");
+ const h = run('quoteEditor()'); assert.match(h, /Potência necessária/); assert.match(h, /Acumulador mínimo/); assert.match(h, /Adicionar conjunto completo ao orçamento/);
 });

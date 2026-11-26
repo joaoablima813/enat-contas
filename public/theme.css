@@ -221,3 +221,10 @@ nav div{grid-template-columns:repeat(10,minmax(0,1fr))}
 
 /* Pesquisa nos orçamentos: cada resultado mostra o cliente por cima. */
 .q-hit-c{margin:0;padding:10px 16px 0;font-size:12.5px;font-weight:600;color:var(--mute)}
+
+/* Dimensionamento da bomba de calor no orçamento. */
+.bc-rad{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:6px}.bc-rad .link{margin-bottom:12px}
+@media (max-width:700px){.bc-rad{grid-template-columns:1fr 1fr}}
+.bc-toggle{display:flex;align-items:center;gap:10px;font-weight:600;margin:6px 0 10px}.bc-toggle input{width:20px;height:20px}
+.bc-item{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.bc-item small{display:block}
+.bc-total{font-size:16px}.bc-alert{padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--red,#d33) 10%,transparent)}

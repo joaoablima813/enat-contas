@@ -329,3 +329,20 @@ test('AlphaESS panel: energy of the day with chart, and charge/discharge schedul
  assert.match(h,/data-acfg="timeChaf1" data-t="carga" data-i="0" value="02:00"/);assert.match(h,/data-acfg="gridCharge" data-t="carga" data-i="0" checked/);
  assert.match(h,/data-acfg="batUseCap" data-t="descarga" data-i="0" value="10"/);assert.match(h,/uma vez a cada 24 horas/);
 });
+test('leads search finds a lead in any tab or stage and says where it is', () => {
+ const {run} = app({...state, leads: [
+  {id: 'la', name: 'Ana Sousa', contact: '912111222', stage: 'contacto', call: 'nao', date: '2026-11-20'},
+  {id: 'lb', name: 'Bruno Costa', contact: '933444555', stage: 'nova', src: 'meta', date: '2026-11-21'},
+  {id: 'lc', name: 'Carla Dias', contact: '966777888', stage: 'enviada', date: '2026-11-22'}]});
+ run("V.tab='leads';V.lt='novas';V.lq='912111'");
+ const novas = run('leadsList()');
+ assert.match(novas, /Ana Sousa/, 'a «Não atendeu» lead is found from the «Novas» tab');
+ assert.match(novas, /Está em: <b>Não atendeu<\/b>/);
+ run("V.lt='';V.ls='ganho';V.lq='carla'");
+ const main = run('leadsList()');
+ assert.match(main, /Carla Dias/, 'the stage filter does not hide search results');
+ assert.match(main, /Leads · Proposta enviada/);
+ run("V.lt='no';V.lq='bruno'");
+ assert.match(run('leadsNoHtml()'), /Bruno Costa[\s\S]*Está em: <b>Novas<\/b>/);
+ run("V.lq=''");assert.doesNotMatch(run('leadsNoHtml()'), /Resultados em todas/);
+});

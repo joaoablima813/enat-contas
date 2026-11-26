@@ -206,3 +206,7 @@ nav div{grid-template-columns:repeat(10,minmax(0,1fr))}
 .ma-num{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-variant-numeric:tabular-nums}.ma-num small{color:var(--mute);font-size:12px}
 .ma-st{font-style:normal;font-weight:600}.ma-st.pos{color:var(--green)}.ma-st.neg{color:var(--red,#d33)}
 .ma-all{border:0;background:none;color:var(--green);font:inherit;font-size:13px;font-weight:600;cursor:pointer;margin-left:6px}
+
+/* Pesquisa nas leads: cada resultado diz em que separador/fase está. */
+.lead-hit{display:flex;flex-direction:column}.lead-hit .lead-row{width:100%}
+.lead-where{display:block;padding:0 16px 10px 64px;font-size:12.5px;color:var(--mute)}.lead-where b{color:var(--green);font-weight:700}

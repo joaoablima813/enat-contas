@@ -86,14 +86,30 @@ export async function sendWhatsapp(to, template, { token = process.env.WHATSAPP_
 export const whatsappOn = () => Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID);
 
 // Link da proposta: guardado ao preparar o envio (whatsapp.ts) ou, nas antigas, procurado na página do cliente.
-async function linkOf(store, r) {
+async function linkOf(store, r, cache = {}) {
   const k = await store.get('proposta-link-' + r.id, { type: 'json' }).catch(() => null);
   if (k?.token) return k.token;
   const lead = r.document?.lead;
-  if (!lead) return '';
-  const p = await store.get('pedido-lead-' + lead, { type: 'json' }).catch(() => null);
-  const ped = p?.token ? await store.get('pedido-' + p.token, { type: 'json' }).catch(() => null) : null;
-  return (ped?.propostas || []).filter((x) => x.quote === r.id).at(-1)?.token || '';
+  if (lead) {
+    const p = await store.get('pedido-lead-' + lead, { type: 'json' }).catch(() => null);
+    const ped = p?.token ? await store.get('pedido-' + p.token, { type: 'json' }).catch(() => null) : null;
+    const t = (ped?.propostas || []).filter((x) => x.quote === r.id).at(-1)?.token;
+    if (t) { await store.setJSON('proposta-link-' + r.id, { token: t, at: Date.now() }).catch(() => {}); return t; }
+  }
+  // Propostas antigas: o link é o do PDF enviado (pdf-<token>, com o número do orçamento nos metadados). Lido uma vez por execução.
+  if (!cache.pdfs && store.list && store.getMetadata) {
+    cache.pdfs = new Map();
+    try {
+      const { blobs = [] } = await store.list({ prefix: 'pdf-' });
+      for (const b of blobs.slice(-400)) {
+        const m = await store.getMetadata(b.key).catch(() => null), q = m?.metadata?.quote;
+        if (Number.isInteger(q)) cache.pdfs.set(q, b.key.slice(4));
+      }
+    } catch (e) { console.error('lembretes pdfs', e?.message); }
+  }
+  const t = cache.pdfs?.get(r.id) || '';
+  if (t) await store.setJSON('proposta-link-' + r.id, { token: t, at: Date.now() }).catch(() => {});
+  return t;
 }
 
 const local = (now) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23', weekday: 'short' }).formatToParts(now).map((x) => [x.type, x.value])); return { h: Number(p.hour), dow: p.weekday }; };
@@ -130,16 +146,17 @@ export async function runLembretes(store, now = Date.now(), deps = {}) {
   const sent = (await store.get('lembretes-enviados', { type: 'json' }).catch(() => null)) || {};
   const todo = due(rows, events, state.leads || [], now).filter((x) => !sent[x.key]).slice(0, 10);
   const avisos = pausas(events, rows, now).filter((x) => !sent[x.key]);
-  for (const x of [...todo, ...avisos]) sent[x.key] = now;
+  for (const x of avisos) sent[x.key] = now;
   for (const k of Object.keys(sent)) if (now - sent[k] > 60 * D) delete sent[k];
-  if (todo.length || avisos.length) await store.setJSON('lembretes-enviados', sent);
+  if (avisos.length) await store.setJSON('lembretes-enviados', sent);
   for (const a of avisos) await push({ title: a.title, body: a.body, tag: 'pausa-' + a.quote, data: { quote: a.quote } }).catch(() => {});
   const base = String(process.env.LINK_URL || '').replace(/\/+$/, '') || process.env.URL || 'https://enat-contas.netlify.app';
   const origin = process.env.URL || 'https://enat-contas.netlify.app';
   let n = 0;
+  const cache = {};
   for (const x of todo) {
-    const token = await linkOf(store, { id: x.quote, document: x.doc });
-    if (!token) continue;
+    const token = await linkOf(store, { id: x.quote, document: x.doc }, cache);
+    if (!token) { console.error('lembrete sem link', x.quote); continue; }
     const d = x.doc, v = { nome: first(d.client), numero: number({ id: x.quote, date: d.date }), tema: topic(d), validade: dmy(expires(d)), link: base + '/proposta/' + token, eu: e.contacto?.nome || 'João Lima', tel: String(e.contacto?.telefone || '').trim() };
     const vias = [];
     const to = String(d.email || '').trim();
@@ -148,6 +165,8 @@ export async function runLembretes(store, now = Date.now(), deps = {}) {
     if (waOn && tel) { try { await wa(tel, waTemplate(x.step, v, token)); vias.push('WhatsApp'); } catch (err) { console.error('lembrete whatsapp', err?.message); } }
     if (!vias.length) continue;
     n++;
+    sent[x.key] = now;
+    await store.setJSON('lembretes-enviados', sent);
     await record(x.quote, 'Lembrete ' + x.step + ' (' + STEPS[x.step - 1].days + ' dias) · ' + vias.join(' + ')).catch((err) => console.error('lembrete registo', err?.message));
   }
   return { sent: n, avisos: avisos.length };

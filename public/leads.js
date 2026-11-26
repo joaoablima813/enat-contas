@@ -71,6 +71,7 @@ function leadNoCard(l){
  return`<div class="lead-no-card${due?' due':''}">${leadRow(l)}<div class="lead-no-f"><label><span>Dia em que liguei</span><input type="date" data-ln="callDay" data-id="${esc(l.id)}" value="${esc(l.callDay||'')}"></label><label><span>Contactar em</span><input type="datetime-local" data-ln="callAt" data-id="${esc(l.id)}" value="${esc(l.callAt||'')}"></label></div>${due?`<p class="lead-no-due">${ic('bell')} Está na hora de ligar${l.contact?` · <a href="tel:${esc(String(l.contact).replace(/\s/g,''))}">${esc(l.contact)}</a>`:''}</p>`:l.callAt&&l.callDone!==l.callAt?`<p class="note lead-no-at">Aviso: ${esc(leadAtTxt(l.callAt))}</p>`:''}</div>`;
 }
 function leadsNoHtml(){
+ if(leadQ().trim())return V.lt==='no'?leadSearchHtml():'';
  const l=leadNoFiltered(),perm=typeof Notification!=='undefined'&&(typeof pushOn==='function'?!pushOn()&&Notification.permission!=='denied':Notification.permission==='default');
  return`<h2 class="lead-no-h">Não atendeu${l.length?' ('+l.length+')':''}</h2>${perm&&l.length?'<button class="btn alt lead-perm" data-la="perm">Ativar notificações no telemóvel</button>':''}${l.length?l.map(leadNoCard).join(''):'<div class="grp"><div class="empty">Sem leads por voltar a ligar. As leads marcadas como «Não atendeu» aparecem aqui.</div></div>'}`;
 }
@@ -79,7 +80,17 @@ function leadsNewHtml(){
  return l.length?`<h2 class="lead-new-h">Leads novas (${l.length})</h2><p class="note">Sincronizadas do Outlook (emails da campanha). Abra uma lead e toque em «Marcar como recebida» para a passar para as Leads.</p><div class="grp lead-new">${l.slice(0,LEAD_PAGE).map(leadRow).join('')}</div>${leadMore(l.length,'novas')}`:'';
 }
 const leadNewHome=()=>{const l=leadNews();return l.length?`<h2 class="lead-new-h">Leads novas (${l.length})</h2><div class="grp lead-new">${l.slice(0,LEAD_PAGE).map(leadRow).join('')}</div>${leadMore(l.length,'novas')}`:''};
+// Pesquisa nas leads: com texto na barra, procura em TODAS as leads (novas, não atendeu, qualquer fase),
+// seja qual for o separador ou o filtro aberto, e mostra em que separador/fase cada uma está.
+const leadWhere=l=>leadIsNew(l)?'Novas':l.call==='nao'?'Não atendeu':'Leads · '+(LEAD_STAGES[l.stage]||LEAD_STAGES.nova);
+const leadSearchHits=()=>leadList().filter(x=>match(leadText(x),leadQ()));
+function leadSearchHtml(){
+ const l=leadSearchHits();
+ if(!l.length)return'<div class="grp"><div class="empty">Nenhuma lead encontrada em nenhum separador.</div></div>';
+ return`<h2>Resultados em todas as leads (${l.length})</h2><div class="grp lead-hits">${l.map(x=>`<div class="lead-hit">${leadRow(x)}<span class="lead-where">Está em: <b>${esc(leadWhere(x))}</b></span></div>`).join('')}</div>`;
+}
 function leadsList(){
+ if(leadQ().trim())return leadSearchHtml();
  if(V.lall)return leadsAllList();
  if(V.lt==='novas')return leadsNewHtml()||'<div class="grp"><div class="empty">Sem leads novas. As leads da campanha (email) e do site aparecem aqui até as marcar como recebidas.</div></div>';
  const l=leadOldFiltered();

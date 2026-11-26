@@ -59,3 +59,18 @@ test('run: sends email and WhatsApp once, records the reminder and skips at nigh
   assert.match(recs[0][1], /^Lembrete 1 \(4 dias\) · email \+ WhatsApp$/);
   assert.equal((await runLembretes(store, now + 20 * 60e3, deps)).sent, 0); // não repete
 });
+
+test('run: old proposals find their link in the sent PDF, and a reminder that could not go out is tried again', async () => {
+  const blobs = new Map(), meta = new Map([['pdf-tokvelho', { metadata: { quote: 2 } }]]);
+  const store = { get: async (k) => blobs.get(k) ?? null, setJSON: async (k, v) => blobs.set(k, v), list: async () => ({ blobs: [...meta.keys()].map((key) => ({ key })) }), getMetadata: async (k) => meta.get(k) ?? null };
+  const mails = [], recs = [];
+  let falha = true;
+  const deps = { load: async () => ({ rows: [{ id: 2, document: doc() }], events: [{ quoteId: 2, kind: 'enviado', at: at(6) }] }), mail: async (...a) => { if (falha) throw new Error('smtp'); mails.push(a); }, waOn: false, record: async (...a) => recs.push(a), push: async () => {} };
+  assert.equal((await runLembretes(store, now, deps)).sent, 0, 'the email failed');
+  assert.deepEqual(blobs.get('lembretes-enviados') || {}, {}, 'not marked as sent');
+  assert.equal(blobs.get('proposta-link-2').token, 'tokvelho', 'link found in the PDF metadata and kept');
+  falha = false;
+  assert.equal((await runLembretes(store, now + 20 * 60e3, deps)).sent, 1, 'tried again later');
+  assert.match(mails[0][2], /\/proposta\/tokvelho/);
+  assert.equal((await runLembretes(store, now + 40 * 60e3, deps)).sent, 0, 'and only once');
+});

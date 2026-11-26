@@ -50,9 +50,9 @@ export function due(rows, events, leads = [], now = Date.now()) {
     const t0 = new Date(sent.at).getTime(), after = ev.filter((e) => new Date(e.at).getTime() >= t0);
     if (after.some((e) => ANSWERS.includes(e.kind)) || today > expires(d)) continue;
     const done = new Set(after.filter((e) => e.kind === 'lembrete').map((e) => Number(String(e.note).match(/^Lembrete (\d)/)?.[1])));
-    // Só o mais recente em falta: se o de 4 dias falhou e já passaram 10, segue apenas o de 10.
+    // Só o mais recente em falta: se o de 4 dias falhou e já passaram 10, segue apenas o de 10 (até a proposta expirar).
     const s = [...STEPS].reverse().find((s) => now - t0 >= s.days * D);
-    if (!s || done.has(s.step) || (s.step === 1 && now - t0 > 9 * D) || now - t0 > 14 * D) continue;
+    if (!s || done.has(s.step) || (s.step === 1 && now - t0 > 9 * D)) continue;
     out.push({ quote: r.id, step: s.step, key: r.id + '|' + t0 + '|' + s.step, doc: d });
   }
   return out;
@@ -160,12 +160,15 @@ export async function runLembretes(store, now = Date.now(), deps = {}) {
     const d = x.doc, v = { nome: first(d.client), numero: number({ id: x.quote, date: d.date }), tema: topic(d), validade: dmy(expires(d)), link: base + '/proposta/' + token, eu: e.contacto?.nome || 'João Lima', tel: String(e.contacto?.telefone || '').trim() };
     const vias = [];
     const to = String(d.email || '').trim();
+    const quem = 'cliente|' + (to.toLowerCase() || waNumber(d.contact)) + '|' + x.step;
+    if (quem.split('|')[1] && sent[quem] && now - sent[quem] < 7 * D) { sent[x.key] = now; await store.setJSON('lembretes-enviados', sent); continue; }
     if (EMAIL.test(to) && to.length <= 320) { const m = emailText(x.step, v); try { await mail(to, m.subject, m.text, origin, m.label); vias.push('email'); } catch (err) { console.error('lembrete email', err?.code || err?.message); } }
     const tel = waNumber(d.contact);
     if (waOn && tel) { try { await wa(tel, waTemplate(x.step, v, token)); vias.push('WhatsApp'); } catch (err) { console.error('lembrete whatsapp', err?.message); } }
     if (!vias.length) continue;
     n++;
     sent[x.key] = now;
+    if (quem.split('|')[1]) sent[quem] = now;
     await store.setJSON('lembretes-enviados', sent);
     await record(x.quote, 'Lembrete ' + x.step + ' (' + STEPS[x.step - 1].days + ' dias) · ' + vias.join(' + ')).catch((err) => console.error('lembrete registo', err?.message));
   }

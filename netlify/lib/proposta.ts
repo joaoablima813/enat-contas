@@ -240,7 +240,7 @@ function body(token: string, row: any, answer: any, others: any[], e: any, views
  <div class="total"><small>Valor total</small><b>${esc(eur(total))}</b><small>IVA incluído</small></div>
  <ul class="steps"><li><b>50% na adjudicação</b><span>${esc(eur(half))}</span></li><li><b>50% no fim da obra</b><span>${esc(eur(Math.round((total - half) * 100) / 100))}</span></li></ul>
  <p class="muted">${expired ? `A proposta passou a validade a ${esc(day(until))}. Pode responder na mesma e confirmamos consigo os valores.` : `Preço garantido até <b>${esc(day(until))}</b>.`}${weeks.length ? ` Próxima disponibilidade para instalação: <b>${esc(weeks[0])}</b>.` : ''}</p>
- <a class="btn ghost" id="pdf" href="/proposta/${esc(token)}/pdf" target="_blank" rel="noopener">${icon('pdf')}Ver orçamento completo (PDF)</a></section>`;
+ <a class="btn orange" id="pdf" href="/proposta/${esc(token)}/pdf" target="_blank" rel="noopener">${icon('pdf')}Ver orçamento completo (PDF)</a></section>`;
 
   const faq = G.EnatSolucoes.faq(e, weeks);
   const faqHtml = faq.length ? `<section class="card"><h2>Perguntas frequentes</h2>${faq.map(([p, r]: string[]) => `<details><summary>${esc(p)}</summary><p>${esc(r)}</p></details>`).join('')}</section>` : '';

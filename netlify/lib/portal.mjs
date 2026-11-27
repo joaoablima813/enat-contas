@@ -91,21 +91,25 @@ const waNumber = (tel) => { const d = String(tel || '').replace(/\D/g, ''); retu
 export function portalHtml(token, p, e, chat, formHtml, summary, techs = []) {
   const nome = String(p.nome || '').trim(), first = nome.split(/\s+/)[0];
   const c = e.contacto || {}, person = c.nome || 'João Lima', role = c.cargo || 'Responsável comercial', tel = String(c.telefone || '').trim(), wa = waNumber(tel), mail = e.email || 'pontedelima@enat.pt';
-  const props = propostasOf(p), anexos = p.anexos || [], answered = Boolean(p.resp);
+  const props = propostasOf(p), anexos = p.anexos || [], answered = Boolean(p.resp), portal = answered || props.length > 0;
   // A fotografia do comercial só está disponível pelas propostas (o link da proposta serve a imagem).
   const foto = c.foto && props[0] ? `/proposta/${esc(props[0].token)}/img/${esc(c.foto)}` : '';
   const waText = encodeURIComponent(`Olá ${person}, tenho uma dúvida sobre o meu orçamento.`);
-  const nav = answered
+  const nav = !answered && props.length
+    ? [['orcamentos', 'Orçamentos · ' + props.length], ['mensagens', 'Mensagens'], ['dados', 'Questionário'], ['outra', 'Orçamento de outra empresa']]
+    : answered
     ? [['orcamentos', 'Orçamentos' + (props.length ? ' · ' + props.length : '')], ['mensagens', 'Mensagens'], ['dados', 'Os seus dados'], ['outra', 'Orçamento de outra empresa'], ['novo', 'Pedir outro orçamento']]
     : [['dados', 'Questionário'], ['mensagens', 'Mensagens'], ['outra', 'Orçamento de outra empresa']];
   const bubbles = (list) => list.map((m) => `<div class="msg ${m.de === 'c' ? 'me' : 'enat'}"><p>${esc(m.texto).replace(/\n/g, '<br>')}</p><small>${m.de === 'c' ? 'Você' : esc(person)} · ${esc(quando(m.at))}</small></div>`).join('');
-  const lead = answered
+  const lead = portal
     ? `Esta é a sua página na Enat. Aqui encontra os seus orçamentos, fala connosco e altera os seus dados quando quiser. <b>Guarde este link.</b>`
     : `Para preparar um orçamento à sua medida, sem visitas desnecessárias, responda às perguntas abaixo. Leva cerca de 2 minutos. Depois de enviar, esta passa a ser a sua página na Enat: <b>guarde este link</b>, é aqui que vai receber o orçamento e falar connosco.`;
   const contactCard = `<div class="person">${foto ? `<img src="${foto}" alt="" width="56" height="56">` : `<span class="initials">${esc(person.split(/\s+/).map((w) => w[0]).slice(0, 2).join(''))}</span>`}<div><b>${esc(person)}</b><small>${esc(role)} · Enat - Ponte de Lima</small></div></div>
  <div class="reach">${wa ? `<a class="btn light sm" href="https://wa.me/${esc(wa)}?text=${waText}" target="_blank" rel="noopener">${icon('wa')}WhatsApp</a><a class="btn glass sm" href="tel:+${esc(wa)}">${icon('phone')}Ligar</a>` : `<a class="btn light sm" href="mailto:${esc(mail)}">${icon('mail')}Enviar email</a>`}</div>`;
 
-  const dados = answered
+  const dados = !answered && props.length
+    ? `<section class="card" id="dados"><h2>Questionário (opcional)</h2><p class="muted">Se ainda não respondeu, as respostas ajudam-nos a confirmar o orçamento sem visitas desnecessárias. Leva cerca de 2 minutos.</p><button type="button" class="btn ghost" id="edit">${icon('edit')}Responder às perguntas</button></section><div id="formbox" hidden>${formHtml}</div>`
+    : answered
     ? `<section class="card" id="dados"><h2>Os seus dados</h2><p class="muted">Recebidos a ${esc(quando(p.resp.at))}. Se alguma coisa mudar, pode alterá-los aqui.</p>
 <div class="sum">${summary.slice(0, 6).map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
 <button type="button" class="btn ghost" id="edit">${icon('edit')}Ver ou alterar as respostas</button></section><div id="formbox" hidden>${formHtml}</div>`
@@ -131,14 +135,14 @@ export function portalHtml(token, p, e, chat, formHtml, summary, techs = []) {
 
   return `<header class="top"><span class="logo"><img src="/enat-logo.png" alt="Enat - Ponte de Lima" width="131" height="47"></span><span class="tag">A sua página</span></header>
 <section class="hero">
- <p class="kicker">${answered ? 'A sua página Enat' : 'O seu pedido de orçamento'}</p>
+ <p class="kicker">${portal ? 'A sua página Enat' : 'O seu pedido de orçamento'}</p>
  <h1>Olá${nome ? ', ' + esc(nome) : ''}</h1>
  <p class="lead">${lead}</p>
  ${contactCard}
- ${answered ? `<nav class="tabs" aria-label="Secções">${nav.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}</nav>` : ''}
+ ${portal ? `<nav class="tabs" aria-label="Secções">${nav.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}</nav>` : ''}
 </section>
 <section class="card" id="thanks" hidden><div class="thanks"><b>Obrigado${first ? ', ' + esc(first) : ''}!</b> Recebemos as suas respostas. ${esc(person)} vai preparar o seu orçamento e avisamos por email quando estiver pronto. Vai encontrá-lo nesta página.</div></section>
-${answered ? orcamentos + mensagens + dados + outra + novo : dados + `<div hidden>${orcamentos + mensagens + outra}</div>`}
+${portal ? orcamentos + mensagens + dados + outra + novo : dados + `<div hidden>${orcamentos + mensagens + outra}</div>`}
 ${reviewCard(e.google?.avaliar || undefined)}
 <footer><span class="logo sm"><img src="/enat-logo.png" alt="" width="84" height="30"></span><p><b>Enat - Ponte de Lima</b><br>${esc(person)}${tel ? ' · <a href="tel:+' + esc(wa) + '">' + esc(tel) + '</a>' : ''} · <a href="mailto:${esc(mail)}">${esc(mail)}</a><br>Os seus dados são usados apenas para preparar e acompanhar o seu orçamento.</p></footer>
 <script>

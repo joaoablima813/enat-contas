@@ -51,7 +51,7 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
     try { const { avisarProposta } = await import('./pedido.mjs'); aviso = await avisarProposta(b.email || q.email, q.client, number, base + '/pedido/' + portal, process.env.URL || new URL(req.url).origin); } catch (e: any) { console.error('aviso', e?.message); }
     return Response.json({ url: base + '/proposta/' + token, number, pagina: base + '/pedido/' + portal, aviso });
   }
-  return Response.json({ url: base + '/proposta/' + token, number });
+  return Response.json({ url: base + '/proposta/' + token, number, ...(portal ? { pagina: base + '/pedido/' + portal } : {}) });
 }
 
 // Public link opened by the client; only someone with the link can read the PDF.

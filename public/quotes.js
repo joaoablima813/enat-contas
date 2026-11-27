@@ -362,7 +362,7 @@ async function quoteWaSend(docs,channel='whatsapp'){
    status('A preparar '+quoteNumber(q.id,q.date)+(docs.length>1?' ('+(links.length+1)+' de '+docs.length+')':'')+'…');
    await quoteEnsureLead(q);
    const {doc,filename}=await buildQuotePdf(q,quoteWa.detailed);
-   const r=await API('whatsapp/pdf',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:q.id,group,channel:via,email:quoteWa.email.trim(),pdf:doc.output('datauristring').split(',').pop()})});
+   const r=await API('whatsapp/pdf',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:q.id,group,channel:via,email:quoteWa.email.trim(),semAviso:links.length>0,pdf:doc.output('datauristring').split(',').pop()})});
    const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||'Não foi possível preparar o PDF.');if(b.aviso)avisos.push(b.aviso);
    links.push(b.url);if(b.pagina)pagina=b.pagina;if(typeof File==='function')files.push(new File([doc.output('blob')],filename,{type:'application/pdf'}));
   }

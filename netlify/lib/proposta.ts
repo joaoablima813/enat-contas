@@ -166,7 +166,7 @@ export async function handleProposta(req: Request, token: string, store: any) {
     const rows = await db.select().from(quotes).where(inArray(quotes.id, ids));
     others = ((siblings as any[]) || []).map(s => ({ ...s, row: rows.find((r: any) => r.id === s.quote) })).filter(s => s.row);
   }
-  return new Response(page('Proposta ' + quoteNumber(row.id, q.date) + ' · ' + COMPANY.name, body(token, row, answer, others, empresa, (views as any[]).length, works as any[], portal)), { headers: HTML });
+  return new Response(page('Proposta ' + quoteNumber(row.id, q.date) + ' · ' + COMPANY.name, body(token, row, answer, others, empresa, (views as any[]).length, works as any[], portal), (String(process.env.LINK_URL || '').replace(/\/+$/, '') || 'https://propostas.enat-pontedelima.pt') + '/proposta/' + token), { headers: HTML });
 }
 
 const HTML = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer' };
@@ -340,8 +340,8 @@ ${reviewCard(e.google?.avaliar || undefined)}
 </script>`;
 }
 
-function page(title: string, content: string) {
-  return `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)"><meta name="color-scheme" content="light dark"><title>${esc(title)}</title><meta property="og:type" content="website"><meta property="og:site_name" content="ENAT Ponte de Lima"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="Proposta da ENAT Ponte de Lima: climatização e energias renováveis."><meta property="og:image" content="https://enat-pontedelima.pt/assets/og-enat.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="/favicon-32x32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+function page(title: string, content: string, url = '') {
+  return `<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)"><meta name="color-scheme" content="light dark"><title>${esc(title)}</title><meta property="og:type" content="website">${url ? '<meta property="og:url" content="' + esc(url) + '">' : ''}<meta property="og:site_name" content="ENAT Ponte de Lima"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="Proposta da ENAT Ponte de Lima: climatização e energias renováveis."><meta property="og:image" content="https://enat-pontedelima.pt/assets/og-enat.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="/favicon-32x32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
 ${BASE_CSS}
 </style></head><body>${content}</body></html>`;

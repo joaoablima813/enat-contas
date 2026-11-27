@@ -228,3 +228,7 @@ nav div{grid-template-columns:repeat(10,minmax(0,1fr))}
 .bc-toggle{display:flex;align-items:center;gap:10px;font-weight:600;margin:6px 0 10px}.bc-toggle input{width:20px;height:20px}
 .bc-item{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.bc-item small{display:block}
 .bc-total{font-size:16px}.bc-alert{padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--red,#d33) 10%,transparent)}
+
+/* Criar para Instagram (fotos da obra). */
+.ig .btn{margin-top:8px}.ig-box{margin-top:10px}.ig-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media (max-width:600px){.ig-acts{grid-template-columns:1fr}}
+.ig-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin:12px 0}.ig-grid figure{margin:0}.ig-grid img,.ig-grid video{width:100%;border-radius:12px;display:block;background:#000}.ig-grid figcaption{font-size:12.5px;color:var(--mute);margin:6px 0}.ig-fa{display:flex;gap:6px}.ig-fa .btn{padding:8px 10px;font-size:13px;margin:0}

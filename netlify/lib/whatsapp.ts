@@ -47,8 +47,8 @@ export async function handleWhatsapp(req: Request, path: string, store: any) {
   if (b.channel === 'pagina') {
     if (!portal) return fail(400, 'Este orçamento não está ligado a um cliente. Guarde-o a partir da ficha do cliente (lead).');
     await sent(row.id, 'Página do cliente');
-    let aviso = 'sem email';
-    try { const { avisarProposta } = await import('./pedido.mjs'); aviso = await avisarProposta(b.email || q.email, q.client, number, base + '/pedido/' + portal, process.env.URL || new URL(req.url).origin); } catch (e: any) { console.error('aviso', e?.message); }
+    let aviso = b.semAviso ? 'enviado' : 'sem email';
+    if (!b.semAviso) try { const { avisarProposta } = await import('./pedido.mjs'); aviso = await avisarProposta(b.email || q.email, q.client, number, base + '/pedido/' + portal, process.env.URL || new URL(req.url).origin); } catch (e: any) { console.error('aviso', e?.message); }
     return Response.json({ url: base + '/proposta/' + token, number, pagina: base + '/pedido/' + portal, aviso });
   }
   return Response.json({ url: base + '/proposta/' + token, number, ...(portal ? { pagina: base + '/pedido/' + portal } : {}) });

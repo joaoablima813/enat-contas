@@ -45,6 +45,7 @@ function pfEditor(p,k,status){
  <label class="row kv" style="gap:10px;cursor:pointer"><input type="checkbox" data-pff="ok" ${p.ok?'checked':''} style="width:22px;height:22px;flex:none"><div class="rt"><b>O cliente autorizou mostrar estas fotos</b><span>Peça autorização antes. Sem ela, as fotos não aparecem em lado nenhum.</span></div></label>
  <p class="note" role="status">${esc(PF_MSG)||status}</p>
  <button class="btn" data-pf="save" ${PF_BUSY?'disabled':''}>${PF_BUSY?'A guardar…':'Guardar'}</button>
+ ${typeof igSection==='function'?igSection(p,k):''}
  ${k.startsWith('s:')?`<button class="btn alt neg" data-pf="dels" ${PF_BUSY?'disabled':''} style="margin-top:10px">Eliminar esta obra do site</button>`:''}
  </div>`;
 }

@@ -407,3 +407,13 @@ test('heat pump sizing: supplier catalogues count (power/litres in the model) an
  const tubo = lines.find((l) => /multicamada 32/i.test(l[0])); assert.ok(tubo && tubo[1] > 0 && tubo[2] >= 12, 'pipe priced per metre');
  assert.ok(lines.some((l) => l[3] === 'Mão de obra'), 'labour line at the end');
 });
+test('lead page: send all the lead quotes at once, optionally with just the client page link', () => {
+ const {run} = app({...state, leads: [{id: 'la', name: 'Ana', email: 'ana@x.pt', contact: '912111222', stage: 'enviada', solutions: []}]});
+ run(`quoteRows=[1,2,3].map(i=>({id:90+i,document:{client:'Ana',contact:'912111222',lead:'la',date:'2026-11-2'+i,topics:['Ar condicionado'],lines:[{description:'AC',quantity:1,value:500}],vat:23,margin:20,validity:30},events:[]}))`);
+ run("V.tab='leads';leadDraft=structuredClone(S.leads[0])");
+ const h = run('leadQuotesHtml(leadDraft)');
+ assert.match(h, /Enviar ao cliente/); assert.equal((h.match(/data-qw="pick" value="\d+" checked/g) || []).length, 3, 'all three ticked');
+ assert.match(h, /Enviar só o link da página do cliente/); assert.match(h, /Preparar 3 orçamentos para WhatsApp/); assert.match(h, /Enviar 3 orçamentos por email/);
+ const t = run(`quoteWaText(quoteRows.map(r=>({...r.document,id:r.id})),['https://p/1','https://p/2','https://p/3'],'https://p/pedido/abc')`);
+ assert.match(t, /https:\/\/p\/pedido\/abc/); assert.doesNotMatch(t, /https:\/\/p\/1/); assert.match(t, /ORC 2026\/0091[\s\S]*ORC 2026\/0093/);
+});

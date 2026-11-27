@@ -130,7 +130,7 @@ function leadQuotesHtml(l){
  if(!l.id)return '';
  const rows=leadQuotes(l.id);
  const list=quoteRows===null?'<div class="empty">A carregar orçamentos…</div>':rows.length?rows.map(r=>`<div class="lead-q"><button class="row invoice-row" data-a="openquote" data-id="${r.id}"><div class="av">${ic('fatura')}</div><div class="rt"><b>${quoteNumber(r.id,r.document.date)} ${quoteBadge(r.document,r.events)}</b><span>${esc(quoteTitle(r.document).replace('Orçamento para ',''))}</span></div><div class="rr"><b>${eur(quoteTotals(r.document).total)}</b><span>com IVA</span></div></button><button type="button" class="link" data-la="pdf" data-id="${r.id}">Descarregar PDF do orçamento</button></div>`).join(''):'<div class="empty">Ainda sem orçamentos para esta lead.</div>';
- return`<h2>Orçamentos desta lead</h2><div class="grp">${list}</div><p class="note">Toque num orçamento para o abrir em Orçamentos.</p>`;
+ return`<h2>Orçamentos desta lead</h2><div class="grp">${list}</div><p class="note">Toque num orçamento para o abrir em Orçamentos.</p>${rows.length&&typeof quoteWaPanel==='function'?quoteWaPanel('lead:'+l.id,l.contact,rows,l.email,true):''}`;
 }
 // Histórico de chamadas da lead: tocar numa chamada abre-a com as observações dessa chamada.
 function leadCallsHtml(l){
